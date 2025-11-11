@@ -9,6 +9,13 @@ import BrowseMedia from "./pages/BrowseMedia";
 import Login from "./pages/Login";
 import Signup from "./pages/Signup";
 import Dashboard from "./pages/Dashboard";
+import MediaDetail from "./pages/MediaDetail";
+import AdminDashboard from "./pages/admin/Dashboard";
+import AdminMedia from "./pages/admin/Media";
+import AdminAds from "./pages/admin/Ads";
+import AdminAnalytics from "./pages/admin/Analytics";
+import AdminUsers from "./pages/admin/Users";
+import AdminSettings from "./pages/admin/Settings";
 
 const queryClient = new QueryClient();
 
@@ -25,12 +32,19 @@ export default function App() {
             <Route path="/login" element={<Login />} />
             <Route path="/signup" element={<Signup />} />
             <Route path="/dashboard" element={<Dashboard />} />
+            <Route path="/media/:id" element={<MediaDetail />} />
+
+            {/* Admin Routes */}
+            <Route path="/admin" element={<AdminDashboard />} />
+            <Route path="/admin/media" element={<AdminMedia />} />
+            <Route path="/admin/ads" element={<AdminAds />} />
+            <Route path="/admin/analytics" element={<AdminAnalytics />} />
+            <Route path="/admin/users" element={<AdminUsers />} />
+            <Route path="/admin/settings" element={<AdminSettings />} />
 
             {/* Placeholder routes - content to be added later */}
             <Route path="/categories" element={<BrowseMedia />} />
-            <Route path="/media/:id" element={<BrowseMedia />} />
             <Route path="/search" element={<BrowseMedia />} />
-            <Route path="/admin" element={<BrowseMedia />} />
             <Route path="/terms" element={<BrowseMedia />} />
             <Route path="/privacy" element={<BrowseMedia />} />
 
