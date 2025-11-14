@@ -1,6 +1,7 @@
 import Header from "./Header";
 import Footer from "./Footer";
 import { useEffect, useState } from "react";
+import { apiFetch } from "@/lib/api";
 
 interface LayoutProps {
   children: React.ReactNode;
@@ -10,7 +11,7 @@ export default function Layout({ children }: LayoutProps) {
   const [maintenanceMode, setMaintenanceMode] = useState(false);
 
   useEffect(() => {
-    fetch("/api/settings/general")
+    apiFetch("/api/settings/general")
       .then((res) => res.json())
       .then((data) => {
         if (typeof data?.maintenanceMode === "boolean") {

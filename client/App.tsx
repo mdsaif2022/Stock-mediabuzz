@@ -24,6 +24,7 @@ import AdminUsers from "./pages/admin/Users";
 import AdminSettings from "./pages/admin/Settings";
 import { useEffect } from "react";
 import { ADMIN_BASE_PATH } from "./constants/routes";
+import { apiFetch } from "@/lib/api";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -36,7 +37,7 @@ const queryClient = new QueryClient({
 
 export default function App() {
   useEffect(() => {
-    fetch("/api/settings/branding")
+    apiFetch("/api/settings/branding")
       .then((res) => res.json())
       .then((data) => {
         if (data?.faviconDataUrl) {

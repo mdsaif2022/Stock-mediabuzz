@@ -3,6 +3,7 @@ import { ArrowRight, Search, Download, Play, Music, Image as ImageIcon, Zap, Shi
 import Layout from "@/components/Layout";
 import { useEffect, useState } from "react";
 import { Media } from "@shared/api";
+import { apiFetch } from "@/lib/api";
 
 export default function Index() {
   const [trendingMedia, setTrendingMedia] = useState<Media[]>([]);
@@ -27,7 +28,7 @@ export default function Index() {
     const fetchTrendingMedia = async () => {
       try {
         setIsLoading(true);
-        const response = await fetch("/api/media/trending");
+        const response = await apiFetch("/api/media/trending");
         if (response.ok) {
           const data = await response.json();
           setTrendingMedia(data || []);

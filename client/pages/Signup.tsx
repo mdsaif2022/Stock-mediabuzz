@@ -4,6 +4,7 @@ import { Mail, Lock, User, ArrowRight, Sparkles } from "lucide-react";
 import { useState } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { auth } from "@/lib/firebase";
+import { apiFetch } from "@/lib/api";
 
 export default function Signup() {
   const [accountType, setAccountType] = useState<"user" | "creator">("user");
@@ -30,7 +31,7 @@ export default function Signup() {
 
   const registerCreatorProfile = async (name: string, email: string) => {
     try {
-      await fetch("/api/creators", {
+      await apiFetch("/api/creators", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",

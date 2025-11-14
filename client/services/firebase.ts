@@ -1,3 +1,5 @@
+import { apiFetch } from "@/lib/api";
+
 // Firebase configuration
 // NOTE: In production, use environment variables for sensitive data
 
@@ -16,7 +18,7 @@ export const firebaseAuthService = {
   async signup(email: string, password: string, name: string) {
     try {
       // In production, call Firebase API or your backend
-      const response = await fetch("/api/auth/signup", {
+      const response = await apiFetch("/api/auth/signup", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, password, name }),
@@ -37,7 +39,7 @@ export const firebaseAuthService = {
   // Login with email and password
   async login(email: string, password: string) {
     try {
-      const response = await fetch("/api/auth/login", {
+      const response = await apiFetch("/api/auth/login", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email, password }),
@@ -60,7 +62,7 @@ export const firebaseAuthService = {
     try {
       localStorage.removeItem("authToken");
       localStorage.removeItem("user");
-      await fetch("/api/auth/logout", { method: "POST" });
+      await apiFetch("/api/auth/logout", { method: "POST" });
     } catch (error) {
       console.error("Logout error:", error);
     }
@@ -85,7 +87,7 @@ export const firebaseAuthService = {
   // Send password reset email
   async resetPassword(email: string) {
     try {
-      const response = await fetch("/api/auth/reset-password", {
+      const response = await apiFetch("/api/auth/reset-password", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ email }),
@@ -103,7 +105,7 @@ export const firebaseAuthService = {
   // Verify email
   async verifyEmail(token: string) {
     try {
-      const response = await fetch("/api/auth/verify-email", {
+      const response = await apiFetch("/api/auth/verify-email", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ token }),

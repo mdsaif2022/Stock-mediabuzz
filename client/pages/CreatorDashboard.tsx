@@ -3,6 +3,7 @@ import { useNavigate } from "react-router-dom";
 import Layout from "@/components/Layout";
 import { useAuth } from "@/contexts/AuthContext";
 import { Media } from "@shared/api";
+import { apiFetch } from "@/lib/api";
 import {
   Sparkles,
   CheckCircle2,
@@ -90,7 +91,7 @@ export default function CreatorDashboard() {
     try {
       setStatsLoading(true);
       setStatsError("");
-      const response = await fetch("/api/media");
+      const response = await apiFetch("/api/media");
       if (!response.ok) {
         throw new Error("Failed to load uploads");
       }
@@ -120,7 +121,7 @@ export default function CreatorDashboard() {
   }, [loadCreatorStats]);
 
   useEffect(() => {
-    fetch("/api/settings/payment")
+    apiFetch("/api/settings/payment")
       .then((res) => res.json())
       .then((data) => {
         if (data?.bkashPersonal && data?.bkashMerchant) {
@@ -141,7 +142,7 @@ export default function CreatorDashboard() {
     setAccessRequestError("");
     setAccessRequestMessage("");
     try {
-      const response = await fetch("/api/creators", {
+      const response = await apiFetch("/api/creators", {
         method: "POST",
         headers: {
           "Content-Type": "application/json",
@@ -259,7 +260,7 @@ export default function CreatorDashboard() {
           setPurchaseLoading(false);
           return;
         }
-        response = await fetch("/api/creators/storage/purchase/manual", {
+        response = await apiFetch("/api/creators/storage/purchase/manual", {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
@@ -273,7 +274,7 @@ export default function CreatorDashboard() {
           }),
         });
       } else {
-        response = await fetch("/api/creators/storage/purchase", {
+        response = await apiFetch("/api/creators/storage/purchase", {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
@@ -390,7 +391,7 @@ export default function CreatorDashboard() {
         resourceType = "raw";
       formData.append("resource_type", resourceType);
 
-      const response = await fetch("/api/upload/file", {
+      const response = await apiFetch("/api/upload/file", {
         method: "POST",
         body: formData,
       });

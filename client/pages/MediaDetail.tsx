@@ -3,6 +3,7 @@ import { Download, Share2, Heart, Clock, Eye, Tag, AlertCircle, Play, Image as I
 import { Link, useParams, useNavigate } from "react-router-dom";
 import { useState, useEffect } from "react";
 import { Media } from "@shared/api";
+import { apiFetch } from "@/lib/api";
 
 export default function MediaDetail() {
   const { id } = useParams<{ id: string }>();
@@ -21,7 +22,7 @@ export default function MediaDetail() {
       if (!id) return;
       try {
         setIsLoading(true);
-        const response = await fetch(`/api/media/${id}`);
+        const response = await apiFetch(`/api/media/${id}`);
         if (response.ok) {
           const data = await response.json();
           setMedia(data);
@@ -100,7 +101,7 @@ export default function MediaDetail() {
           }, 2000);
           
           // Track download (this happens after file starts downloading)
-          fetch(`/api/download/${media.id}`, {
+          apiFetch(`/api/download/${media.id}`, {
             method: "POST",
             headers: {
               "Content-Type": "application/json",

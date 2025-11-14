@@ -1,6 +1,7 @@
 import AdminLayout from "@/components/AdminLayout";
 import { Plus, Edit, Trash2, Search, Filter, Upload, X, File, Image as ImageIcon, Video, Music, FileText, CheckCircle2, Link as LinkIcon } from "lucide-react";
 import { useState, useRef, useEffect } from "react";
+import { apiFetch } from "@/lib/api";
 
 interface MediaItem {
   id: string;
@@ -35,7 +36,7 @@ export default function AdminMedia() {
   const fetchMedia = async () => {
     try {
       setIsLoading(true);
-      const response = await fetch("/api/media");
+      const response = await apiFetch("/api/media");
       if (response.ok) {
         const data = await response.json();
         // Transform API data to match MediaItem interface
@@ -187,7 +188,7 @@ export default function AdminMedia() {
       });
 
       // Upload to Cloudinary via API
-      const response = await fetch("/api/upload/file", {
+      const response = await apiFetch("/api/upload/file", {
         method: "POST",
         body: formData,
       });
@@ -460,7 +461,7 @@ export default function AdminMedia() {
                         resourceType = "raw"; // Default for other file types
                       }
 
-                      const response = await fetch("/api/upload/url", {
+                      const response = await apiFetch("/api/upload/url", {
                         method: "POST",
                         headers: {
                           "Content-Type": "application/json",
@@ -706,7 +707,7 @@ export default function AdminMedia() {
                             onClick={async () => {
                               if (confirm(`Are you sure you want to delete "${item.title}"?`)) {
                                 try {
-                                  const response = await fetch(`/api/media/${item.id}`, {
+                                  const response = await apiFetch(`/api/media/${item.id}`, {
                                     method: "DELETE",
                                   });
                                   if (response.ok) {

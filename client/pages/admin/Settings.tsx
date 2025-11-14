@@ -1,6 +1,7 @@
 import AdminLayout from "@/components/AdminLayout";
 import { Save } from "lucide-react";
 import { useEffect, useState } from "react";
+import { apiFetch } from "@/lib/api";
 
 async function resizeImageToPng(dataUrl: string, size = 64): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -51,7 +52,7 @@ export default function AdminSettings() {
   const [generalMessage, setGeneralMessage] = useState("");
 
   useEffect(() => {
-    Promise.all([fetch("/api/settings/payment"), fetch("/api/settings/branding"), fetch("/api/settings/general")])
+    Promise.all([apiFetch("/api/settings/payment"), apiFetch("/api/settings/branding"), apiFetch("/api/settings/general")])
       .then(async ([paymentRes, brandingRes, generalRes]) => {
         if (paymentRes.ok) {
           const data = await paymentRes.json();
@@ -98,7 +99,7 @@ export default function AdminSettings() {
     setPaymentStatus("saving");
     setPaymentMessage("");
     try {
-      const response = await fetch("/api/settings/payment", {
+      const response = await apiFetch("/api/settings/payment", {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
@@ -136,7 +137,7 @@ export default function AdminSettings() {
     setBrandingStatus("saving");
     setBrandingMessage("");
     try {
-      const response = await fetch("/api/settings/branding", {
+      const response = await apiFetch("/api/settings/branding", {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",
@@ -163,7 +164,7 @@ export default function AdminSettings() {
     setGeneralStatus("saving");
     setGeneralMessage("");
     try {
-      const response = await fetch("/api/settings/general", {
+      const response = await apiFetch("/api/settings/general", {
         method: "PUT",
         headers: {
           "Content-Type": "application/json",

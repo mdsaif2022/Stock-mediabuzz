@@ -2,6 +2,7 @@ import AdminLayout from "@/components/AdminLayout";
 import { Search, Ban, Shield, RotateCcw, Trash2, CheckCircle2, AlertTriangle, Loader2, Sparkles } from "lucide-react";
 import { useEffect, useState } from "react";
 import { CreatorProfile, CreatorStoragePurchase, PlatformUser } from "@shared/api";
+import { apiFetch } from "@/lib/api";
 
 interface ManualPaymentRecord {
   creatorId: string;
@@ -30,7 +31,7 @@ export default function AdminUsers() {
     try {
       setUsersLoading(true);
       setUsersError("");
-      const response = await fetch("/api/admin/users");
+      const response = await apiFetch("/api/admin/users");
       if (!response.ok) {
         throw new Error("Failed to load users");
       }
@@ -47,7 +48,7 @@ export default function AdminUsers() {
   const fetchCreators = async () => {
     try {
       setCreatorLoading(true);
-      const response = await fetch("/api/admin/creators");
+      const response = await apiFetch("/api/admin/creators");
       if (!response.ok) {
         throw new Error("Failed to load creator applications");
       }
@@ -64,7 +65,7 @@ export default function AdminUsers() {
     try {
       setManualLoading(true);
       setManualError("");
-      const response = await fetch("/api/admin/storage/manual-payments");
+      const response = await apiFetch("/api/admin/storage/manual-payments");
       if (!response.ok) {
         throw new Error("Failed to load manual payments");
       }
@@ -86,7 +87,7 @@ export default function AdminUsers() {
 
   const updateCreatorStatus = async (id: string, status: CreatorProfile["status"]) => {
     try {
-      const response = await fetch(`/api/admin/creators/${id}`, {
+      const response = await apiFetch(`/api/admin/creators/${id}`, {
         method: "PATCH",
         headers: {
           "Content-Type": "application/json",
@@ -111,7 +112,7 @@ export default function AdminUsers() {
       action === "reject" ? window.prompt("Optional note for the creator:", "") ?? "" : "";
 
     try {
-      const response = await fetch(
+      const response = await apiFetch(
         `/api/admin/storage/manual-payments/${record.creatorId}/${record.purchase.id}/${action}`,
         {
           method: "POST",

@@ -12,6 +12,7 @@ import {
   sendEmailVerification,
 } from "firebase/auth";
 import { auth } from "@/lib/firebase";
+import { apiFetch } from "@/lib/api";
 import { AccountType, CreatorProfile } from "@shared/api";
 
 interface AuthContextType {
@@ -64,7 +65,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
     }) => {
       if (!email) return;
       try {
-        await fetch("/api/users/register", {
+        await apiFetch("/api/users/register", {
           method: "POST",
           headers: {
             "Content-Type": "application/json",
@@ -147,7 +148,7 @@ export function AuthProvider({ children }: AuthProviderProps) {
 
       try {
         setCreatorLoading(true);
-        const response = await fetch(`/api/creators/status?email=${encodeURIComponent(targetEmail)}`);
+        const response = await apiFetch(`/api/creators/status?email=${encodeURIComponent(targetEmail)}`);
         if (!response.ok) {
           throw new Error("Failed to fetch creator profile");
         }

@@ -29,6 +29,7 @@ import { ArrowRight, Lock, Mail, Sparkles } from "lucide-react";
 import Layout from "@/components/Layout";
 import { useAuth } from "@/contexts/AuthContext";
 import { ADMIN_BASE_PATH } from "@/constants/routes";
+import { apiFetch } from "@/lib/api";
 
 export default function Login() {
   const [searchParams] = useSearchParams();
@@ -59,7 +60,7 @@ export default function Login() {
 
     try {
       if (accountType === "admin") {
-        const response = await fetch("/api/auth/login", {
+        const response = await apiFetch("/api/auth/login", {
           method: "POST",
           headers: { "Content-Type": "application/json" },
           body: JSON.stringify({
