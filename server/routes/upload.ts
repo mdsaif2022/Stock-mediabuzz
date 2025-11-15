@@ -25,6 +25,48 @@ interface UploadRequest {
   };
 }
 
+const parseFeatureScreenshots = (input: any): Media["featureScreenshots"] => {
+  if (!input) return [];
+  let parsed = input;
+  if (typeof input === "string") {
+    try {
+      parsed = JSON.parse(input);
+    } catch {
+      return [];
+    }
+  }
+  if (!Array.isArray(parsed)) return [];
+  return parsed
+    .map((item) => {
+      if (!item) return null;
+      const url = typeof item.url === "string" ? item.url.trim() : "";
+      if (!url) return null;
+      const title = typeof item.title === "string" && item.title.trim() ? item.title.trim() : undefined;
+      const description =
+        typeof item.description === "string" && item.description.trim() ? item.description.trim() : undefined;
+      return { title, description, url };
+    })
+    .filter(Boolean) as Media["featureScreenshots"];
+};
+
+const parseShowScreenshots = (value: any): boolean => {
+  if (typeof value === "boolean") {
+    return value;
+  }
+  if (typeof value === "string") {
+    const normalized = value.toLowerCase().trim();
+    if (normalized === "false" || normalized === "0") return false;
+    if (normalized === "true" || normalized === "1") return true;
+  }
+  return true;
+};
+
+const normalizeIconUrl = (value: any): string | undefined => {
+  if (typeof value !== "string") return undefined;
+  const trimmed = value.trim();
+  return trimmed || undefined;
+};
+
 export const handleFileUpload: RequestHandler = async (req, res) => {
   try {
     const files = (req as any).files as Express.Multer.File[];
@@ -95,6 +137,9 @@ export const handleFileUpload: RequestHandler = async (req, res) => {
     const formIsPremium = req.body.isPremium === "true" || req.body.isPremium === true;
     const creatorName = req.body.creatorName;
     const creatorEmail = req.body.creatorEmail;
+    const iconUrl = normalizeIconUrl(req.body.iconUrl);
+    const featureScreenshots = parseFeatureScreenshots(req.body.featureScreenshots);
+    const showScreenshots = parseShowScreenshots(req.body.showScreenshots);
 
     // Normalize category - map form values to lowercase API values
     const normalizeCategory = (cat: string): string => {
@@ -146,6 +191,9 @@ export const handleFileUpload: RequestHandler = async (req, res) => {
         creatorId: creatorId || undefined,
         uploadedDate: new Date().toISOString().split("T")[0],
         cloudinaryAccount: server === "server1" ? 1 : server === "server2" ? 2 : server === "server3" ? 3 : 1,
+        iconUrl,
+        featureScreenshots,
+        showScreenshots,
       };
 
       mediaDatabase.push(newMedia);
@@ -214,6 +262,9 @@ export const handleUrlUpload: RequestHandler = async (req, res) => {
     const mediaType = type || (isApkFile ? "Android APK" : resource_type.toUpperCase());
     const mediaTags = tags ? (typeof tags === "string" ? tags.split(",").map((tag: string) => tag.trim()) : tags) : [];
     const mediaIsPremium = isPremium === "true" || isPremium === true;
+    const iconUrl = normalizeIconUrl(req.body.iconUrl);
+    const featureScreenshots = parseFeatureScreenshots(req.body.featureScreenshots);
+    const showScreenshots = parseShowScreenshots(req.body.showScreenshots);
 
     const newMedia: Media = {
       id: Date.now().toString(),
@@ -234,6 +285,9 @@ export const handleUrlUpload: RequestHandler = async (req, res) => {
       creatorId: creatorId || undefined,
       uploadedDate: new Date().toISOString().split("T")[0],
       cloudinaryAccount: server === "server1" ? 1 : server === "server2" ? 2 : server === "server3" ? 3 : 1,
+      iconUrl,
+      featureScreenshots,
+      showScreenshots,
     };
 
     mediaDatabase.push(newMedia);
@@ -258,6 +312,42 @@ export const handleUrlUpload: RequestHandler = async (req, res) => {
       error: "URL upload failed",
       message: error.message || "An error occurred during URL upload",
     });
+  }
+};
+
+export const handleAssetUpload: RequestHandler = async (req, res) => {
+  try {
+    const file = (req as any).file as Express.Multer.File | undefined;
+    if (!file) {
+      return res.status(400).json({ error: "File is required" });
+    }
+    const { server = "auto", folder, resource_type = "auto", public_id } = req.body;
+    let detectedResourceType: "image" | "video" | "raw" | "auto" = resource_type;
+    if (resource_type === "auto") {
+      if (file.mimetype.startsWith("image/")) {
+        detectedResourceType = "image";
+      } else if (file.mimetype.startsWith("video/")) {
+        detectedResourceType = "video";
+      } else {
+        detectedResourceType = "raw";
+      }
+    }
+    const result = await uploadToCloudinary(file.buffer, {
+      server: server as CloudinaryServer,
+      folder,
+      resource_type: detectedResourceType,
+      public_id,
+    });
+    res.json({
+      success: true,
+      url: result.url,
+      secureUrl: result.secure_url,
+      publicId: result.public_id,
+      resourceType: detectedResourceType,
+    });
+  } catch (error: any) {
+    console.error("Asset upload error:", error);
+    res.status(500).json({ error: "Asset upload failed", message: error.message || "Unexpected error" });
   }
 };
 

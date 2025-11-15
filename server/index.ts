@@ -9,7 +9,7 @@ import * as adminRoutes from "./routes/admin";
 import * as creatorRoutes from "./routes/creators.js";
 import * as settingsRoutes from "./routes/settings.js";
 import * as usersRoutes from "./routes/users.js";
-import { handleFileUpload, handleUrlUpload, upload } from "./routes/upload.js";
+import { handleFileUpload, handleUrlUpload, upload, handleAssetUpload } from "./routes/upload.js";
 
 export function createServer() {
   const app = express();
@@ -21,11 +21,24 @@ export function createServer() {
       "http://localhost:5173",
       "https://stock-mediabuzz.vercel.app",
     ];
+  const localOriginPatterns = [
+    /^http:\/\/localhost(?::\d+)?$/i,
+    /^http:\/\/127\.0\.0\.1(?::\d+)?$/i,
+    /^http:\/\/192\.168\.\d{1,3}\.\d{1,3}(?::\d+)?$/i,
+  ];
 
   app.use(
     cors({
       origin: (origin, callback) => {
-        if (!origin || allowedOrigins.includes(origin)) {
+        if (!origin) {
+          callback(null, true);
+          return;
+        }
+
+        const isExplicitlyAllowed = allowedOrigins.includes(origin);
+        const matchesLocalPattern = localOriginPatterns.some((pattern) => pattern.test(origin));
+
+        if (isExplicitlyAllowed || matchesLocalPattern) {
           callback(null, true);
         } else {
           callback(new Error("Not allowed by CORS"));
@@ -113,6 +126,7 @@ export function createServer() {
   // Upload routes
   app.post("/api/upload/file", upload.array("files", 10), handleFileUpload);
   app.post("/api/upload/url", handleUrlUpload);
+  app.post("/api/upload/asset", upload.single("file"), handleAssetUpload);
 
   return app;
 }

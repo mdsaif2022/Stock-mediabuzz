@@ -25,6 +25,7 @@ import AdminSettings from "./pages/admin/Settings";
 import { useEffect } from "react";
 import { ADMIN_BASE_PATH } from "./constants/routes";
 import { apiFetch } from "@/lib/api";
+import ScrollToTop from "@/components/ScrollToTop";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -63,6 +64,7 @@ export default function App() {
             <Toaster />
             <Sonner />
             <BrowserRouter>
+            <ScrollToTop />
             <Routes>
               <Route path="/" element={<Index />} />
               <Route path="/browse" element={<BrowseMedia />} />

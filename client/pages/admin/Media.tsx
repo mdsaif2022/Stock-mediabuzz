@@ -2,6 +2,7 @@ import AdminLayout from "@/components/AdminLayout";
 import { Plus, Edit, Trash2, Search, Filter, Upload, X, File, Image as ImageIcon, Video, Music, FileText, CheckCircle2, Link as LinkIcon } from "lucide-react";
 import { useState, useRef, useEffect } from "react";
 import { apiFetch } from "@/lib/api";
+import { Switch } from "@/components/ui/switch";
 
 interface MediaItem {
   id: string;
@@ -13,6 +14,14 @@ interface MediaItem {
   isPremium: boolean;
   fileUrl?: string;
   previewUrl?: string;
+}
+
+interface FeatureScreenshotDraft {
+  id: string;
+  title: string;
+  description: string;
+  url: string;
+  uploading?: boolean;
 }
 
 export default function AdminMedia() {
@@ -27,11 +36,25 @@ export default function AdminMedia() {
   const [mediaItems, setMediaItems] = useState<MediaItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
   const fileInputRef = useRef<HTMLInputElement>(null);
+  const iconInputRef = useRef<HTMLInputElement>(null);
+  const screenshotInputRef = useRef<HTMLInputElement>(null);
+  const [categoryValue, setCategoryValue] = useState("");
+  const [appIcon, setAppIcon] = useState<{ url: string; uploading: boolean } | null>(null);
+  const [featureScreenshots, setFeatureScreenshots] = useState<FeatureScreenshotDraft[]>([]);
+  const [showScreenshotsToggle, setShowScreenshotsToggle] = useState(true);
 
   // Fetch media from API
   useEffect(() => {
     fetchMedia();
   }, []);
+
+  useEffect(() => {
+    if (categoryValue.toLowerCase() !== "apk") {
+      setAppIcon(null);
+      setFeatureScreenshots([]);
+      setShowScreenshotsToggle(true);
+    }
+  }, [categoryValue]);
 
   const fetchMedia = async () => {
     try {
@@ -112,6 +135,23 @@ export default function AdminMedia() {
     return Math.round(bytes / Math.pow(k, i) * 100) / 100 + ' ' + sizes[i];
   };
 
+  const uploadAssetFile = async (file: File) => {
+    const formData = new FormData();
+    formData.append("file", file);
+    const cloudStorageSelect = document.getElementById("cloudStorage") as HTMLSelectElement;
+    const server = cloudStorageSelect?.value || "auto";
+    formData.append("server", server);
+    const response = await apiFetch("/api/upload/asset", {
+      method: "POST",
+      body: formData,
+    });
+    const data = await response.json();
+    if (!response.ok) {
+      throw new Error(data?.message || "Failed to upload asset");
+    }
+    return data.secureUrl || data.url;
+  };
+
   const handleFileSelect = (files: FileList | null) => {
     if (!files) return;
     const fileArray = Array.from(files);
@@ -138,6 +178,81 @@ export default function AdminMedia() {
     setSelectedFiles((prev) => prev.filter((_, i) => i !== index));
   };
 
+  const handleIconFiles = async (files: FileList | null) => {
+    if (!files || !files[0]) return;
+    const file = files[0];
+    setAppIcon({ url: "", uploading: true });
+    try {
+      const uploadedUrl = await uploadAssetFile(file);
+      setAppIcon({ url: uploadedUrl, uploading: false });
+    } catch (error: any) {
+      console.error("Icon upload failed:", error);
+      setAppIcon(null);
+      alert(error.message || "Failed to upload icon");
+    } finally {
+      if (iconInputRef.current) {
+        iconInputRef.current.value = "";
+      }
+    }
+  };
+
+  const generateTempId = () => {
+    if (typeof crypto !== "undefined" && crypto.randomUUID) {
+      return crypto.randomUUID();
+    }
+    return `temp-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  };
+
+  const handleScreenshotFiles = async (files: FileList | null) => {
+    if (!files) return;
+    const fileArray = Array.from(files);
+    for (const file of fileArray) {
+      const tempId = generateTempId();
+      setFeatureScreenshots((prev) => [
+        ...prev,
+        {
+          id: tempId,
+          title: file.name.replace(/\.[^/.]+$/, ""),
+          description: "",
+          url: "",
+          uploading: true,
+        },
+      ]);
+      try {
+        const uploadedUrl = await uploadAssetFile(file);
+        setFeatureScreenshots((prev) =>
+          prev.map((shot) => (shot.id === tempId ? { ...shot, url: uploadedUrl, uploading: false } : shot))
+        );
+      } catch (error: any) {
+        console.error("Screenshot upload failed:", error);
+        setFeatureScreenshots((prev) => prev.filter((shot) => shot.id !== tempId));
+        alert(error.message || "Failed to upload screenshot");
+      }
+    }
+    if (screenshotInputRef.current) {
+      screenshotInputRef.current.value = "";
+    }
+  };
+
+  const updateScreenshotField = (id: string, field: "title" | "description", value: string) => {
+    setFeatureScreenshots((prev) =>
+      prev.map((shot) => (shot.id === id ? { ...shot, [field]: value } : shot))
+    );
+  };
+
+  const removeScreenshot = (id: string) => {
+    setFeatureScreenshots((prev) => prev.filter((shot) => shot.id !== id));
+  };
+
+  const serializeScreenshots = () =>
+    featureScreenshots
+      .filter((shot) => shot.url && !shot.uploading)
+      .map((shot) => ({
+        title: shot.title?.trim() || undefined,
+        description: shot.description?.trim() || undefined,
+        url: shot.url,
+      }));
+
   const handleUpload = async (title?: string, category?: string, type?: string, description?: string, tags?: string, isPremium?: boolean) => {
     if (selectedFiles.length === 0) return;
 
@@ -162,6 +277,16 @@ export default function AdminMedia() {
       if (description) formData.append("description", description);
       if (tags) formData.append("tags", tags);
       if (isPremium !== undefined) formData.append("isPremium", isPremium.toString());
+      const isApkCategory =
+        (category || "").toLowerCase() === "apk" || categoryValue.toLowerCase() === "apk";
+      if (isApkCategory) {
+        if (appIcon?.url) formData.append("iconUrl", appIcon.url);
+        formData.append("showScreenshots", showScreenshotsToggle ? "true" : "false");
+        const serializedScreens = serializeScreenshots();
+        if (serializedScreens.length > 0) {
+          formData.append("featureScreenshots", JSON.stringify(serializedScreens));
+        }
+      }
 
       // Determine resource type from files
       const firstFile = selectedFiles[0];
@@ -222,6 +347,11 @@ export default function AdminMedia() {
         setSelectedFiles([]);
         setUploadProgress({});
         setShowAddForm(false);
+        setAppIcon(null);
+        setFeatureScreenshots([]);
+        setShowScreenshotsToggle(true);
+        setCategoryValue("");
+        setUrlLinks({ previewUrl: '', fileUrl: '' });
         alert(`Successfully uploaded ${result.files.length} file(s) to ${result.files[0]?.server || server}!`);
       }, 500);
     } catch (error: any) {
@@ -469,23 +599,30 @@ export default function AdminMedia() {
                         resourceType = "raw"; // Default for other file types
                       }
 
-                      const response = await apiFetch("/api/upload/url", {
+                    const isApkCategory = (category || "").toLowerCase() === "apk";
+                    const payload: Record<string, unknown> = {
+                      url: urlLinks.fileUrl,
+                      server,
+                      resource_type: resourceType,
+                      title,
+                      category,
+                      type,
+                      description,
+                      tags,
+                      isPremium,
+                      previewUrl: urlLinks.previewUrl || urlLinks.fileUrl,
+                    };
+                    if (isApkCategory) {
+                      payload.iconUrl = appIcon?.url;
+                      payload.showScreenshots = showScreenshotsToggle;
+                      payload.featureScreenshots = serializeScreenshots();
+                    }
+                    const response = await apiFetch("/api/upload/url", {
                         method: "POST",
                         headers: {
                           "Content-Type": "application/json",
                         },
-                        body: JSON.stringify({
-                          url: urlLinks.fileUrl,
-                          server,
-                          resource_type: resourceType,
-                          title,
-                          category,
-                          type,
-                          description,
-                          tags,
-                          isPremium,
-                          previewUrl: urlLinks.previewUrl || urlLinks.fileUrl,
-                        }),
+                        body: JSON.stringify(payload),
                       });
 
                       if (!response.ok) {
@@ -526,6 +663,8 @@ export default function AdminMedia() {
                 <select 
                   name="category"
                   required
+                  value={categoryValue}
+                  onChange={(e) => setCategoryValue(e.target.value)}
                   className="w-full px-3 sm:px-4 py-2 border border-border rounded-lg bg-slate-50 dark:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-primary text-sm sm:text-base"
                 >
                   <option value="">Select category</option>
@@ -576,6 +715,157 @@ export default function AdminMedia() {
                   className="w-full px-3 sm:px-4 py-2 border border-border rounded-lg bg-slate-50 dark:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-primary text-sm sm:text-base"
                 />
               </div>
+              {categoryValue.toLowerCase() === "apk" && (
+                <div className="md:col-span-2 space-y-6 rounded-lg border border-dashed border-border p-4 sm:p-6">
+                  <div className="flex flex-col lg:flex-row gap-4">
+                    <div className="flex-1 space-y-3">
+                      <label className="block text-sm font-medium">App Icon</label>
+                      <p className="text-xs text-muted-foreground">
+                        Upload a square icon (PNG/JPG). Recommended size 512x512.
+                      </p>
+                      <div
+                        onClick={() => iconInputRef.current?.click()}
+                        onDragOver={(e) => e.preventDefault()}
+                        onDrop={(e) => {
+                          e.preventDefault();
+                          handleIconFiles(e.dataTransfer.files);
+                        }}
+                        className="border-2 border-dashed border-border rounded-xl p-4 flex flex-col items-center justify-center gap-3 cursor-pointer hover:border-primary transition-colors"
+                      >
+                        {appIcon?.url ? (
+                          <div className="relative">
+                            <img
+                              src={appIcon.url}
+                              alt="App icon preview"
+                              className="w-20 h-20 rounded-2xl object-cover border border-border"
+                            />
+                            <button
+                              type="button"
+                              onClick={(e) => {
+                                e.stopPropagation();
+                                setAppIcon(null);
+                              }}
+                              className="absolute -top-2 -right-2 bg-white text-destructive rounded-full p-1 shadow"
+                            >
+                              <X className="w-4 h-4" />
+                            </button>
+                          </div>
+                        ) : (
+                          <>
+                            <ImageIcon className="w-8 h-8 text-muted-foreground" />
+                            <p className="text-sm font-semibold">Drag & drop or click to upload</p>
+                          </>
+                        )}
+                        {appIcon?.uploading && <p className="text-xs text-muted-foreground">Uploading icon...</p>}
+                        <input
+                          ref={iconInputRef}
+                          type="file"
+                          accept="image/*"
+                          className="hidden"
+                          onChange={(e) => handleIconFiles(e.target.files)}
+                        />
+                      </div>
+                    </div>
+                    <div className="flex-1 space-y-3">
+                      <label className="block text-sm font-medium">Display Screenshots</label>
+                      <p className="text-xs text-muted-foreground">
+                        Toggle to control whether screenshots appear on the user download page.
+                      </p>
+                      <div className="flex items-center justify-between rounded-xl border border-border px-4 py-3">
+                        <div>
+                          <p className="text-sm font-semibold">Show screenshots</p>
+                          <p className="text-xs text-muted-foreground">
+                            Users will see these screenshots below the download button.
+                          </p>
+                        </div>
+                        <Switch checked={showScreenshotsToggle} onCheckedChange={setShowScreenshotsToggle} />
+                      </div>
+                    </div>
+                  </div>
+                  <div className="space-y-4">
+                    <div className="flex items-center justify-between">
+                      <div>
+                        <h4 className="text-sm font-medium">Feature Screenshots</h4>
+                        <p className="text-xs text-muted-foreground">
+                          Upload multiple screenshots to showcase app features.
+                        </p>
+                      </div>
+                      <button
+                        type="button"
+                        onClick={() => screenshotInputRef.current?.click()}
+                        className="inline-flex items-center gap-2 rounded-lg border border-border px-3 py-1.5 text-sm hover:bg-slate-50 dark:hover:bg-slate-800"
+                      >
+                        <Upload className="w-4 h-4" />
+                        Upload Images
+                      </button>
+                      <input
+                        ref={screenshotInputRef}
+                        type="file"
+                        accept="image/*"
+                        multiple
+                        className="hidden"
+                        onChange={(e) => handleScreenshotFiles(e.target.files)}
+                      />
+                    </div>
+                    <div
+                      onDragOver={(e) => e.preventDefault()}
+                      onDrop={(e) => {
+                        e.preventDefault();
+                        handleScreenshotFiles(e.dataTransfer.files);
+                      }}
+                      className="rounded-xl border-2 border-dashed border-border p-4 text-center text-sm text-muted-foreground"
+                    >
+                      Drag & drop screenshots here or use the button above.
+                    </div>
+                    {featureScreenshots.length > 0 ? (
+                      <div className="space-y-4">
+                        {featureScreenshots.map((shot) => (
+                          <div
+                            key={shot.id}
+                            className="flex flex-col sm:flex-row gap-3 border border-border rounded-xl p-3"
+                          >
+                            <div className="w-full sm:w-32 h-32 bg-slate-100 dark:bg-slate-800 rounded-lg overflow-hidden flex items-center justify-center">
+                              {shot.url ? (
+                                <img src={shot.url} alt={shot.title || "Screenshot"} className="w-full h-full object-cover" />
+                              ) : (
+                                <span className="text-xs text-muted-foreground">Uploading...</span>
+                              )}
+                            </div>
+                            <div className="flex-1 space-y-2">
+                              <input
+                                type="text"
+                                value={shot.title}
+                                onChange={(e) => updateScreenshotField(shot.id, "title", e.target.value)}
+                                placeholder="Screenshot title"
+                                className="w-full px-3 py-2 rounded-lg border border-border bg-slate-50 dark:bg-slate-800 text-sm"
+                              />
+                              <textarea
+                                value={shot.description}
+                                onChange={(e) => updateScreenshotField(shot.id, "description", e.target.value)}
+                                placeholder="Description (optional)"
+                                className="w-full px-3 py-2 rounded-lg border border-border bg-slate-50 dark:bg-slate-800 text-sm resize-none"
+                                rows={2}
+                              />
+                            </div>
+                            <div className="flex items-start justify-end">
+                              <button
+                                type="button"
+                                onClick={() => removeScreenshot(shot.id)}
+                                disabled={shot.uploading}
+                                className="px-3 py-2 rounded-lg border border-destructive text-destructive hover:bg-destructive/10 text-sm disabled:opacity-50"
+                              >
+                                Remove
+                              </button>
+                            </div>
+                          </div>
+                        ))}
+                      </div>
+                    ) : (
+                      <p className="text-sm text-muted-foreground">No screenshots added yet.</p>
+                    )}
+                  </div>
+                </div>
+              )}
               <div className="flex items-center gap-2 md:col-span-2">
                 <input
                   type="checkbox"
@@ -617,6 +907,10 @@ export default function AdminMedia() {
                     setUploadProgress({});
                     setUrlLinks({ previewUrl: '', fileUrl: '' });
                     setUploadMethod('file');
+                    setAppIcon(null);
+                    setFeatureScreenshots([]);
+                    setShowScreenshotsToggle(true);
+                    setCategoryValue("");
                   }}
                   className="flex-1 px-4 sm:px-6 py-2.5 sm:py-3 border border-border rounded-lg font-semibold hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors text-sm sm:text-base touch-manipulation"
                 >

@@ -2,8 +2,12 @@ import Layout from "@/components/Layout";
 import { Download, Share2, Heart, Clock, Eye, Tag, AlertCircle, Play, Image as ImageIcon, Music, Zap, Check, Smartphone } from "lucide-react";
 import { Link, useParams, useNavigate } from "react-router-dom";
 import { useState, useEffect } from "react";
-import { Media } from "@shared/api";
+import { Media, MediaResponse } from "@shared/api";
 import { apiFetch } from "@/lib/api";
+import { DownloadVideoViewer } from "@/components/media/DownloadVideoViewer";
+import { VideoCard } from "@/components/media/VideoCard";
+import { AudioPlayer } from "@/components/media/AudioPlayer";
+import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 
 export default function MediaDetail() {
   const { id } = useParams<{ id: string }>();
@@ -12,9 +16,10 @@ export default function MediaDetail() {
   const [isDownloading, setIsDownloading] = useState(false);
   const [media, setMedia] = useState<Media | null>(null);
   const [isLoading, setIsLoading] = useState(true);
-  const [isPlaying, setIsPlaying] = useState(false);
-  const [videoRef, setVideoRef] = useState<HTMLVideoElement | null>(null);
   const [shareCopied, setShareCopied] = useState(false);
+  const [relatedMedia, setRelatedMedia] = useState<Media[]>([]);
+  const [isRelatedLoading, setIsRelatedLoading] = useState(false);
+  const [activeScreenshot, setActiveScreenshot] = useState<{ title?: string; description?: string; url: string } | null>(null);
 
   // Fetch media data from API
   useEffect(() => {
@@ -40,19 +45,45 @@ export default function MediaDetail() {
     fetchMedia();
   }, [id, navigate]);
 
-  const handlePlay = () => {
-    if (videoRef) {
-      if (isPlaying) {
-        videoRef.pause();
-        setIsPlaying(false);
-      } else {
-        videoRef.play().catch((error) => {
-          console.error("Error playing video:", error);
-        });
-        setIsPlaying(true);
-      }
+  useEffect(() => {
+    if (!media) {
+      setRelatedMedia([]);
+      return;
     }
-  };
+
+    const controller = new AbortController();
+    const fetchRelated = async () => {
+      setIsRelatedLoading(true);
+      try {
+        const params = new URLSearchParams({
+          category: media.category,
+          page: "1",
+          pageSize: "12",
+          sort: "popular",
+        });
+        const response = await apiFetch(`/api/media?${params.toString()}`, { signal: controller.signal });
+        if (response.ok) {
+          const payload: MediaResponse = await response.json();
+          const items = Array.isArray(payload?.data) ? payload.data : [];
+          const filtered = items.filter((item) => item.id !== media.id).slice(0, 4);
+          setRelatedMedia(filtered);
+        } else {
+          setRelatedMedia([]);
+        }
+      } catch (error: any) {
+        if (error.name !== "AbortError") {
+          console.error("Failed to load related media:", error);
+        }
+        setRelatedMedia([]);
+      } finally {
+        setIsRelatedLoading(false);
+      }
+    };
+
+    fetchRelated();
+
+    return () => controller.abort();
+  }, [media?.id, media?.category]);
 
   const handleDownload = async () => {
     if (!media) return;
@@ -166,6 +197,28 @@ export default function MediaDetail() {
     }
   };
 
+  const getIcon = (category?: string) => {
+    const categoryLower = (category || "").toLowerCase();
+    if (categoryLower === "video") return Play;
+    if (categoryLower === "image") return ImageIcon;
+    if (categoryLower === "audio") return Music;
+    if (categoryLower === "apk") return Smartphone;
+    return Zap;
+  };
+
+  const getGradientForCategory = (category?: string) => {
+    const gradients: Record<string, string[]> = {
+      video: ["from-orange-400 to-red-500", "from-green-500 to-emerald-600"],
+      image: ["from-blue-400 to-blue-600", "from-slate-500 to-slate-700"],
+      audio: ["from-purple-400 to-pink-600", "from-cyan-400 to-blue-500"],
+      template: ["from-green-400 to-blue-600", "from-indigo-400 to-purple-600"],
+      apk: ["from-indigo-400 to-purple-500", "from-purple-500 to-pink-600"],
+    };
+    const normalized = (category || "").toLowerCase();
+    const palette = gradients[normalized] || ["from-slate-400 to-slate-600"];
+    return palette[0];
+  };
+
   if (isLoading) {
     return (
       <Layout>
@@ -194,20 +247,20 @@ export default function MediaDetail() {
     );
   }
 
-  const getIcon = (category: string) => {
-    const categoryLower = category.toLowerCase();
-    if (categoryLower === "video") return Play;
-    if (categoryLower === "image") return ImageIcon;
-    if (categoryLower === "audio") return Music;
-    if (categoryLower === "apk") return Smartphone;
-    return Zap;
-  };
+  const safeCategory = typeof media.category === "string" ? media.category : "unknown";
+  const safeTags = Array.isArray(media.tags) ? media.tags : [];
+  const safeDownloads = typeof media.downloads === "number" ? media.downloads : Number(media.downloads) || 0;
+  const safeViews = typeof media.views === "number" ? media.views : Number(media.views) || 0;
 
-  const Icon = getIcon(media.category);
-  const isVideo = media.category.toLowerCase() === "video";
-  const isImage = media.category.toLowerCase() === "image";
-  const isAudio = media.category.toLowerCase() === "audio";
-  const isApk = media.category.toLowerCase() === "apk";
+  const Icon = getIcon(safeCategory);
+  const isVideo = safeCategory.toLowerCase() === "video";
+  const isImage = safeCategory.toLowerCase() === "image";
+  const isAudio = safeCategory.toLowerCase() === "audio";
+  const isApk = safeCategory.toLowerCase() === "apk";
+  const featureScreenshots = Array.isArray(media.featureScreenshots)
+    ? media.featureScreenshots.filter((shot) => shot && shot.url)
+    : [];
+  const shouldShowScreenshots = isApk && media.showScreenshots !== false && featureScreenshots.length > 0;
 
   return (
     <Layout>
@@ -232,56 +285,30 @@ export default function MediaDetail() {
             {/* Main Content */}
             <div className="lg:col-span-2">
               {/* Preview */}
-              <div className="aspect-video rounded-lg overflow-hidden mb-6 sm:mb-8 relative group shadow-lg bg-slate-900">
+              <div className="mb-6 sm:mb-8">
                 {isVideo ? (
-                  <>
-                    <video
-                      ref={(el) => setVideoRef(el)}
-                      src={media.fileUrl}
-                      poster={media.previewUrl}
-                      className="w-full h-full object-cover"
-                      onPlay={() => setIsPlaying(true)}
-                      onPause={() => setIsPlaying(false)}
-                      controls={isPlaying}
-                      playsInline
-                    />
-                    {!isPlaying && (
-                      <div className="absolute inset-0 bg-black/30 flex items-center justify-center cursor-pointer" onClick={handlePlay}>
-                        <button className="w-12 h-12 sm:w-16 sm:h-16 bg-white/20 hover:bg-white/30 backdrop-blur rounded-full flex items-center justify-center transition-all touch-manipulation">
-                          <Play className="w-6 h-6 sm:w-8 sm:h-8 text-white ml-0.5 sm:ml-1 fill-white" />
-                        </button>
+                  <DownloadVideoViewer media={media} />
+                ) : isAudio ? (
+                  <AudioPlayer src={media.fileUrl} title={media.title} />
+                ) : (
+                  <div className="aspect-video rounded-lg overflow-hidden relative group shadow-lg bg-slate-900">
+                    {isImage ? (
+                      <img
+                        src={media.previewUrl || media.fileUrl}
+                        alt={media.title}
+                        className="w-full h-full object-cover"
+                      />
+                    ) : isApk ? (
+                      <div className="w-full h-full bg-gradient-to-br from-indigo-400 to-purple-600 flex items-center justify-center flex-col">
+                        <Smartphone className="w-16 h-16 sm:w-24 sm:h-24 text-white/80 mb-4" />
+                        <p className="text-white text-lg sm:text-xl font-semibold">Android APK</p>
+                        <p className="text-white/80 text-sm sm:text-base mt-2">{media.fileSize}</p>
+                      </div>
+                    ) : (
+                      <div className="w-full h-full bg-gradient-to-br from-slate-400 to-slate-600 flex items-center justify-center">
+                        <Icon className="w-16 h-16 sm:w-24 sm:h-24 text-white/80" />
                       </div>
                     )}
-                    {media.duration && (
-                      <span className="absolute bottom-3 right-3 sm:bottom-4 sm:right-4 bg-black/70 text-white px-2 sm:px-3 py-0.5 sm:py-1 rounded text-xs sm:text-sm font-medium">
-                        {media.duration}
-                      </span>
-                    )}
-                  </>
-                ) : isImage ? (
-                  <img
-                    src={media.previewUrl || media.fileUrl}
-                    alt={media.title}
-                    className="w-full h-full object-cover"
-                  />
-                ) : isAudio ? (
-                  <div className="w-full h-full bg-gradient-to-br from-purple-400 to-pink-600 flex items-center justify-center">
-                    <Music className="w-16 h-16 sm:w-24 sm:h-24 text-white/80" />
-                    <audio
-                      src={media.fileUrl}
-                      controls
-                      className="absolute bottom-4 left-4 right-4 w-auto"
-                    />
-                  </div>
-                ) : isApk ? (
-                  <div className="w-full h-full bg-gradient-to-br from-indigo-400 to-purple-600 flex items-center justify-center flex-col">
-                    <Smartphone className="w-16 h-16 sm:w-24 sm:h-24 text-white/80 mb-4" />
-                    <p className="text-white text-lg sm:text-xl font-semibold">Android APK</p>
-                    <p className="text-white/80 text-sm sm:text-base mt-2">{media.fileSize}</p>
-                  </div>
-                ) : (
-                  <div className="w-full h-full bg-gradient-to-br from-slate-400 to-slate-600 flex items-center justify-center">
-                    <Icon className="w-16 h-16 sm:w-24 sm:h-24 text-white/80" />
                   </div>
                 )}
               </div>
@@ -294,7 +321,7 @@ export default function MediaDetail() {
                       {media.title}
                     </h1>
                     <p className="text-sm sm:text-base text-muted-foreground">
-                      By {media.uploadedBy} • Uploaded {media.uploadedDate}
+                      By {media.uploadedBy || "Unknown"} • Uploaded {media.uploadedDate || "Unknown date"}
                     </p>
                   </div>
                   {media.isPremium && (
@@ -310,8 +337,8 @@ export default function MediaDetail() {
 
                 {/* Tags */}
                 <div className="flex flex-wrap gap-1.5 sm:gap-2">
-                  {media.tags && media.tags.length > 0 ? (
-                    media.tags.map((tag) => (
+                  {safeTags.length > 0 ? (
+                    safeTags.map((tag) => (
                       <button
                         key={tag}
                         className="px-2 sm:px-3 py-0.5 sm:py-1 bg-primary/10 text-primary rounded-full text-xs sm:text-sm hover:bg-primary/20 transition-colors touch-manipulation"
@@ -332,14 +359,14 @@ export default function MediaDetail() {
                     <Download className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-primary flex-shrink-0" />
                     <span className="text-xs sm:text-sm text-muted-foreground">Downloads</span>
                   </div>
-                  <p className="text-xl sm:text-2xl font-bold">{(media.downloads / 1000).toFixed(1)}K</p>
+                  <p className="text-xl sm:text-2xl font-bold">{(safeDownloads / 1000).toFixed(1)}K</p>
                 </div>
                 <div>
                   <div className="flex items-center gap-1.5 sm:gap-2 mb-1">
                     <Eye className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-secondary flex-shrink-0" />
                     <span className="text-xs sm:text-sm text-muted-foreground">Views</span>
                   </div>
-                  <p className="text-xl sm:text-2xl font-bold">{(media.views / 1000).toFixed(1)}K</p>
+                  <p className="text-xl sm:text-2xl font-bold">{(safeViews / 1000).toFixed(1)}K</p>
                 </div>
                 <div>
                   <div className="flex items-center gap-1.5 sm:gap-2 mb-1">
@@ -353,7 +380,7 @@ export default function MediaDetail() {
                     <Tag className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-primary flex-shrink-0" />
                     <span className="text-xs sm:text-sm text-muted-foreground">Category</span>
                   </div>
-                  <p className="text-xl sm:text-2xl font-bold capitalize">{media.category}</p>
+                  <p className="text-xl sm:text-2xl font-bold capitalize">{safeCategory}</p>
                 </div>
               </div>
 
@@ -371,7 +398,7 @@ export default function MediaDetail() {
                   </div>
                   <div>
                     <p className="text-sm text-muted-foreground">Category</p>
-                    <p className="font-semibold capitalize">{media.category}</p>
+                    <p className="font-semibold capitalize">{safeCategory}</p>
                   </div>
                   {media.duration && (
                     <div>
@@ -381,6 +408,65 @@ export default function MediaDetail() {
                   )}
                 </div>
               </div>
+
+              {shouldShowScreenshots && (
+                <div className="mt-8 space-y-4">
+                  <div className="flex items-center justify-between">
+                    <h3 className="text-lg sm:text-xl font-bold">Feature Screenshots</h3>
+                    <span className="text-xs text-muted-foreground">Tap to enlarge</span>
+                  </div>
+                  <div className="hidden md:grid grid-cols-2 gap-4">
+                    {featureScreenshots.map((shot, index) => (
+                      <button
+                        key={`${shot.url}-${index}`}
+                        type="button"
+                        onClick={() => setActiveScreenshot(shot)}
+                        className="rounded-xl overflow-hidden border border-border shadow-sm hover:shadow-md transition-shadow text-left"
+                      >
+                        <img
+                          src={shot.url}
+                          alt={shot.title || `Screenshot ${index + 1}`}
+                          className="w-full h-48 object-cover"
+                          loading="lazy"
+                        />
+                        {(shot.title || shot.description) && (
+                          <div className="p-3 space-y-1 bg-white dark:bg-slate-900">
+                            {shot.title && <p className="text-sm font-semibold">{shot.title}</p>}
+                            {shot.description && (
+                              <p className="text-xs text-muted-foreground line-clamp-2">{shot.description}</p>
+                            )}
+                          </div>
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                  <div className="md:hidden flex gap-3 overflow-x-auto snap-x pb-2">
+                    {featureScreenshots.map((shot, index) => (
+                      <button
+                        key={`${shot.url}-mobile-${index}`}
+                        type="button"
+                        onClick={() => setActiveScreenshot(shot)}
+                        className="snap-center min-w-[70%] rounded-xl overflow-hidden border border-border shadow-sm text-left"
+                      >
+                        <img
+                          src={shot.url}
+                          alt={shot.title || `Screenshot ${index + 1}`}
+                          className="w-full h-48 object-cover"
+                          loading="lazy"
+                        />
+                        {(shot.title || shot.description) && (
+                          <div className="p-3 space-y-1 bg-white dark:bg-slate-900">
+                            {shot.title && <p className="text-sm font-semibold">{shot.title}</p>}
+                            {shot.description && (
+                              <p className="text-xs text-muted-foreground line-clamp-2">{shot.description}</p>
+                            )}
+                          </div>
+                        )}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
             </div>
 
             {/* Sidebar */}
@@ -395,6 +481,18 @@ export default function MediaDetail() {
                   <Download className="w-4 h-4 sm:w-5 sm:h-5 flex-shrink-0" />
                   {isDownloading ? "Preparing Download..." : "Download Now"}
                 </button>
+
+                {isApk && media.iconUrl && (
+                  <div className="rounded-lg border border-dashed border-border p-4 flex flex-col items-center text-center gap-2">
+                    <img
+                      src={media.iconUrl}
+                      alt={`${media.title} icon`}
+                      className="w-20 h-20 rounded-2xl object-cover border border-border"
+                      loading="lazy"
+                    />
+                    <p className="text-sm font-semibold">App Icon</p>
+                  </div>
+                )}
 
                 <div className="flex gap-2">
                   <button
@@ -463,84 +561,108 @@ export default function MediaDetail() {
           {/* Related Media Section */}
           <div className="mt-8 sm:mt-12">
             <h2 className="text-xl sm:text-2xl font-bold mb-4 sm:mb-6">Related Media</h2>
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
-              {[
-                {
-                  id: 2,
-                  title: "Professional Business Background",
-                  category: "Image",
-                  type: "4K",
-                  downloads: "8.3K",
-                  thumbnail: "bg-gradient-to-br from-blue-400 to-blue-600",
-                  icon: ImageIcon,
-                },
-                {
-                  id: 5,
-                  title: "Forest Walking Path",
-                  category: "Video",
-                  type: "1080p",
-                  downloads: "9.7K",
-                  thumbnail: "bg-gradient-to-br from-green-500 to-emerald-600",
-                  icon: Play,
-                },
-                {
-                  id: 6,
-                  title: "Modern Tech Workspace",
-                  category: "Image",
-                  type: "5K",
-                  downloads: "11.2K",
-                  thumbnail: "bg-gradient-to-br from-slate-500 to-slate-700",
-                  icon: ImageIcon,
-                },
-                {
-                  id: 3,
-                  title: "Upbeat Electronic Music",
-                  category: "Audio",
-                  type: "320kbps",
-                  downloads: "5.2K",
-                  thumbnail: "bg-gradient-to-br from-purple-400 to-pink-600",
-                  icon: Music,
-                },
-              ].map((item) => {
-                const Icon = item.icon;
-                return (
-                  <Link
-                    key={item.id}
-                    to={`/media/${item.id}`}
-                    className="group cursor-pointer touch-manipulation active:scale-[0.98] transition-transform"
-                  >
-                    <div className="relative overflow-hidden rounded-lg shadow-sm group-hover:shadow-md transition-shadow">
-                      <div className={`${item.thumbnail} aspect-video flex items-center justify-center relative group-hover:scale-105 transition-transform duration-300`}>
-                        <div className="absolute inset-0 bg-gradient-to-t from-black/30 to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-end p-3 sm:p-4">
-                          <Download className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
-                        </div>
-                        <Icon className="w-8 h-8 sm:w-10 sm:h-10 text-white/80 group-hover:text-white transition-colors" />
-                      </div>
-                    </div>
+            {isRelatedLoading ? (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
+                {Array.from({ length: 4 }).map((_, index) => (
+                  <div key={`related-skeleton-${index}`} className="animate-pulse space-y-3">
+                    <div className="h-40 bg-slate-200 dark:bg-slate-800 rounded-lg" />
+                    <div className="h-4 bg-slate-200 dark:bg-slate-800 rounded w-3/4" />
+                    <div className="h-3 bg-slate-200 dark:bg-slate-800 rounded w-1/2" />
+                  </div>
+                ))}
+              </div>
+            ) : relatedMedia.length > 0 ? (
+              <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
+                {relatedMedia.map((item) => {
+                  const isVideoItem = item.category?.toLowerCase() === "video";
+                  if (isVideoItem) {
+                    return (
+                      <VideoCard
+                        key={item.id}
+                        media={item}
+                        to={`/media/${item.id}`}
+                        variant="compact"
+                      />
+                    );
+                  }
 
-                    <div className="mt-3">
-                      <h3 className="font-semibold text-sm text-foreground group-hover:text-primary transition-colors line-clamp-2 mb-1.5">
-                        {item.title}
-                      </h3>
-                      <div className="flex gap-1.5 flex-wrap mb-1">
-                        <span className="text-xs bg-secondary/10 text-secondary px-1.5 py-0.5 rounded">
-                          {item.category}
-                        </span>
-                        <span className="text-xs bg-primary/10 text-primary px-1.5 py-0.5 rounded">
-                          {item.type}
-                        </span>
+                  const Icon = getIcon(item.category);
+                  const gradient = getGradientForCategory(item.category);
+                  const downloads = (Number(item.downloads) || 0).toLocaleString();
+
+                  return (
+                    <Link
+                      key={item.id}
+                      to={`/media/${item.id}`}
+                      className="group cursor-pointer touch-manipulation active:scale-[0.98] transition-transform"
+                    >
+                      <div className="relative overflow-hidden rounded-lg shadow-sm group-hover:shadow-md transition-shadow">
+                        {item.previewUrl ? (
+                          <div className="aspect-video relative">
+                            <img
+                              src={item.previewUrl || item.fileUrl}
+                              alt={item.title}
+                              className="w-full h-full object-cover group-hover:scale-[1.02] transition-transform duration-300"
+                            />
+                            <div className="absolute inset-0 bg-gradient-to-t from-black/40 to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-end p-3">
+                              <Download className="w-4 h-4 text-white" />
+                            </div>
+                          </div>
+                        ) : (
+                          <div className={`aspect-video flex items-center justify-center relative bg-gradient-to-br ${gradient} group-hover:scale-[1.02] transition-transform duration-300`}>
+                            <div className="absolute inset-0 bg-gradient-to-t from-black/30 to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-end p-3">
+                              <Download className="w-4 h-4 text-white" />
+                            </div>
+                            <Icon className="w-10 h-10 text-white/85 group-hover:text-white transition-colors" />
+                          </div>
+                        )}
                       </div>
-                      <p className="text-xs text-muted-foreground">
-                        {item.downloads} downloads
-                      </p>
-                    </div>
-                  </Link>
-                );
-              })}
-            </div>
+
+                      <div className="mt-3">
+                        <h3 className="font-semibold text-sm text-foreground group-hover:text-primary transition-colors line-clamp-2 mb-1.5">
+                          {item.title}
+                        </h3>
+                        <div className="flex gap-1.5 flex-wrap mb-1 text-xs">
+                          <span className="bg-secondary/10 text-secondary px-1.5 py-0.5 rounded">
+                            {item.category}
+                          </span>
+                          <span className="bg-primary/10 text-primary px-1.5 py-0.5 rounded">
+                            {item.type}
+                          </span>
+                        </div>
+                        <p className="text-xs text-muted-foreground">{downloads} downloads</p>
+                      </div>
+                    </Link>
+                  );
+                })}
+              </div>
+            ) : (
+              <div className="rounded-lg border border-dashed border-border p-6 text-center text-sm text-muted-foreground">
+                No related media found yet. Check back soon for more from this category.
+              </div>
+            )}
           </div>
         </div>
       </div>
+      <Dialog open={!!activeScreenshot} onOpenChange={(open) => !open && setActiveScreenshot(null)}>
+        <DialogContent className="max-w-3xl">
+          {activeScreenshot && (
+            <div className="space-y-3">
+              <DialogHeader>
+                <DialogTitle>{activeScreenshot.title || "Screenshot"}</DialogTitle>
+              </DialogHeader>
+              <img
+                src={activeScreenshot.url}
+                alt={activeScreenshot.title || "Screenshot preview"}
+                className="w-full rounded-lg object-contain max-h-[70vh]"
+              />
+              {activeScreenshot.description && (
+                <p className="text-sm text-muted-foreground">{activeScreenshot.description}</p>
+              )}
+            </div>
+          )}
+        </DialogContent>
+      </Dialog>
     </Layout>
   );
 }

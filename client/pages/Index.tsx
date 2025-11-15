@@ -4,6 +4,7 @@ import Layout from "@/components/Layout";
 import { useEffect, useState } from "react";
 import { Media } from "@shared/api";
 import { apiFetch } from "@/lib/api";
+import { VideoCard } from "@/components/media/VideoCard";
 
 export default function Index() {
   const [trendingMedia, setTrendingMedia] = useState<Media[]>([]);
@@ -56,18 +57,13 @@ export default function Index() {
     return colors[categoryKey]?.[index % colors[categoryKey].length] || "from-slate-400 to-slate-600";
   };
 
-  const displayTrendingMedia = trendingMedia.length > 0
-    ? trendingMedia.slice(0, 7).map((media, index) => ({
-        id: media.id,
-        title: media.title,
-        category: media.category.charAt(0).toUpperCase() + media.category.slice(1),
-        type: media.type,
-        downloads: media.downloads > 1000 ? `${(media.downloads / 1000).toFixed(1)}K` : media.downloads.toString(),
-        thumbnail: getThumbnailBg(media.category, index),
-        isPremium: media.isPremium,
-        previewUrl: media.previewUrl,
-      }))
-    : [];
+  const displayTrendingMedia =
+    trendingMedia.length > 0
+      ? trendingMedia.slice(0, 7).map((media, index) => ({
+          media,
+          gradient: getThumbnailBg(media.category, index),
+        }))
+      : [];
 
   const categories = [
     {
@@ -171,7 +167,7 @@ export default function Index() {
     },
   ];
 
-  const finalTrendingMedia = displayTrendingMedia.length > 0 ? displayTrendingMedia : fallbackTrendingMedia;
+  const hasLiveTrending = displayTrendingMedia.length > 0;
 
   const features = [
     {
@@ -321,9 +317,21 @@ export default function Index() {
               <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
               <p className="mt-4 text-muted-foreground">Loading trending media...</p>
             </div>
-          ) : (
+          ) : hasLiveTrending ? (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
-              {finalTrendingMedia.map((media) => {
+              {displayTrendingMedia.map(({ media, gradient }) => {
+                const downloadsLabel =
+                  media.downloads > 1000
+                    ? `${(media.downloads / 1000).toFixed(1)}K`
+                    : media.downloads.toString();
+                const isVideoCard = media.category?.toLowerCase() === "video" && Boolean(media.fileUrl);
+
+                if (isVideoCard) {
+                  return (
+                    <VideoCard key={media.id} media={media} to={`/media/${media.id}`} variant="compact" className="h-full" />
+                  );
+                }
+
                 const getIcon = (category: string) => {
                   const categoryLower = category.toLowerCase();
                   if (categoryLower === "video") return Play;
@@ -332,6 +340,7 @@ export default function Index() {
                   return Zap;
                 };
                 const Icon = getIcon(media.category);
+
                 return (
                   <Link
                     key={media.id}
@@ -341,19 +350,19 @@ export default function Index() {
                     <div className="relative overflow-hidden rounded-lg shadow-sm group-hover:shadow-md transition-shadow">
                       {media.previewUrl ? (
                         <div className="aspect-video relative group-hover:scale-105 transition-transform duration-300 overflow-hidden">
-                          <img 
-                            src={media.previewUrl} 
+                          <img
+                            src={media.previewUrl}
                             alt={media.title}
                             className="w-full h-full object-cover"
                             onError={(e) => {
-                              // Fallback to gradient if image fails to load
                               const target = e.target as HTMLImageElement;
-                              target.style.display = 'none';
+                              target.style.display = "none";
                               const parent = target.parentElement;
                               if (parent) {
-                                parent.className = `aspect-video flex items-center justify-center relative group-hover:scale-105 transition-transform duration-300 bg-gradient-to-br ${media.thumbnail}`;
-                                const iconContainer = document.createElement('div');
-                                iconContainer.innerHTML = `<svg class="w-12 h-12 text-white/80" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>`;
+                                parent.className = `aspect-video flex items-center justify-center relative group-hover:scale-105 transition-transform duration-300 bg-gradient-to-br ${gradient}`;
+                                const iconContainer = document.createElement("div");
+                                iconContainer.innerHTML =
+                                  '<svg class="w-12 h-12 text-white/80" fill="none" viewBox="0 0 24 24" stroke="currentColor"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M4 16l4.586-4.586a2 2 0 012.828 0L16 16m-2-2l1.586-1.586a2 2 0 012.828 0L20 14m-6-6h.01M6 20h12a2 2 0 002-2V6a2 2 0 00-2-2H6a2 2 0 00-2 2v12a2 2 0 002 2z" /></svg>';
                                 parent.appendChild(iconContainer);
                               }
                             }}
@@ -363,7 +372,7 @@ export default function Index() {
                           </div>
                         </div>
                       ) : (
-                        <div className={`aspect-video flex items-center justify-center relative group-hover:scale-105 transition-transform duration-300 bg-gradient-to-br ${media.thumbnail}`}>
+                        <div className={`aspect-video flex items-center justify-center relative group-hover:scale-105 transition-transform duration-300 bg-gradient-to-br ${gradient}`}>
                           <Icon className="w-12 h-12 text-white/80" />
                           <div className="absolute inset-0 bg-gradient-to-t from-black/30 to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-end p-3 sm:p-4">
                             <Download className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
@@ -391,9 +400,53 @@ export default function Index() {
                             {media.type}
                           </span>
                         </div>
-                        <span className="text-xs sm:text-sm text-muted-foreground font-medium">
-                          {media.downloads}
-                        </span>
+                        <span className="text-xs sm:text-sm text-muted-foreground font-medium">{downloadsLabel}</span>
+                      </div>
+                    </div>
+                  </Link>
+                );
+              })}
+            </div>
+          ) : (
+            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
+              {fallbackTrendingMedia.map((media) => {
+                const getIcon = (category: string) => {
+                  const categoryLower = category.toLowerCase();
+                  if (categoryLower === "video") return Play;
+                  if (categoryLower === "image") return ImageIcon;
+                  if (categoryLower === "audio") return Music;
+                  return Zap;
+                };
+                const Icon = getIcon(media.category);
+                return (
+                  <Link
+                    key={media.id}
+                    to={`/media/${media.id}`}
+                    className="group cursor-pointer touch-manipulation active:scale-[0.98] transition-transform"
+                  >
+                    <div className="relative overflow-hidden rounded-lg shadow-sm group-hover:shadow-md transition-shadow">
+                      <div className={`aspect-video flex items-center justify-center relative group-hover:scale-105 transition-transform duration-300 ${media.thumbnail}`}>
+                        <Icon className="w-12 h-12 text-white/80" />
+                        <div className="absolute inset-0 bg-gradient-to-t from-black/30 to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-end p-3 sm:p-4">
+                          <Download className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
+                        </div>
+                      </div>
+                    </div>
+
+                    <div className="mt-3 sm:mt-4">
+                      <h3 className="font-semibold text-sm sm:text-base text-foreground group-hover:text-primary transition-colors line-clamp-2">
+                        {media.title}
+                      </h3>
+                      <div className="flex justify-between items-center mt-2">
+                        <div className="flex gap-1.5 sm:gap-2 flex-wrap">
+                          <span className="text-xs bg-secondary/10 text-secondary px-1.5 sm:px-2 py-0.5 sm:py-1 rounded">
+                            {media.category}
+                          </span>
+                          <span className="text-xs bg-slate-100 dark:bg-slate-800 text-muted-foreground px-1.5 sm:px-2 py-0.5 sm:py-1 rounded">
+                            {media.type}
+                          </span>
+                        </div>
+                        <span className="text-xs sm:text-sm text-muted-foreground font-medium">{media.downloads}</span>
                       </div>
                     </div>
                   </Link>

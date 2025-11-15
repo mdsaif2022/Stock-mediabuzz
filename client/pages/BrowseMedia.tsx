@@ -4,6 +4,7 @@ import { Loader2, Search, Filter, Play, Image as ImageIcon, Music, Smartphone, F
 import Layout from "@/components/Layout";
 import { Media } from "@shared/api";
 import { apiFetch } from "@/lib/api";
+import { VideoCard } from "@/components/media/VideoCard";
 
 const CATEGORY_OPTIONS: Array<{ id: string; label: string; icon: React.ComponentType<{ className?: string }> }> = [
   { id: "all", label: "All", icon: Filter },
@@ -24,7 +25,8 @@ const PAGE_SIZE = 12;
 
 export default function BrowseMedia() {
   const [searchParams, setSearchParams] = useSearchParams();
-  const activeCategory = searchParams.get("category") || "all";
+  const rawCategory = searchParams.get("category");
+  const activeCategory = rawCategory ? rawCategory.toLowerCase() : "all";
   const query = searchParams.get("q") || "";
   const sort = searchParams.get("sort") || "latest";
 
@@ -75,9 +77,19 @@ export default function BrowseMedia() {
         throw new Error("Failed to load media");
       }
       const data = await response.json();
-      const newItems: Media[] = data?.data || [];
-      setMediaItems((prev) => (replace ? newItems : [...prev, ...newItems]));
-      setHasMore(pageToFetch * PAGE_SIZE < (data?.total || 0));
+      const fetchedItems: Media[] = data?.data || [];
+      const normalizedCategory = activeCategory.toLowerCase();
+      const filteredItems =
+        activeCategory === "all"
+          ? fetchedItems
+          : fetchedItems.filter((item) => item.category.toLowerCase() === normalizedCategory);
+
+      setMediaItems((prev) => (replace ? filteredItems : [...prev, ...filteredItems]));
+
+      const total = typeof data?.total === "number" ? data.total : fetchedItems.length;
+      const pageSizeFromServer = typeof data?.pageSize === "number" ? data.pageSize : PAGE_SIZE;
+      const totalPages = Math.ceil(total / pageSizeFromServer) || 1;
+      setHasMore(pageToFetch < totalPages && fetchedItems.length > 0);
       setPage(pageToFetch + 1);
     } catch (err: any) {
       console.error(err);
@@ -93,7 +105,7 @@ export default function BrowseMedia() {
       if (category === "all") {
         params.delete("category");
       } else {
-        params.set("category", category);
+        params.set("category", category.toLowerCase());
       }
       params.delete("page");
       return params;
@@ -221,6 +233,12 @@ export default function BrowseMedia() {
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
             {mediaItems.map((media) => {
               const Icon = getCategoryIcon(media.category);
+              const isVideo = media.category?.toLowerCase() === "video";
+
+              if (isVideo) {
+                return <VideoCard key={media.id} media={media} to={`/media/${media.id}`} variant="detailed" />;
+              }
+
               return (
                 <Link
                   key={media.id}
@@ -287,7 +305,7 @@ export default function BrowseMedia() {
             </div>
           )}
 
-          {hasMore && !isLoading && (
+          {hasMore && !isLoading && mediaItems.length > 0 && (
             <div className="flex justify-center">
               <button
                 onClick={() => fetchMedia(page)}

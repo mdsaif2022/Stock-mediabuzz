@@ -30,6 +30,12 @@ export interface AuthResponse {
 }
 
 // Media Types
+export interface FeatureScreenshot {
+  title?: string;
+  description?: string;
+  url: string;
+}
+
 export interface Media {
   id: string;
   title: string;
@@ -49,6 +55,9 @@ export interface Media {
   creatorId?: string;
   uploadedDate: string;
   cloudinaryAccount: number;
+  iconUrl?: string;
+  featureScreenshots?: FeatureScreenshot[];
+  showScreenshots?: boolean;
 }
 
 export interface MediaUploadRequest {
@@ -61,6 +70,9 @@ export interface MediaUploadRequest {
   cloudinaryAccount?: "auto" | 1 | 2 | 3 | 4;
   previewUrl: string;
   fileUrl: string;
+  iconUrl?: string;
+  featureScreenshots?: FeatureScreenshot[];
+  showScreenshots?: boolean;
 }
 
 export interface MediaResponse {

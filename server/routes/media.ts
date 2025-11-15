@@ -11,6 +11,19 @@ const __dirname = dirname(__filename);
 const DATA_DIR = join(__dirname, "../data");
 const MEDIA_DB_FILE = join(DATA_DIR, "media-database.json");
 
+const CATEGORY_KEYS: Media["category"][] = ["video", "image", "audio", "template", "apk"];
+
+const normalizeCategoryValue = (cat?: string): Media["category"] | "" => {
+  if (!cat) return "";
+  const normalized = cat.toLowerCase().trim();
+  if (["video", "videos", "vid", "movie", "movies"].includes(normalized)) return "video";
+  if (["image", "images", "photo", "photos", "pic", "pics"].includes(normalized)) return "image";
+  if (["audio", "audios", "sound", "music", "song", "songs"].includes(normalized)) return "audio";
+  if (["template", "templates", "theme", "themes", "design"].includes(normalized)) return "template";
+  if (["apk", "apks", "android", "app", "apps"].includes(normalized)) return "apk";
+  return normalized as Media["category"] | "";
+};
+
 // Default initial data
 const DEFAULT_MEDIA: Media[] = [
   {
@@ -64,8 +77,64 @@ const DEFAULT_MEDIA: Media[] = [
       uploadedBy: "App Developer",
       uploadedDate: "2024-11-16",
       cloudinaryAccount: 1,
+    iconUrl: "https://via.placeholder.com/160x160?text=App+Icon",
+    featureScreenshots: [
+      {
+        title: "Home Screen",
+        description: "Clean landing view of the sample app",
+        url: "https://via.placeholder.com/800x450?text=Screenshot+1",
+      },
+      {
+        title: "Detail Screen",
+        description: "Showcases the modern UI layout",
+        url: "https://via.placeholder.com/800x450?text=Screenshot+2",
+      },
+    ],
+    showScreenshots: true,
     },
   ];
+
+const sanitizeFeatureScreenshots = (input: any): Media["featureScreenshots"] => {
+  if (!input) return [];
+  let parsed = input;
+  if (typeof input === "string") {
+    try {
+      parsed = JSON.parse(input);
+    } catch {
+      return [];
+    }
+  }
+  if (!Array.isArray(parsed)) return [];
+  return parsed
+    .map((item) => {
+      if (!item) return null;
+      const url = typeof item.url === "string" ? item.url.trim() : "";
+      if (!url) return null;
+      const title = typeof item.title === "string" && item.title.trim() ? item.title.trim() : undefined;
+      const description =
+        typeof item.description === "string" && item.description.trim() ? item.description.trim() : undefined;
+      return { title, description, url };
+    })
+    .filter(Boolean) as Media["featureScreenshots"];
+};
+
+const parseShowScreenshots = (value: any): boolean => {
+  if (typeof value === "boolean") {
+    return value;
+  }
+  if (typeof value === "string") {
+    const normalized = value.toLowerCase().trim();
+    if (normalized === "false" || normalized === "0") return false;
+    if (normalized === "true" || normalized === "1") return true;
+  }
+  return true;
+};
+
+const normalizeIconUrl = (value: any): string | undefined => {
+  if (typeof value !== "string") return undefined;
+  const trimmed = value.trim();
+  return trimmed || undefined;
+};
 
 // Load media database from file
 async function loadMediaDatabase(): Promise<Media[]> {
@@ -105,8 +174,6 @@ async function saveMediaDatabase(data: Media[]): Promise<void> {
 
 // Initialize mediaDatabase - start with default data, load async
 let mediaDatabase: Media[] = [...DEFAULT_MEDIA];
-const CATEGORY_KEYS: Media["category"][] = ["video", "image", "audio", "template", "apk"];
-
 // Load database from file on startup
 loadMediaDatabase()
   .then((loaded) => {
@@ -133,9 +200,10 @@ export const getMedia: RequestHandler = (req, res) => {
   let filtered = [...mediaDatabase];
 
   if (category) {
-    // Normalize category to lowercase for case-insensitive comparison
-    const normalizedCategory = (category as string).toLowerCase();
-    filtered = filtered.filter((m) => m.category.toLowerCase() === normalizedCategory);
+    const normalizedCategory = normalizeCategoryValue(category as string);
+    filtered = normalizedCategory
+      ? filtered.filter((m) => normalizeCategoryValue(m.category) === normalizedCategory)
+      : filtered;
   }
 
   if (search) {
@@ -200,11 +268,16 @@ export const createMedia: RequestHandler = async (req, res) => {
     return;
   }
 
+  const normalizedCategory = normalizeCategoryValue(category) || (category as string).toLowerCase();
+  const iconUrl = normalizeIconUrl((req.body as any).iconUrl);
+  const featureScreenshots = sanitizeFeatureScreenshots((req.body as any).featureScreenshots);
+  const showScreenshots = parseShowScreenshots((req.body as any).showScreenshots);
+
   const newMedia: Media = {
     id: Date.now().toString(),
     title,
     description,
-    category,
+    category: (normalizedCategory as Media["category"]) || "video",
     type,
     fileSize: "1 MB",
     previewUrl,
@@ -216,6 +289,9 @@ export const createMedia: RequestHandler = async (req, res) => {
     uploadedBy: req.user?.name || "Admin",
     uploadedDate: new Date().toISOString().split("T")[0],
     cloudinaryAccount: 1,
+    iconUrl,
+    featureScreenshots,
+    showScreenshots,
   };
 
   mediaDatabase.push(newMedia);
@@ -239,7 +315,23 @@ export const updateMedia: RequestHandler = async (req, res) => {
     return;
   }
 
-  Object.assign(media, req.body);
+  const bodyCopy = { ...req.body };
+  delete bodyCopy.featureScreenshots;
+  delete bodyCopy.iconUrl;
+  delete bodyCopy.showScreenshots;
+
+  const updates: Partial<Media> = {};
+  if ("iconUrl" in req.body) {
+    updates.iconUrl = normalizeIconUrl(req.body.iconUrl);
+  }
+  if ("featureScreenshots" in req.body) {
+    updates.featureScreenshots = sanitizeFeatureScreenshots(req.body.featureScreenshots);
+  }
+  if ("showScreenshots" in req.body) {
+    updates.showScreenshots = parseShowScreenshots(req.body.showScreenshots);
+  }
+
+  Object.assign(media, bodyCopy, updates);
 
   try {
     await saveMediaDatabase(mediaDatabase);
@@ -282,7 +374,7 @@ export const getTrendingMedia: RequestHandler = (req, res) => {
 
 export const getCategorySummary: RequestHandler = (_req, res) => {
   const summary = CATEGORY_KEYS.map((category) => {
-    const items = mediaDatabase.filter((item) => item.category === category);
+    const items = mediaDatabase.filter((item) => normalizeCategoryValue(item.category) === category);
     const latest =
       items.length > 0
         ? [...items].sort(

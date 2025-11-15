@@ -7,6 +7,7 @@ import { useAuth } from "@/contexts/AuthContext";
 export default function Header() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
+  const [logoFailed, setLogoFailed] = useState(false);
   const { currentUser, logout, creatorProfile } = useAuth();
   const navigate = useNavigate();
   
@@ -29,10 +30,23 @@ export default function Header() {
         <div className="flex h-16 items-center justify-between">
           {/* Logo */}
           <Link to="/" className="flex items-center gap-2 group">
-            <div className="w-8 h-8 bg-gradient-to-br from-primary to-accent rounded-lg flex items-center justify-center">
-              <span className="text-white font-bold text-lg">F</span>
-            </div>
-            <span className="text-xl font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent hidden sm:inline">
+            {!logoFailed ? (
+              <img
+                src="/apple-touch-icon.png"
+                alt="FreeMediaBuzz Logo"
+                className="h-8 w-8 sm:h-10 sm:w-10 rounded-lg object-cover"
+                loading="lazy"
+                onError={(event) => {
+                  (event.currentTarget as HTMLImageElement).style.display = "none";
+                  setLogoFailed(true);
+                }}
+              />
+            ) : (
+              <div className="h-8 w-8 sm:h-10 sm:w-10 bg-gradient-to-br from-primary to-accent rounded-lg flex items-center justify-center">
+                <span className="text-white font-bold text-lg">F</span>
+              </div>
+            )}
+            <span className="text-lg sm:text-xl font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
               FreeMediaBuzz
             </span>
           </Link>
