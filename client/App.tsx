@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route, useLocation, useNavigate } from "react-router-dom";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
@@ -22,7 +22,7 @@ import AdminAds from "./pages/admin/Ads";
 import AdminAnalytics from "./pages/admin/Analytics";
 import AdminUsers from "./pages/admin/Users";
 import AdminSettings from "./pages/admin/Settings";
-import React, { useEffect } from "react";
+import React, { useEffect, useRef } from "react";
 import { ADMIN_BASE_PATH } from "./constants/routes";
 import { apiFetch } from "@/lib/api";
 import ScrollToTop from "@/components/ScrollToTop";
@@ -36,9 +36,65 @@ const queryClient = new QueryClient({
   },
 });
 
+function BrowserNavigationHandler() {
+  const location = useLocation();
+  const navigate = useNavigate();
+  const isHandlingPopState = useRef(false);
+  const lastLocation = useRef(location.pathname + location.search);
+
+  useEffect(() => {
+    // Update last location when React Router navigates
+    lastLocation.current = location.pathname + location.search;
+  }, [location]);
+
+  useEffect(() => {
+    // Explicitly handle browser back/forward navigation
+    const handlePopState = (event: PopStateEvent) => {
+      // Prevent infinite loops
+      if (isHandlingPopState.current) {
+        return;
+      }
+      
+      try {
+        const browserPath = window.location.pathname + window.location.search + window.location.hash;
+        const routerPath = location.pathname + location.search + (location.hash || '');
+        
+        // Only navigate if browser URL changed and doesn't match React Router
+        // React Router should handle this, but we ensure it works
+        if (browserPath !== routerPath && browserPath !== lastLocation.current) {
+          isHandlingPopState.current = true;
+          
+          // Use replace: false to allow back navigation to work
+          navigate(browserPath, { replace: false });
+          
+          // Reset flag after navigation
+          setTimeout(() => {
+            isHandlingPopState.current = false;
+            lastLocation.current = browserPath;
+          }, 50);
+        }
+      } catch (error) {
+        console.error("Error handling popstate:", error);
+        isHandlingPopState.current = false;
+      }
+    };
+
+    // Listen for browser back/forward button presses
+    // Use capture phase to ensure we handle it early
+    window.addEventListener("popstate", handlePopState, true);
+    
+    return () => {
+      window.removeEventListener("popstate", handlePopState, true);
+    };
+  }, [location, navigate]);
+
+  return null;
+}
+
 function AppRoutes() {
   return (
     <>
+      <BrowserNavigationHandler />
       <ScrollToTop />
       <Routes>
         <Route path="/" element={<Index />} />
