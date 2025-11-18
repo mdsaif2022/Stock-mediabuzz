@@ -62,10 +62,28 @@ pnpm test     # run Vitest unit tests
 
 The starter runs solely on local JSON files. To integrate a database or real auth, replace the placeholder routes in `server/routes` with your own persistence layer and security middleware.
 
+### Production Deployment (Vercel + Render)
+
+For deployments using Vercel (frontend) and Render (backend):
+
+1. **Set Environment Variables in Vercel:**
+   - Go to your Vercel project → Settings → Environment Variables
+   - Add: `VITE_API_BASE_URL` = `https://your-render-app.onrender.com`
+   - Apply to Production (and Preview if needed)
+
+2. **Deploy:**
+   - Vercel will auto-deploy from GitHub on push to main
+   - Render backend should already be configured and running
+
+3. **Verify:**
+   - Downloads should work correctly (files download instead of `index.html`)
+   - Browser back button navigation should work properly
+   - All API calls route correctly to the Render backend
+
 ## Recent Updates
 
 ### Navigation & Controls
-- **Fixed browser/phone back button navigation** – Removed interfering custom history sync code. Browser back button now properly navigates through the app history (Home → Browse → Media Detail and back).
+- **Fixed browser/phone back button navigation** – Removed interfering custom history sync code. Browser back button now properly navigates through the app history (Home → Browse → Media Detail and back). Fixed error navigations to use `replace: true` to prevent bad history entries.
 - **Enhanced seek controls** – Added double-click support for faster seeking:
   - Single click: seeks backward/forward by 10 seconds
   - Double-click: seeks backward/forward by 30 seconds
@@ -74,6 +92,10 @@ The starter runs solely on local JSON files. To integrate a database or real aut
 ### Player Improvements
 - VideoPlayer and AudioPlayer now have robust seek controls that work even when media metadata hasn't fully loaded
 - Better handling of edge cases where duration might be 0, NaN, or Infinity
+
+### Production Deployment Fixes
+- **Fixed file downloads on Vercel + Render** – Downloads now work correctly in production by using the Render backend URL directly. Set `VITE_API_BASE_URL` environment variable in Vercel to your Render backend URL (e.g., `https://your-app.onrender.com`) to enable downloads.
+- **Fixed download endpoint routing** – Download links now bypass Vercel's catch-all rewrite and go directly to the Render backend API, preventing downloads from returning `index.html` instead of actual files.
 
 ## License
 
