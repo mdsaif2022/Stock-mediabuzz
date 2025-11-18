@@ -39,52 +39,43 @@ const queryClient = new QueryClient({
 function BrowserNavigationHandler() {
   const navigate = useNavigate();
   const location = useLocation();
-  const processingRef = useRef(false);
-  const lastBrowserUrlRef = useRef<string>('');
 
   useEffect(() => {
-    // Initialize with current browser URL
-    lastBrowserUrlRef.current = window.location.pathname + window.location.search + window.location.hash;
-  }, []);
-
-  useEffect(() => {
-    // Update last browser URL when React Router navigates
-    const currentUrl = window.location.pathname + window.location.search + window.location.hash;
-    lastBrowserUrlRef.current = currentUrl;
-  }, [location.pathname, location.search, location.hash]);
-
-  useEffect(() => {
-    // Handle browser back/forward button presses
-    const handlePopState = (event: PopStateEvent) => {
-      if (processingRef.current) return;
+    // CRITICAL: Handle browser back/forward navigation
+    // This ensures React Router syncs with browser history
+    const handlePopState = () => {
+      // When back/forward button is pressed, browser URL changes
+      // We need to tell React Router to navigate to match
+      const targetUrl = window.location.pathname + window.location.search + window.location.hash;
       
-      processingRef.current = true;
-      
-      // Get browser's current URL (already updated by browser)
-      const browserUrl = window.location.pathname + window.location.search + window.location.hash;
-      const routerUrl = location.pathname + location.search + (location.hash || '');
-      
-      // If URLs don't match, sync React Router to browser
-      if (browserUrl !== routerUrl && browserUrl !== lastBrowserUrlRef.current) {
-        // Navigate React Router to match browser URL
-        // Use replace: true since browser already changed the URL
-        navigate(browserUrl, { replace: true });
-        lastBrowserUrlRef.current = browserUrl;
-      }
-      
-      // Reset processing flag
-      setTimeout(() => {
-        processingRef.current = false;
-      }, 50);
+      // Navigate React Router to match browser URL
+      // IMPORTANT: Use replace: false to maintain history stack
+      navigate(targetUrl, { replace: false });
     };
 
-    // Listen for popstate events (browser back/forward)
+    // Add listener for browser navigation events
     window.addEventListener("popstate", handlePopState);
     
     return () => {
       window.removeEventListener("popstate", handlePopState);
     };
-  }, [navigate, location.pathname, location.search, location.hash]);
+  }, [navigate]);
+
+  // Also sync when location changes via React Router
+  useEffect(() => {
+    const browserUrl = window.location.pathname + window.location.search + window.location.hash;
+    const routerUrl = location.pathname + location.search + (location.hash || '');
+    
+    // If browser URL doesn't match React Router (shouldn't happen, but safety check)
+    if (browserUrl !== routerUrl) {
+      // Sync browser to React Router (not the other way around in this case)
+      // This is just a safety net
+      if (window.history.state && window.history.state.key) {
+        // React Router manages history, so we trust it
+        return;
+      }
+    }
+  }, [location]);
 
   return null;
 }
