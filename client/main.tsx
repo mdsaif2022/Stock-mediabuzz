@@ -44,6 +44,10 @@ if (typeof window !== "undefined") {
     if (message.includes('403') && (message.includes('camterest.com') || message.includes('Forbidden'))) {
       return;
     }
+    // Ignore autofocus blocking errors from ad network iframes (browser security feature)
+    if (message.includes('Blocked autofocusing') && message.includes('cross-origin subframe')) {
+      return;
+    }
     // Ignore ERR_NAME_NOT_RESOLVED for example.com URLs (demo/placeholder data)
     if (message.includes('ERR_NAME_NOT_RESOLVED') && message.includes('example.com')) {
       return;
