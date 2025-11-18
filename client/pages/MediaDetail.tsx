@@ -32,11 +32,13 @@ export default function MediaDetail() {
           const data = await response.json();
           setMedia(data);
         } else {
-          navigate("/browse", { replace: false });
+          // Use replace: true to avoid adding to history when media not found
+          navigate("/browse", { replace: true });
         }
       } catch (error) {
         console.error("Failed to fetch media:", error);
-        navigate("/browse", { replace: false });
+        // Use replace: true to avoid adding to history when error occurs
+        navigate("/browse", { replace: true });
       } finally {
         setIsLoading(false);
       }
