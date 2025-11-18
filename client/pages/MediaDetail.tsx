@@ -3,7 +3,7 @@ import { Download, Share2, Heart, Clock, Eye, Tag, AlertCircle, Play, Image as I
 import { Link, useParams, useNavigate } from "react-router-dom";
 import { useState, useEffect } from "react";
 import { Media, MediaResponse } from "@shared/api";
-import { apiFetch } from "@/lib/api";
+import { apiFetch, API_BASE_URL } from "@/lib/api";
 import { DownloadVideoViewer } from "@/components/media/DownloadVideoViewer";
 import { VideoCard } from "@/components/media/VideoCard";
 import { AudioPlayer } from "@/components/media/AudioPlayer";
@@ -92,7 +92,10 @@ export default function MediaDetail() {
     
     try {
       const isApk = (media.category || "").toLowerCase() === "apk";
-      const proxyUrl = `/api/download/proxy/${media.id}`;
+      
+      // Use API_BASE_URL to get the correct API URL in production (handles Render backend)
+      const proxyPath = `/api/download/proxy/${media.id}`;
+      const proxyUrl = API_BASE_URL ? `${API_BASE_URL}${proxyPath}` : proxyPath;
       
       // Show Adsterra ad before download
       const adsterraLinks = [
