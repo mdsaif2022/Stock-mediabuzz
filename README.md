@@ -7,7 +7,7 @@ FreeMediaBuzz is a full-stack stock media platform built with React, Vite, TypeS
 - **Modern SPA** – React 18, Vite, React Router 6, Radix UI, Tailwind CSS.
 - **Integrated backend** – Express server sharing a single dev port with the client.
 - **Media database** – In-memory JSON store with CRUD routes for uploads and metadata.
-- **Video & audio previews** – Custom players with hover previews, seek controls, fullscreen, and lazy loading.
+- **Video & audio previews** – Custom players with hover previews, seek controls (single click: ±10s, double-click: ±30s), fullscreen, and lazy loading.
 - **App-specific enhancements** – Upload app icons, feature screenshots, and toggle their visibility on the download page.
 - **Download proxy** – Server-side proxy for file downloads (including Cloudinary) with CORS-safe tracking.
 - **Shared types** – `@shared/api` definitions reused by both client and server.
@@ -54,13 +54,26 @@ pnpm test     # run Vitest unit tests
 
 ## Download Page
 
-- Video: custom player with play/pause, seek, ±10s steps, fullscreen.
-- Audio: dedicated audio player with consistent controls.
+- Video: custom player with play/pause, seek controls (single click: ±10s, double-click: ±30s), fullscreen.
+- Audio: dedicated audio player with seek controls (single click: ±10s, double-click: ±30s).
 - APK: displays app icon and screenshot gallery (grid on desktop, swipeable carousel on mobile) with a modal lightbox.
 
 ## Environment
 
 The starter runs solely on local JSON files. To integrate a database or real auth, replace the placeholder routes in `server/routes` with your own persistence layer and security middleware.
+
+## Recent Updates
+
+### Navigation & Controls
+- **Fixed browser/phone back button navigation** – Removed interfering custom history sync code. Browser back button now properly navigates through the app history (Home → Browse → Media Detail and back).
+- **Enhanced seek controls** – Added double-click support for faster seeking:
+  - Single click: seeks backward/forward by 10 seconds
+  - Double-click: seeks backward/forward by 30 seconds
+  - Improved validation to handle edge cases (invalid duration, unloaded media)
+
+### Player Improvements
+- VideoPlayer and AudioPlayer now have robust seek controls that work even when media metadata hasn't fully loaded
+- Better handling of edge cases where duration might be 0, NaN, or Infinity
 
 ## License
 
