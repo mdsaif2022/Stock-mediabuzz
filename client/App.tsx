@@ -39,54 +39,46 @@ const queryClient = new QueryClient({
 function BrowserNavigationHandler() {
   const location = useLocation();
   const navigate = useNavigate();
-  const isHandlingPopState = useRef(false);
-  const lastLocation = useRef(location.pathname + location.search);
+  const isHandlingRef = useRef(false);
 
   useEffect(() => {
-    // Update last location when React Router navigates
-    lastLocation.current = location.pathname + location.search;
-  }, [location]);
-
-  useEffect(() => {
-    // Explicitly handle browser back/forward navigation
-    const handlePopState = (event: PopStateEvent) => {
-      // Prevent infinite loops
-      if (isHandlingPopState.current) {
-        return;
-      }
+    // Handle browser back/forward button navigation
+    // This ensures React Router syncs with browser history
+    const handlePopState = () => {
+      // Prevent multiple handlers from interfering
+      if (isHandlingRef.current) return;
       
-      try {
-        const browserPath = window.location.pathname + window.location.search + window.location.hash;
-        const routerPath = location.pathname + location.search + (location.hash || '');
-        
-        // Only navigate if browser URL changed and doesn't match React Router
-        // React Router should handle this, but we ensure it works
-        if (browserPath !== routerPath && browserPath !== lastLocation.current) {
-          isHandlingPopState.current = true;
-          
-          // Use replace: false to allow back navigation to work
-          navigate(browserPath, { replace: false });
-          
-          // Reset flag after navigation
-          setTimeout(() => {
-            isHandlingPopState.current = false;
-            lastLocation.current = browserPath;
-          }, 50);
-        }
-      } catch (error) {
-        console.error("Error handling popstate:", error);
-        isHandlingPopState.current = false;
+      isHandlingRef.current = true;
+      
+      // Get browser's current URL
+      const browserPath = window.location.pathname + window.location.search;
+      const browserHash = window.location.hash;
+      const browserUrl = browserPath + browserHash;
+      
+      // Get React Router's current URL
+      const routerPath = location.pathname + location.search;
+      const routerHash = location.hash || '';
+      const routerUrl = routerPath + routerHash;
+      
+      // Only navigate if URLs don't match
+      if (browserUrl !== routerUrl) {
+        // Use setTimeout to ensure this runs after React Router's own handler
+        setTimeout(() => {
+          navigate(browserPath + browserHash, { replace: false });
+          isHandlingRef.current = false;
+        }, 0);
+      } else {
+        isHandlingRef.current = false;
       }
     };
 
-    // Listen for browser back/forward button presses
-    // Use capture phase to ensure we handle it early
-    window.addEventListener("popstate", handlePopState, true);
+    // Add listener with normal (bubbling) phase to run after React Router's handler
+    window.addEventListener("popstate", handlePopState);
     
     return () => {
-      window.removeEventListener("popstate", handlePopState, true);
+      window.removeEventListener("popstate", handlePopState);
     };
-  }, [location, navigate]);
+  }, [location.pathname, location.search, location.hash, navigate]);
 
   return null;
 }

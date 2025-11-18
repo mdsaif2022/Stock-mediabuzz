@@ -23,6 +23,17 @@ const loadAdsterraScript = () => {
 // Load Adsterra on app start (non-blocking)
 if (typeof window !== "undefined") {
   loadAdsterraScript();
+  
+  // Suppress font preload warnings from ad iframes (not our code)
+  const originalError = console.warn;
+  console.warn = (...args: any[]) => {
+    const message = args[0]?.toString() || '';
+    // Ignore font preload warnings from ad networks
+    if (message.includes('preload') && message.includes('was preloaded')) {
+      return;
+    }
+    originalError.apply(console, args);
+  };
 }
 
 const root = document.getElementById("root");
