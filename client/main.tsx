@@ -37,14 +37,38 @@ if (typeof window !== "undefined") {
     originalWarn.apply(console, args);
   };
   
-  // Suppress 403 errors from ad network APIs (camterest.com, etc.)
+  // Suppress errors from ad networks and example URLs
   console.error = (...args: any[]) => {
     const message = args[0]?.toString() || '';
     // Ignore 403 Forbidden errors from ad networks
     if (message.includes('403') && (message.includes('camterest.com') || message.includes('Forbidden'))) {
       return;
     }
+    // Ignore ERR_NAME_NOT_RESOLVED for example.com URLs (demo/placeholder data)
+    if (message.includes('ERR_NAME_NOT_RESOLVED') && message.includes('example.com')) {
+      return;
+    }
+    // Ignore network errors for cloudinary.example.com (demo media)
+    if (message.includes('cloudinary.example.com')) {
+      return;
+    }
     originalError.apply(console, args);
+  };
+  
+  // Also suppress fetch/network errors in console
+  const originalFetch = window.fetch;
+  window.fetch = async (...args) => {
+    try {
+      return await originalFetch(...args);
+    } catch (error: any) {
+      // Suppress errors for example.com URLs
+      const url = typeof args[0] === 'string' ? args[0] : args[0]?.url || '';
+      if (url.includes('example.com') || url.includes('cloudinary.example.com')) {
+        // Return a rejected promise but don't log error
+        return Promise.reject(new Error('Example URL - suppressed'));
+      }
+      throw error;
+    }
   };
 }
 
