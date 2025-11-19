@@ -38,7 +38,8 @@ export function VideoCard({ media, to, variant = "detailed", className }: VideoC
 
   // Determine if video should be loaded and visible
   const shouldShowVideo = isHovering && supportsHover && videoUrl && !previewError;
-  const videoSrc = shouldShowVideo ? videoUrl : "";
+  // Always set video src when videoUrl exists, but control loading with preload
+  const videoSrc = videoUrl || "";
 
   useEffect(() => {
     const video = videoRef.current;
@@ -63,39 +64,56 @@ export function VideoCard({ media, to, variant = "detailed", className }: VideoC
     const video = videoRef.current;
     if (!video || !isVideo || !videoUrl) return;
 
-    if (shouldShowVideo && isPreviewReady) {
-      // Video is ready, try to play
+    if (shouldShowVideo) {
+      // When hovering, ensure video is loaded and try to play
       const tryPlay = async () => {
         try {
+          // Reset video to start
+          video.currentTime = 0;
+          
+          // If video is already loaded enough, play immediately
           if (video.readyState >= 2) { // HAVE_CURRENT_DATA
-            video.currentTime = 0;
             await video.play();
           } else {
-            // Wait for video to have enough data
+            // Wait for video to have enough data, then play
             const handleCanPlay = async () => {
-              video.currentTime = 0;
               try {
+                video.currentTime = 0;
                 await video.play();
               } catch (err) {
                 // Autoplay blocked or other error - silently fail
                 console.warn("Video autoplay blocked:", err);
               }
             };
+            
+            // Try multiple events to catch when video is ready
             video.addEventListener('canplay', handleCanPlay, { once: true });
             video.addEventListener('loadeddata', handleCanPlay, { once: true });
+            video.addEventListener('loadedmetadata', handleCanPlay, { once: true });
           }
         } catch (err) {
           // Autoplay blocked or other error - silently fail
           console.warn("Video play error:", err);
         }
       };
+      
+      // Ensure video src is set (it should be from JSX, but double-check)
+      // video.src returns full URL, so check if it includes the videoUrl path
+      const currentSrc = video.src || video.currentSrc || '';
+      if (videoUrl && !currentSrc.includes(videoUrl)) {
+        video.src = videoUrl;
+      }
+      // Load the video to start buffering
+      video.load();
+      // Try to play once loaded
       tryPlay();
     } else if (!isHovering || !supportsHover) {
       // Not hovering, pause and reset
       video.pause();
       video.currentTime = 0;
+      setIsPreviewReady(false);
     }
-  }, [shouldShowVideo, isPreviewReady, isHovering, supportsHover, videoUrl, isVideo]);
+  }, [shouldShowVideo, isHovering, supportsHover, videoUrl, isVideo]);
 
   const meta = useMemo(() => {
     const downloads = Number(media.downloads) || 0;
@@ -153,7 +171,9 @@ export function VideoCard({ media, to, variant = "detailed", className }: VideoC
               }}
               onWaiting={() => {
                 // Video is buffering, keep it visible
-                setIsPreviewReady(true);
+                if (shouldShowVideo) {
+                  setIsPreviewReady(true);
+                }
               }}
               onError={(e) => {
                 // Handle video errors - show thumbnail instead
@@ -162,20 +182,22 @@ export function VideoCard({ media, to, variant = "detailed", className }: VideoC
                 setIsPreviewReady(false);
               }}
             />
-            {/* Always show thumbnail as fallback */}
-            <img
-              src={thumbnailUrl}
-              alt={media.title}
-              className={cn("absolute inset-0 w-full h-full object-cover transition-opacity duration-200", {
-                "opacity-0": isPreviewReady && !previewError,
-                "opacity-100": !isPreviewReady || previewError,
-              })}
-              loading="lazy"
-              onError={() => {
-                // If thumbnail also fails, show unavailable message
-                setPreviewError(true);
-              }}
-            />
+            {/* Always show thumbnail as fallback - visible when video is not playing */}
+            {thumbnailUrl && (
+              <img
+                src={thumbnailUrl}
+                alt={media.title}
+                className={cn("absolute inset-0 w-full h-full object-cover transition-opacity duration-200 z-0", {
+                  "opacity-0": shouldShowVideo && isPreviewReady && !previewError,
+                  "opacity-100": !shouldShowVideo || !isPreviewReady || previewError,
+                })}
+                loading="lazy"
+                onError={() => {
+                  // If thumbnail also fails, show unavailable message
+                  setPreviewError(true);
+                }}
+              />
+            )}
             {/* Only show unavailable if both video and thumbnail fail */}
             {previewError && !thumbnailUrl && (
               <div className="absolute inset-0 flex flex-col items-center justify-center text-white bg-gradient-to-br from-slate-600 to-slate-900 gap-2">
