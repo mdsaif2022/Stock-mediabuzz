@@ -241,7 +241,7 @@ export default function Index() {
             {/* Stats */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 sm:gap-6 pt-6 sm:pt-8 border-t border-border px-2">
               <div className="animate-slide-up" style={{ animationDelay: "0.1s" }}>
-                <p className="text-2xl sm:text-3xl md:text-4xl font-bold text-primary">200K+</p>
+                <p className="text-2xl sm:text-3xl md:text-4xl font-bold text-primary">2.5M</p>
                 <p className="text-xs sm:text-sm text-muted-foreground mt-1">Media Files</p>
               </div>
               <div className="animate-slide-up" style={{ animationDelay: "0.2s" }}>
@@ -249,7 +249,7 @@ export default function Index() {
                 <p className="text-xs sm:text-sm text-muted-foreground mt-1">Active Users</p>
               </div>
               <div className="animate-slide-up" style={{ animationDelay: "0.3s" }}>
-                <p className="text-2xl sm:text-3xl md:text-4xl font-bold text-accent">2.5M+</p>
+                <p className="text-2xl sm:text-3xl md:text-4xl font-bold text-accent">10.5M</p>
                 <p className="text-xs sm:text-sm text-muted-foreground mt-1">Downloads</p>
               </div>
               <div className="animate-slide-up" style={{ animationDelay: "0.4s" }}>
