@@ -20,6 +20,7 @@ export default function MediaDetail() {
   const [relatedMedia, setRelatedMedia] = useState<Media[]>([]);
   const [isRelatedLoading, setIsRelatedLoading] = useState(false);
   const [activeScreenshot, setActiveScreenshot] = useState<{ title?: string; description?: string; url: string } | null>(null);
+  const [downloadAttempts, setDownloadAttempts] = useState(0); // Track number of download button clicks
 
   // Fetch media data from API
   useEffect(() => {
@@ -31,6 +32,8 @@ export default function MediaDetail() {
         if (response.ok) {
           const data = await response.json();
           setMedia(data);
+          // Reset download attempts when media changes
+          setDownloadAttempts(0);
         } else {
           // Use replace: true to avoid adding to history when media not found
           navigate("/browse", { replace: true });
@@ -99,10 +102,13 @@ export default function MediaDetail() {
       const proxyPath = `/api/download/proxy/${media.id}`;
       const proxyUrl = API_BASE_URL ? `${API_BASE_URL}${proxyPath}` : proxyPath;
       
-      // Show Adsterra ad before download
+      // Adsterra links - all 20 links
       const adsterraLinks = [
         "https://www.effectivegatecpm.com/hfy73qcy?key=e260bfac004e18965e13c7172696c1a3",
         "https://www.effectivegatecpm.com/ywhsa6yivz?key=bfec6a8bc15be21a9df294ff59815f8a",
+        "https://www.effectivegatecpm.com/nt1fr8zua?key=ac0794fdc21673207b81cbf11e48786d",
+        "https://www.effectivegatecpm.com/kbak28mme?key=4490d0846ff38b21b8e203adba4ee1e7",
+        "https://www.effectivegatecpm.com/tjdzfszkgx?key=0857d1051a4e330c49332d384e8c7224",
         "https://www.effectivegatecpm.com/zm78tt82?key=8e75e688fb529c7e4e19b4023efde58a",
         "https://www.effectivegatecpm.com/xwkce5cqb5?key=a51fb8ac1e251487604903a450df3022",
         "https://www.effectivegatecpm.com/yjsx8070?key=d8d1ec71150dc79a9a16cfb5b6933aa6",
@@ -119,10 +125,15 @@ export default function MediaDetail() {
         "https://www.effectivegatecpm.com/b10fnb3rd?key=f923d62d96f4719b7797e881a42b8fb0",
         "https://www.effectivegatecpm.com/pmapdftgc?key=39235e43e4d81ee4fe645e7c24b48b1b",
       ];
-      const randomAd = adsterraLinks[Math.floor(Math.random() * adsterraLinks.length)];
       
-      // Log which ad was selected for debugging (optional - remove in production if needed)
-      console.log(`Selected Adsteera ad: ${randomAd} (from ${adsterraLinks.length} total links)`);
+      // Increment download attempts counter
+      const currentAttempt = downloadAttempts + 1;
+      setDownloadAttempts(currentAttempt);
+      
+      // First click: Always show ads
+      // Second click onwards: Randomly decide (show ads OR download)
+      const isFirstClick = currentAttempt === 1;
+      const shouldShowAds = isFirstClick || Math.random() < 0.5; // First click always shows ads, then 50% chance
       
       // Determine file extension for download attribute
       let fileExtension = 'mp4';
@@ -140,16 +151,12 @@ export default function MediaDetail() {
       // Create download link with download attribute to force download
       const link = document.createElement("a");
       link.href = proxyUrl;
-      // Always use download attribute to force download instead of opening in new tab
       link.download = `${media.title.replace(/[^a-z0-9]/gi, '_').toLowerCase()}.${fileExtension}`;
       link.style.display = 'none';
       document.body.appendChild(link);
       
-      // Open ad window FIRST (while still in user gesture context)
-      const adWindow = window.open(randomAd, "_blank", "width=800,height=600");
-      
-      // Small delay to ensure ad window opens, then trigger download
-      setTimeout(() => {
+      // Function to trigger download
+      const triggerDownload = () => {
         try {
           // Click the link to trigger download
           link.click();
@@ -175,13 +182,6 @@ export default function MediaDetail() {
               // ignore cleanup errors
             }
           }, 2000);
-          
-          // Close ad window after download starts
-          setTimeout(() => {
-            if (adWindow && !adWindow.closed) {
-              adWindow.close();
-            }
-          }, 5000);
         } catch (downloadError) {
           console.error("Download error:", downloadError);
           setIsDownloading(false);
@@ -195,7 +195,52 @@ export default function MediaDetail() {
           }
           alert("Failed to download. Please try again.");
         }
-      }, 100); // Small delay to ensure ad window opens first
+      };
+      
+      if (shouldShowAds) {
+        // Show ads: randomly select 1, 2, or 3 ads
+        const numAdsToShow = Math.floor(Math.random() * 3) + 1; // 1, 2, or 3
+        
+        // Shuffle array and pick random unique ads
+        const shuffled = [...adsterraLinks].sort(() => Math.random() - 0.5);
+        const selectedAds = shuffled.slice(0, numAdsToShow);
+        
+        console.log(`Showing ${numAdsToShow} Adsteera ad(s) from ${adsterraLinks.length} total links`);
+        
+        // Open all selected ads at once (while still in user gesture context)
+        const adWindows: Window[] = [];
+        
+        selectedAds.forEach((adUrl, index) => {
+          // Small delay between each ad window to avoid popup blockers
+          setTimeout(() => {
+            const adWindow = window.open(adUrl, "_blank", "width=800,height=600");
+            if (adWindow) {
+              adWindows.push(adWindow);
+            }
+          }, index * 100); // 100ms delay between each ad
+        });
+        
+        // Don't auto-download after showing ads - user can close ads and click download again
+        // The ads are shown, user can close them, and next download click will be a new random decision
+        setIsDownloading(false);
+        
+        // Clean up link (we'll create a new one on next download attempt)
+        setTimeout(() => {
+          try {
+            if (document.body.contains(link)) {
+              document.body.removeChild(link);
+            }
+          } catch {
+            // ignore cleanup errors
+          }
+        }, 1000);
+      } else {
+        // Download directly without showing ads
+        console.log(`Downloading directly without ads (attempt ${currentAttempt})`);
+        triggerDownload();
+        // Reset attempts counter after successful download
+        setDownloadAttempts(0);
+      }
     } catch (error) {
       console.error("Download error:", error);
       setIsDownloading(false);
