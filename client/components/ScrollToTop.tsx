@@ -38,8 +38,8 @@ export default function ScrollToTop() {
     window.addEventListener('popstate', handlePopState, false);
 
     return () => {
-      // Clean up event listener
-      window.removeEventListener('popstate', handlePopState, true);
+      // Clean up event listener - MUST match the phase used in addEventListener
+      window.removeEventListener('popstate', handlePopState, false);
       // Clean up any pending timeout to prevent resource leaks
       if (timeoutId !== null) {
         clearTimeout(timeoutId);
