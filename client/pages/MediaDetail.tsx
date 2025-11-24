@@ -34,7 +34,7 @@ export default function MediaDetail() {
       if (!id) return;
       
       // CRITICAL: Don't redirect if this is browser back/forward navigation
-      // Use both useNavigationType AND the global back navigation detector for reliability
+      // Use multiple detection methods for maximum reliability
       const isBrowserNavigation = navigationType === 'POP' || isBackNavigationActive();
       
       // Also check if location changed backwards (pathname went from longer to shorter)
@@ -43,11 +43,15 @@ export default function MediaDetail() {
       
       // More reliable back detection: check if we're going to a parent route
       // e.g., /browse/video/123 -> /browse/video (back) or /browse/video/123 -> /browse (back)
+      const prevPathParts = prevPath.split('/').filter(Boolean);
+      const currentPathParts = currentPath.split('/').filter(Boolean);
       const isPathGoingBack = 
         currentPath.length < prevPath.length || 
         (prevPath.includes('/browse/') && currentPath === '/browse') ||
         (prevPath.startsWith('/browse/') && currentPath.startsWith('/browse/') && 
-         prevPath.split('/').length > currentPath.split('/').length);
+         prevPathParts.length > currentPathParts.length) ||
+        // Also check if going from detail page to list page (back navigation)
+        (prevPath.match(/\/browse\/[^/]+\/[^/]+$/) && currentPath.match(/\/browse\/[^/]+$/));
       
       // Update previous location AFTER checking (so we can compare on next render)
       const wasBackNav = isBrowserNavigation || isPathGoingBack;
@@ -57,6 +61,17 @@ export default function MediaDetail() {
       
       // If it's browser navigation OR path is going back, don't redirect
       const isBackNav = wasBackNav;
+      
+      // DEBUG: Log detection in development
+      if (process.env.NODE_ENV === 'development' && isBackNav) {
+        console.log('[MediaDetail] Back navigation detected:', {
+          navigationType,
+          isBackNavigationActive: isBackNavigationActive(),
+          isPathGoingBack,
+          prevPath,
+          currentPath,
+        });
+      }
       
       // Reset redirect tracking when ID changes (but not on browser navigation)
       if (!isBackNav && lastRedirectedIdRef.current !== id) {
