@@ -58,8 +58,13 @@ if (typeof window !== "undefined") {
     const message = args[0]?.toString() || '';
     const fullMessage = args.map(arg => String(arg)).join(' ').toLowerCase();
     
-    // Ignore 403 Forbidden errors from ad networks
-    if (fullMessage.includes('403') && (fullMessage.includes('camterest.com') || fullMessage.includes('forbidden'))) {
+    // Ignore 403 Forbidden errors from ad networks (check for 403 and ad network domains)
+    if (fullMessage.includes('403') && (
+      fullMessage.includes('camterest.com') || 
+      fullMessage.includes('effectivegatecpm.com') ||
+      fullMessage.includes('adsterra.com') ||
+      fullMessage.includes('forbidden')
+    )) {
       return;
     }
     // Ignore autofocus blocking errors from ad network iframes (browser security feature)
@@ -68,23 +73,34 @@ if (typeof window !== "undefined") {
       return;
     }
     // Ignore ERR_NAME_NOT_RESOLVED for example.com URLs (demo/placeholder data)
-    if (fullMessage.includes('err_name_not_resolved') && fullMessage.includes('example.com')) {
+    if (fullMessage.includes('err_name_not_resolved') && (
+      fullMessage.includes('example.com') || 
+      fullMessage.includes('cloudinary.example.com')
+    )) {
       return;
     }
-    // Ignore network errors for cloudinary.example.com (demo media)
-    if (message.includes('cloudinary.example.com')) {
+    // Ignore network errors for cloudinary.example.com (demo media) - check multiple formats
+    if (fullMessage.includes('cloudinary.example.com') || 
+        message.includes('cloudinary.example.com') ||
+        fullMessage.includes('net::err_name_not_resolved') && fullMessage.includes('cloudinary')) {
       return;
     }
     // Ignore Adsterra script loading errors
     if (fullMessage.includes('adsterra') || fullMessage.includes('adsterra.com')) {
       return;
     }
-    // Ignore ad network errors (camterest, effectivegatecpm, etc.)
-    if (fullMessage.includes('camterest.com') || fullMessage.includes('effectivegatecpm.com')) {
+    // Ignore ad network errors (camterest, effectivegatecpm, etc.) - comprehensive check
+    if (fullMessage.includes('camterest.com') || 
+        fullMessage.includes('effectivegatecpm.com') ||
+        fullMessage.includes('/api/users?token=') && fullMessage.includes('effectivegatecpm')) {
       return;
     }
     // Ignore Intervention messages about ads
     if (fullMessage.includes('[intervention]') && fullMessage.includes('ad was removed')) {
+      return;
+    }
+    // Ignore GET request errors to ad network API endpoints
+    if (fullMessage.includes('get ') && fullMessage.includes('effectivegatecpm.com/api')) {
       return;
     }
     originalError.apply(console, args);
@@ -94,13 +110,21 @@ if (typeof window !== "undefined") {
   window.addEventListener('error', (event) => {
     const message = event.message?.toLowerCase() || '';
     const source = event.filename?.toLowerCase() || '';
+    const target = (event.target as any)?.src || (event.target as any)?.href || '';
+    const targetStr = String(target).toLowerCase();
     
     // Suppress errors from ad networks
     if (message.includes('blocked autofocusing') || 
         message.includes('autofocus') ||
+        message.includes('err_name_not_resolved') && (
+          message.includes('cloudinary.example.com') || 
+          message.includes('example.com')
+        ) ||
         source.includes('camterest.com') ||
         source.includes('effectivegatecpm.com') ||
-        source.includes('adsterra.com')) {
+        source.includes('adsterra.com') ||
+        targetStr.includes('effectivegatecpm.com') ||
+        targetStr.includes('cloudinary.example.com')) {
       event.preventDefault();
       return false;
     }
@@ -126,9 +150,22 @@ if (typeof window !== "undefined") {
   const originalFetch = window.fetch;
   window.fetch = async (...args) => {
     try {
-      return await originalFetch(...args);
+      const response = await originalFetch(...args);
+      // Suppress 403 errors from ad networks silently
+      if (!response.ok && response.status === 403) {
+        const url = typeof args[0] === 'string' ? args[0] : 
+                   args[0] instanceof Request ? args[0].url :
+                   args[0] instanceof URL ? args[0].href : '';
+        if (url.includes('effectivegatecpm.com') || 
+            url.includes('camterest.com') || 
+            url.includes('adsterra.com')) {
+          // Return response but don't log error - ad networks often return 403
+          return response;
+        }
+      }
+      return response;
     } catch (error: any) {
-      // Suppress errors for example.com URLs
+      // Suppress errors for example.com URLs and ad networks
       let url = '';
       if (typeof args[0] === 'string') {
         url = args[0];
@@ -137,9 +174,13 @@ if (typeof window !== "undefined") {
       } else if (args[0] instanceof URL) {
         url = args[0].href;
       }
-      if (url.includes('example.com') || url.includes('cloudinary.example.com')) {
+      if (url.includes('example.com') || 
+          url.includes('cloudinary.example.com') ||
+          url.includes('effectivegatecpm.com') ||
+          url.includes('camterest.com') ||
+          url.includes('adsterra.com')) {
         // Return a rejected promise but don't log error
-        return Promise.reject(new Error('Example URL - suppressed'));
+        return Promise.reject(new Error('Ad network or example URL - suppressed'));
       }
       throw error;
     }
