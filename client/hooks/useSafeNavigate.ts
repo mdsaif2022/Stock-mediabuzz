@@ -41,9 +41,37 @@ export function useSafeNavigate() {
       navigate(to);
     } else {
       // Check if we're already on the target URL to prevent loops
+      // Normalize both paths for comparison (handle relative/absolute URLs)
       const currentPath = location.pathname + location.search + location.hash;
-      const targetPath = to.split('?')[0].split('#')[0]; // Get pathname only
       
+      // Normalize target path - handle both absolute and relative URLs
+      let targetPath = to;
+      if (to.startsWith('/')) {
+        // Absolute path - extract pathname, search, and hash
+        try {
+          const url = new URL(to, window.location.origin);
+          targetPath = url.pathname + url.search + url.hash;
+        } catch {
+          // If URL parsing fails, use as-is but extract pathname+search+hash manually
+          const [pathPart, queryPart] = to.split('?');
+          const [pathOnly, hashPart] = pathPart.split('#');
+          targetPath = pathOnly + (queryPart ? `?${queryPart}` : '') + (hashPart ? `#${hashPart}` : '');
+        }
+      } else {
+        // Relative path - resolve it
+        try {
+          const url = new URL(to, window.location.origin + location.pathname);
+          targetPath = url.pathname + url.search + url.hash;
+        } catch {
+          // If URL parsing fails, treat as relative to current pathname
+          const basePath = location.pathname.endsWith('/') ? location.pathname : location.pathname + '/';
+          const [pathPart, queryPart] = to.split('?');
+          const [pathOnly, hashPart] = pathPart.split('#');
+          targetPath = (basePath + pathOnly).replace(/\/+/g, '/') + (queryPart ? `?${queryPart}` : '') + (hashPart ? `#${hashPart}` : '');
+        }
+      }
+      
+      // Compare normalized paths (including search and hash)
       if (currentPath === targetPath && !options?.replace) {
         // Already on target, skip navigation
         console.warn('[SafeNavigate] Already on target URL, skipping:', to);

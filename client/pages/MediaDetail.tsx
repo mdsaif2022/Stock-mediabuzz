@@ -95,9 +95,8 @@ export default function MediaDetail() {
     };
 
     fetchMedia();
-    // Include navigationType in dependencies to detect browser navigation
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [id, navigationType]);
+    // Include all dependencies: id, navigationType, and category (used in shouldRedirect logic)
+  }, [id, navigationType, category, navigate]);
 
   useEffect(() => {
     if (!media) {

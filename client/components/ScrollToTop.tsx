@@ -13,21 +13,38 @@ export default function ScrollToTop() {
 
   // Set up popstate listener outside useEffect to catch events before React Router processes them
   useEffect(() => {
+    // Track timeout to clean it up on unmount or new popstate event
+    let timeoutId: ReturnType<typeof setTimeout> | null = null;
+    
     // Detect if this is a back/forward navigation by checking if popstate was fired
     // This helps ensure proper behavior on mobile browsers
     const handlePopState = () => {
+      // Clear any existing timeout to prevent accumulation
+      if (timeoutId !== null) {
+        clearTimeout(timeoutId);
+        timeoutId = null;
+      }
+      
       isNavigatingBackRef.current = true;
       // Reset flag after a short delay
-      setTimeout(() => {
+      timeoutId = setTimeout(() => {
         isNavigatingBackRef.current = false;
+        timeoutId = null;
       }, 200);
     };
 
-    // Use capture phase to set flag before React Router handles the event
-    window.addEventListener('popstate', handlePopState, true);
+    // Use bubble phase (not capture) to avoid interfering with React Router
+    // React Router needs to handle popstate first for back button to work
+    window.addEventListener('popstate', handlePopState, false);
 
     return () => {
+      // Clean up event listener
       window.removeEventListener('popstate', handlePopState, true);
+      // Clean up any pending timeout to prevent resource leaks
+      if (timeoutId !== null) {
+        clearTimeout(timeoutId);
+        timeoutId = null;
+      }
     };
   }, []); // Only set up listener once
 

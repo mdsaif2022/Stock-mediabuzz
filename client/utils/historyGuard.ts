@@ -96,20 +96,45 @@ export function setupHistoryGuard() {
   let pushStateCallStack: string[] = []; // Track recent pushState calls for spam detection
 
   // Override pushState to prevent duplicate entries
-  // DISABLED FOR TESTING: Temporarily allow all pushState calls to diagnose back button issue
-  // If back button works with this disabled, then the guard was interfering
+  // EXTREMELY CONSERVATIVE: Only block obvious spam (< 10ms rapid duplicates)
+  // This ensures we NEVER interfere with React Router or legitimate navigation
   window.history.pushState = function(state: any, title: string, url?: string | URL | null) {
-    // TEMPORARILY DISABLED - Allow all pushState calls to test if guard is the issue
-    // TODO: Re-enable with minimal blocking once back button is confirmed working
+    const now = Date.now();
+    const timeSinceLastPush = now - lastPushStateCallTime;
+    lastPushStateCallTime = now;
+
+    // Normalize URLs for comparison
+    const currentUrlKey = getUrlKey();
     const newUrlKey = normalizeUrl(url);
-    lastPushedUrl = newUrlKey;
     
-    // Log in development for debugging
-    if (process.env.NODE_ENV === 'development') {
-      console.log('[History Guard] pushState allowed:', newUrlKey);
+    // If this is programmatic navigation from React Router, always allow it
+    if (isProgrammaticNavigation) {
+      lastPushedUrl = newUrlKey;
+      return originalPushState.call(window.history, state, title, url);
     }
     
-    // Allow ALL pushState calls - no blocking
+    // EXTREMELY STRICT: Only block if:
+    // 1. It's the EXACT same URL as current (including query/hash)
+    // 2. AND it's the same as the last pushed URL
+    // 3. AND it happened within 10ms (extremely rapid - definitely spam, not user action)
+    // This is so strict that it will NEVER block legitimate React Router navigation
+    const isExtremelyRapidDuplicate = 
+      newUrlKey === currentUrlKey && 
+      lastPushedUrl === newUrlKey && 
+      timeSinceLastPush < 10; // Only catch obvious spam (< 10ms)
+    
+    if (isExtremelyRapidDuplicate) {
+      // This is definitely spam - use replaceState instead
+      console.warn('[History Guard] Blocking extremely rapid duplicate:', newUrlKey, {
+        timeSinceLastPush,
+      });
+      return originalReplaceState.call(window.history, state, title, url);
+    }
+    
+    // Update tracking for next comparison
+    lastPushedUrl = newUrlKey;
+    
+    // Allow ALL other pushState calls (including React Router navigation)
     return originalPushState.call(window.history, state, title, url);
   };
 
@@ -120,8 +145,11 @@ export function setupHistoryGuard() {
   };
 
   // Monitor popstate events ONLY for tracking (don't interfere with React Router)
-  // Use bubble phase so React Router handles it first
+  // Use bubble phase and ensure we don't prevent default or stop propagation
+  // React Router MUST handle popstate events for back button to work
   window.addEventListener('popstate', (event) => {
+    // Just track URL changes for internal state - don't interfere with event
+    // React Router will handle the actual navigation
     const newUrl = getUrlKey();
     if (lastUrl !== newUrl) {
       lastUrl = newUrl;
@@ -129,7 +157,8 @@ export function setupHistoryGuard() {
       lastPushStateCallTime = 0; // Reset timing
       pushStateCallStack = []; // Clear spam detection stack
     }
-  }); // Use default bubble phase - let React Router handle it first
+    // DO NOT call preventDefault() or stopPropagation() - let React Router handle it
+  }, false); // Use bubble phase (default) - React Router handles it first
 
   console.log('[History Guard] Active - very conservative mode (mobile & desktop optimized)');
 }

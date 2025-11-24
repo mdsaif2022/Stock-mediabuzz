@@ -30,6 +30,7 @@ import ScrollToTop from "@/components/ScrollToTop";
 import NavigationMonitor from "@/components/NavigationMonitor";
 import "@/utils/navigationDebug"; // Initialize debug utilities in development
 import "@/utils/testBackButton"; // Initialize back button test utility
+import "@/utils/diagnoseBackButton"; // Initialize comprehensive diagnosis utility
 
 const queryClient = new QueryClient({
   defaultOptions: {
