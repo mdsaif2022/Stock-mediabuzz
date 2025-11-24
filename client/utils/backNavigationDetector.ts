@@ -7,6 +7,7 @@
 
 let isBackNavigation = false;
 let backNavigationTimeout: ReturnType<typeof setTimeout> | null = null;
+let backNavigationStartTime = 0;
 
 /**
  * Initialize the back navigation detector
@@ -24,13 +25,16 @@ export function setupBackNavigationDetector() {
 
     // Set flag immediately when popstate fires
     isBackNavigation = true;
+    backNavigationStartTime = Date.now();
 
     // Reset flag after navigation completes (React Router processes it)
     // Use a longer timeout to ensure React Router has time to handle it
+    // Also ensure it stays active long enough for useEffect hooks to check it
     backNavigationTimeout = setTimeout(() => {
       isBackNavigation = false;
       backNavigationTimeout = null;
-    }, 500); // Longer timeout to ensure React Router processes it
+      backNavigationStartTime = 0;
+    }, 1000); // Increased to 1000ms to ensure all useEffect hooks can detect it
   };
 
   // Listen for popstate events (browser back/forward button)
@@ -52,7 +56,13 @@ export function setupBackNavigationDetector() {
  * This is more reliable than useNavigationType which can have timing issues
  */
 export function isBackNavigationActive(): boolean {
-  return isBackNavigation;
+  // Check if flag is set AND it's been less than 1 second since popstate
+  // This ensures we catch back navigation even if there's a delay
+  if (isBackNavigation) {
+    const timeSincePopState = Date.now() - backNavigationStartTime;
+    return timeSincePopState < 1000; // Active for 1 second after popstate
+  }
+  return false;
 }
 
 /**
