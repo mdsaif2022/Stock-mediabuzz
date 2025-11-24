@@ -48,9 +48,23 @@
         
         // Store original pushState IMMEDIATELY
         const originalPushState = window.history.pushState;
+        const originalReplaceState = window.history.replaceState;
         let lastUrl = window.location.pathname + window.location.search + window.location.hash;
         let lastPushTime = 0;
         let pushStateCallCount = 0;
+        let replaceStateCallCount = 0;
+        
+        // Also monitor replaceState to see if something is using that
+        window.history.replaceState = function(state, title, url) {
+          replaceStateCallCount++;
+          if (replaceStateCallCount <= 5) { // Log first 5 to avoid spam
+            console.log('[Early Guard] replaceState call #' + replaceStateCallCount, {
+              url: url || window.location.href,
+              historyLength: window.history.length
+            });
+          }
+          return originalReplaceState.call(window.history, state, title, url);
+        };
         
         // Override pushState to block ALL same-URL duplicates (very aggressive)
         window.history.pushState = function(state, title, url) {
@@ -120,8 +134,27 @@
               historyLength: window.history.length,
               currentUrl: window.location.href,
               pushStateCallCount: pushStateCallCount,
-              lastUrl: lastUrl
+              replaceStateCallCount: replaceStateCallCount,
+              lastUrl: lastUrl,
+              note: pushStateCallCount === 0 && window.history.length > 10 
+                ? '⚠️ History is polluted but no pushState calls detected - likely from previous session'
+                : 'Normal'
             });
+          };
+          
+          // Also expose a function to check if history is polluted
+          window.isHistoryPolluted = function() {
+            const length = window.history.length;
+            if (length > 10) {
+              console.error('[Early Guard] ❌ History is POLLUTED:', length, 'entries');
+              console.error('[Early Guard] This prevents the back button from working');
+              console.error('[Early Guard]');
+              console.error('[Early Guard] 🔧 SOLUTION: Close ALL tabs and open a fresh one');
+              return true;
+            } else {
+              console.log('[Early Guard] ✅ History is clean:', length, 'entries');
+              return false;
+            }
           };
           console.log('[Early Guard] 💡 Use window.checkEarlyGuard() to check guard state');
         }
