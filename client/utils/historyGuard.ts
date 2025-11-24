@@ -225,6 +225,21 @@ export function setupHistoryGuard() {
   console.log('[History Guard] Active - aggressive mode (blocks duplicate same-URL entries)');
   console.log('[History Guard] Initial history length:', window.history.length);
   
+  // If history is polluted, provide a way to clear it
+  if (window.history.length > 10) {
+    console.error('[History Guard] ⚠️ History is polluted with', window.history.length, 'entries');
+    console.error('[History Guard] The back button will NOT work properly');
+    console.error('[History Guard]');
+    console.error('[History Guard] 🔧 To fix:');
+    console.error('[History Guard]   1. Close ALL tabs of this site');
+    console.error('[History Guard]   2. Open a new tab and navigate to the site');
+    console.error('[History Guard]   3. OR use incognito/private mode');
+    console.error('[History Guard]   4. OR clear browser cache and cookies');
+    console.error('[History Guard]');
+    console.error('[History Guard] Note: History cannot be cleared programmatically for security reasons');
+    console.error('[History Guard] You must manually clear it using one of the methods above');
+  }
+  
   // Log all pushState calls for debugging
   // Always log in development, and log warnings in production
   const logPushState = (url: string, isBlocked: boolean, reason: string) => {

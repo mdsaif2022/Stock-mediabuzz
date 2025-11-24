@@ -112,6 +112,19 @@
         
         console.log('[Early History Guard] Active (inline script)');
         console.log('[Early Guard] Will log pushState call count on first call');
+        
+        // Expose utility to check history state
+        if (typeof window !== 'undefined') {
+          (window as any).checkEarlyGuard = function() {
+            console.log('[Early Guard] Current state:', {
+              historyLength: window.history.length,
+              currentUrl: window.location.href,
+              pushStateCallCount: pushStateCallCount,
+              lastUrl: lastUrl
+            });
+          };
+          console.log('[Early Guard] 💡 Use window.checkEarlyGuard() to check guard state');
+        }
       })();
     </script>
 
