@@ -114,12 +114,22 @@ export function setupHistoryGuard() {
     }
     
     // URL is the SAME as current - this creates a duplicate entry
-    // Check if this is from React Router by examining the call stack
-    // React Router's BrowserRouter uses history.pushState internally
+    // Check if this is from React Router by examining:
+    // 1. Call stack (React Router functions)
+    // 2. State object (React Router stores navigation state with 'key' and 'usr' properties)
+    // 3. Programmatic navigation flag
     const stack = new Error().stack || '';
+    const hasReactRouterState = state && (
+      typeof state === 'object' && (
+        'key' in state || // React Router v6 uses 'key' in state
+        'usr' in state || // React Router stores user state in 'usr'
+        'idx' in state    // React Router stores index in 'idx'
+      )
+    );
     const isReactRouterCall = stack.includes('BrowserRouter') || 
                               stack.includes('react-router') ||
                               stack.includes('Router') ||
+                              hasReactRouterState ||
                               isProgrammaticNavigation;
     
     if (isReactRouterCall) {
@@ -129,13 +139,26 @@ export function setupHistoryGuard() {
     }
     
     // Same URL AND not from React Router - this is likely a duplicate from ad scripts or other code
-    // Use replaceState instead to avoid creating duplicate history entry
-    console.warn('[History Guard] Blocking duplicate pushState (same URL):', newUrlKey, {
+    // BUT: Only block if it happened very rapidly (< 50ms) to avoid blocking legitimate same-URL navigation
+    // This prevents blocking legitimate navigation that might happen to push the same URL
+    if (timeSinceLastPush < 50) {
+      // Very rapid same-URL pushState - likely spam/duplicate
+      console.warn('[History Guard] Blocking rapid duplicate pushState (same URL):', newUrlKey, {
+        timeSinceLastPush,
+        isProgrammaticNavigation,
+        hasReactRouterState,
+      });
+      return originalReplaceState.call(window.history, state, title, url);
+    }
+    
+    // Same URL but not rapid - might be legitimate (e.g., user clicking same link twice after delay)
+    // Allow it but log a warning
+    console.warn('[History Guard] Same-URL pushState detected (allowing):', newUrlKey, {
       timeSinceLastPush,
       isProgrammaticNavigation,
-      stack: stack.split('\n').slice(0, 5).join('\n'), // Log first 5 stack frames for debugging
     });
-    return originalReplaceState.call(window.history, state, title, url);
+    lastPushedUrl = newUrlKey;
+    return originalPushState.call(window.history, state, title, url);
   };
 
   // Also protect replaceState from being abused
