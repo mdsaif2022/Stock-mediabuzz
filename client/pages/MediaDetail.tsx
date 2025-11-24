@@ -40,14 +40,23 @@ export default function MediaDetail() {
       // Also check if location changed backwards (pathname went from longer to shorter)
       const currentPath = location.pathname + location.search;
       const prevPath = prevLocationRef.current;
-      const isPathGoingBack = currentPath.length < prevPath.length || 
-                              (prevPath.includes('/browse/') && currentPath === '/browse');
       
-      // Update previous location
+      // More reliable back detection: check if we're going to a parent route
+      // e.g., /browse/video/123 -> /browse/video (back) or /browse/video/123 -> /browse (back)
+      const isPathGoingBack = 
+        currentPath.length < prevPath.length || 
+        (prevPath.includes('/browse/') && currentPath === '/browse') ||
+        (prevPath.startsWith('/browse/') && currentPath.startsWith('/browse/') && 
+         prevPath.split('/').length > currentPath.split('/').length);
+      
+      // Update previous location AFTER checking (so we can compare on next render)
+      const wasBackNav = isBrowserNavigation || isPathGoingBack;
+      
+      // Update previous location for next comparison
       prevLocationRef.current = currentPath;
       
       // If it's browser navigation OR path is going back, don't redirect
-      const isBackNav = isBrowserNavigation || isPathGoingBack;
+      const isBackNav = wasBackNav;
       
       // Reset redirect tracking when ID changes (but not on browser navigation)
       if (!isBackNav && lastRedirectedIdRef.current !== id) {

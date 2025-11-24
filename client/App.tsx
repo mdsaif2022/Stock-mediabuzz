@@ -32,6 +32,8 @@ import "@/utils/navigationDebug"; // Initialize debug utilities in development
 import "@/utils/testBackButton"; // Initialize back button test utility
 import "@/utils/diagnoseBackButton"; // Initialize comprehensive diagnosis utility
 import "@/utils/testBackButtonSimple"; // Initialize simple back button test
+import "@/utils/diagnoseHistory"; // Initialize history diagnosis utility
+import "@/utils/cleanHistory"; // Initialize history cleanup utility
 
 const queryClient = new QueryClient({
   defaultOptions: {

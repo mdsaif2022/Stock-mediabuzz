@@ -52,13 +52,22 @@ export default function BrowseMedia() {
     // Also check if location changed backwards
     const currentPath = location.pathname + location.search;
     const prevPath = prevLocationRef.current;
-    const isPathGoingBack = currentPath.length < prevPath.length;
     
-    // Update previous location
+    // More reliable back detection: check if we're going to a parent route
+    const isPathGoingBack = 
+      currentPath.length < prevPath.length ||
+      (prevPath.startsWith('/browse/') && currentPath === '/browse') ||
+      (prevPath.startsWith('/browse/') && currentPath.startsWith('/browse/') && 
+       prevPath.split('/').length > currentPath.split('/').length);
+    
+    // Check BEFORE updating
+    const wasBackNav = isBrowserNavigation || isPathGoingBack;
+    
+    // Update previous location for next comparison
     prevLocationRef.current = currentPath;
     
     // If it's browser navigation OR path is going back, don't sync
-    const isBackNav = isBrowserNavigation || isPathGoingBack;
+    const isBackNav = wasBackNav;
     
     if (isBackNav) {
       // On browser navigation, just mark as synced to prevent any redirects
