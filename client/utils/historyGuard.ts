@@ -144,26 +144,15 @@ export function setupHistoryGuard() {
     }
     
     // Same URL AND not from React Router - this is likely a duplicate from ad scripts or other code
-    // BUT: Only block if it happened very rapidly (< 50ms) to avoid blocking legitimate same-URL navigation
-    // This prevents blocking legitimate navigation that might happen to push the same URL
-    if (timeSinceLastPush < 50) {
-      // Very rapid same-URL pushState - likely spam/duplicate
-      console.warn('[History Guard] Blocking rapid duplicate pushState (same URL):', newUrlKey, {
-        timeSinceLastPush,
-        isProgrammaticNavigation,
-        hasReactRouterState,
-      });
-      return originalReplaceState.call(window.history, state, title, url);
-    }
-    
-    // Same URL but not rapid - might be legitimate (e.g., user clicking same link twice after delay)
-    // Allow it but log a warning
-    console.warn('[History Guard] Same-URL pushState detected (allowing):', newUrlKey, {
+    // ALWAYS block same-URL pushState unless it's from React Router (which we already checked above)
+    // This prevents duplicate history entries that break the back button
+    console.warn('[History Guard] Blocking duplicate pushState (same URL):', newUrlKey, {
       timeSinceLastPush,
       isProgrammaticNavigation,
+      hasReactRouterState,
+      action: 'Using replaceState instead of pushState',
     });
-    lastPushedUrl = newUrlKey;
-    return originalPushState.call(window.history, state, title, url);
+    return originalReplaceState.call(window.history, state, title, url);
   };
 
   // Also protect replaceState from being abused

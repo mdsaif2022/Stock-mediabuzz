@@ -36,6 +36,7 @@ import "@/utils/diagnoseHistory"; // Initialize history diagnosis utility
 import "@/utils/cleanHistory"; // Initialize history cleanup utility
 import "@/utils/debugBackButton"; // Initialize back button debug utility
 import "@/utils/checkHistoryEntries"; // Initialize history entries checker
+import "@/utils/clearDuplicateHistory"; // Initialize clear duplicate history utility
 
 const queryClient = new QueryClient({
   defaultOptions: {
