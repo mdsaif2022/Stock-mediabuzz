@@ -21,13 +21,31 @@
         'use strict';
         if (typeof window === 'undefined') return;
         
+        // Log initial history state IMMEDIATELY
+        const initialHistoryLength = window.history.length;
+        console.log('[Early Guard] Initial history length:', initialHistoryLength);
+        
+        // If history is already polluted, warn about it
+        if (initialHistoryLength > 10) {
+          console.error('[Early Guard] ⚠️ WARNING: History length is', initialHistoryLength, 'on page load!');
+          console.error('[Early Guard] This means duplicates exist from a previous session');
+          console.error('[Early Guard] The back button will NOT work until history is cleared');
+          console.error('[Early Guard]');
+          console.error('[Early Guard] 🔧 SOLUTION: Do a HARD REFRESH:');
+          console.error('[Early Guard]   Windows/Linux: Ctrl + Shift + R');
+          console.error('[Early Guard]   Mac: Cmd + Shift + R');
+          console.error('[Early Guard]   Or close tab and open new one');
+        }
+        
         // Store original pushState IMMEDIATELY
         const originalPushState = window.history.pushState;
         let lastUrl = window.location.pathname + window.location.search + window.location.hash;
         let lastPushTime = 0;
+        let pushStateCallCount = 0;
         
         // Override pushState to block rapid same-URL duplicates
         window.history.pushState = function(state, title, url) {
+          pushStateCallCount++;
           const now = Date.now();
           const timeSinceLastPush = now - lastPushTime;
           lastPushTime = now;
@@ -59,7 +77,7 @@
           
           // Block rapid same-URL pushState (< 10ms = spam)
           if (timeSinceLastPush < 10) {
-            console.warn('[Early Guard] Blocking rapid duplicate:', newUrl);
+            console.warn('[Early Guard] Blocking rapid duplicate (#', pushStateCallCount, '):', newUrl);
             return window.history.replaceState(state, title, url);
           }
           
@@ -68,6 +86,7 @@
         };
         
         console.log('[Early History Guard] Active (inline script)');
+        console.log('[Early Guard] Will log pushState call count on first call');
       })();
     </script>
 
