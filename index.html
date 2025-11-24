@@ -15,6 +15,62 @@
   <body>
     <div id="root"></div>
 
+    <!-- Early History Guard - runs before any other scripts -->
+    <script>
+      (function() {
+        'use strict';
+        if (typeof window === 'undefined') return;
+        
+        // Store original pushState IMMEDIATELY
+        const originalPushState = window.history.pushState;
+        let lastUrl = window.location.pathname + window.location.search + window.location.hash;
+        let lastPushTime = 0;
+        
+        // Override pushState to block rapid same-URL duplicates
+        window.history.pushState = function(state, title, url) {
+          const now = Date.now();
+          const timeSinceLastPush = now - lastPushTime;
+          lastPushTime = now;
+          
+          // Get URLs
+          const currentUrl = window.location.pathname + window.location.search + window.location.hash;
+          let newUrl = currentUrl;
+          
+          if (url) {
+            const urlStr = String(url);
+            if (urlStr.startsWith('http://') || urlStr.startsWith('https://')) {
+              try {
+                const urlObj = new URL(urlStr);
+                newUrl = urlObj.pathname + urlObj.search + urlObj.hash;
+              } catch { newUrl = currentUrl; }
+            } else {
+              try {
+                const urlObj = new URL(urlStr, window.location.origin);
+                newUrl = urlObj.pathname + urlObj.search + urlObj.hash;
+              } catch { newUrl = urlStr.startsWith('/') ? urlStr : '/' + urlStr; }
+            }
+          }
+          
+          // Allow different URLs
+          if (newUrl !== currentUrl) {
+            lastUrl = newUrl;
+            return originalPushState.call(window.history, state, title, url);
+          }
+          
+          // Block rapid same-URL pushState (< 10ms = spam)
+          if (timeSinceLastPush < 10) {
+            console.warn('[Early Guard] Blocking rapid duplicate:', newUrl);
+            return window.history.replaceState(state, title, url);
+          }
+          
+          lastUrl = newUrl;
+          return originalPushState.call(window.history, state, title, url);
+        };
+        
+        console.log('[Early History Guard] Active (inline script)');
+      })();
+    </script>
+
     <script type="module" src="/client/main.tsx"></script>
   </body>
 </html>

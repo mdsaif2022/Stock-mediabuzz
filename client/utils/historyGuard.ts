@@ -96,20 +96,23 @@ export function setupHistoryGuard() {
   });
   
   // If history length is already high, it means duplicates exist
-  // Try to clear them by replacing current entry
+  // We can't remove existing entries, but we can warn and prevent new ones
   if (initialLength > 10) {
-    console.warn('[History Guard] WARNING: History length is already', initialLength, 'on setup!');
-    console.warn('[History Guard] This suggests duplicates were created before guard was set up');
-    console.warn('[History Guard] Attempting to clear duplicate history...');
+    console.error('[History Guard] ❌ CRITICAL: History length is already', initialLength, 'on setup!');
+    console.error('[History Guard] This means 50 duplicate entries exist BEFORE guard ran');
+    console.error('[History Guard] The back button will NOT work until history is cleared');
+    console.error('[History Guard]');
+    console.error('[History Guard] 🔧 SOLUTION: Do a HARD REFRESH to clear history:');
+    console.error('[History Guard]   - Windows/Linux: Ctrl + Shift + R');
+    console.error('[History Guard]   - Mac: Cmd + Shift + R');
+    console.error('[History Guard]   - Or close and reopen the browser tab');
+    console.error('[History Guard]');
+    console.error('[History Guard] After hard refresh, history should be 1');
+    console.error('[History Guard] Guard will then prevent NEW duplicates from being created');
     
-    // Try to clear history by replacing current entry
-    // This won't remove existing entries, but will prevent new duplicates
+    // Try to help by at least preventing new duplicates
     const currentUrl = window.location.href;
     window.history.replaceState(null, '', currentUrl);
-    
-    console.warn('[History Guard] Note: Cannot remove existing history entries');
-    console.warn('[History Guard] Guard will prevent NEW duplicates from being created');
-    console.warn('[History Guard] For a clean start, do a hard refresh (Ctrl+Shift+R or Cmd+Shift+R)');
   }
 
   // Store original methods
