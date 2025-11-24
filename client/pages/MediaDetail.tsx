@@ -481,10 +481,13 @@ export default function MediaDetail() {
 
   return (
     <Layout>
-      <div className="min-h-screen bg-slate-50 dark:bg-slate-950 py-6 sm:py-8 px-4 sm:px-6">
-        <div className="container mx-auto max-w-6xl">
-          {/* Breadcrumb */}
-          <div className="mb-4 sm:mb-6 md:mb-8">
+      {/* Page Container with distinct visual separation */}
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-slate-50 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950">
+        {/* Page Header with gradient background */}
+        <div className="bg-gradient-to-r from-primary/10 via-secondary/5 to-accent/10 border-b border-border/50 py-8 sm:py-12">
+          <div className="container mx-auto max-w-6xl px-4 sm:px-6">
+            {/* Breadcrumb */}
+            <div className="mb-4">
             <nav className="flex items-center gap-1.5 sm:gap-2 text-xs sm:text-sm text-muted-foreground flex-wrap">
               <Link to="/" className="hover:text-primary transition-colors">
                 Home
@@ -509,6 +512,9 @@ export default function MediaDetail() {
               )}
             </nav>
           </div>
+        </div>
+        
+        <div className="container mx-auto max-w-6xl px-4 sm:px-6 py-6 sm:py-8">
 
           <div className="grid grid-cols-1 lg:grid-cols-3 gap-6 sm:gap-8">
             {/* Main Content */}

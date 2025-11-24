@@ -200,17 +200,26 @@ export default function BrowseMedia() {
 
   return (
     <Layout>
-      <div className="min-h-screen bg-slate-50 dark:bg-slate-950 py-8 sm:py-12 px-4 sm:px-6">
-        <div className="container mx-auto max-w-6xl space-y-8">
-          <header className="space-y-4 text-center">
-            <p className="text-sm font-semibold text-primary uppercase tracking-wide">Media Library</p>
-            <h1 className="text-3xl sm:text-4xl font-bold">Browse All Free Assets</h1>
-            <p className="text-muted-foreground max-w-3xl mx-auto">
-              Filter by category, search by keywords, and sort through the latest uploads from creators around the world.
-            </p>
-          </header>
+      {/* Page Container with distinct visual separation */}
+      <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-slate-50 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950">
+        {/* Page Header with gradient background */}
+        <div className="bg-gradient-to-r from-primary/10 via-secondary/5 to-accent/10 border-b border-border/50 py-12 sm:py-16">
+          <div className="container mx-auto max-w-6xl px-4 sm:px-6">
+            <header className="space-y-4 text-center">
+              <p className="text-sm font-semibold text-primary uppercase tracking-wide">Media Library</p>
+              <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
+                Browse All Free Assets
+              </h1>
+              <p className="text-muted-foreground max-w-3xl mx-auto text-lg">
+                Filter by category, search by keywords, and sort through the latest uploads from creators around the world.
+              </p>
+            </header>
+          </div>
+        </div>
+        
+        <div className="container mx-auto max-w-6xl px-4 sm:px-6 py-8 sm:py-12 space-y-8">
 
-          <div className="bg-white dark:bg-slate-900 border border-border rounded-2xl p-4 sm:p-6 space-y-4 shadow-sm">
+          <div className="bg-white dark:bg-slate-900 border border-border rounded-2xl p-4 sm:p-6 space-y-4 shadow-lg backdrop-blur-sm">
             <form onSubmit={handleSearchSubmit} className="flex flex-col md:flex-row gap-3">
               <div className="relative flex-1">
                 <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />

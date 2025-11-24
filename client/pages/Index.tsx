@@ -194,8 +194,10 @@ export default function Index() {
 
   return (
     <Layout>
-      {/* Hero Section */}
-      <section className="relative py-12 sm:py-16 md:py-24 lg:py-32 overflow-hidden bg-gradient-to-br from-white via-slate-50 to-slate-100 dark:from-slate-900 dark:via-slate-950 dark:to-slate-900">
+      {/* Page Container with distinct visual separation */}
+      <div className="relative min-h-screen">
+        {/* Hero Section */}
+        <section className="relative py-12 sm:py-16 md:py-24 lg:py-32 overflow-hidden bg-gradient-to-br from-white via-slate-50 to-slate-100 dark:from-slate-900 dark:via-slate-950 dark:to-slate-900 border-b border-border/50">
         {/* Animated background elements */}
         <div className="absolute top-0 right-0 w-64 h-64 sm:w-96 sm:h-96 bg-gradient-to-br from-primary/10 to-accent/10 rounded-full blur-3xl -z-0"></div>
         <div className="absolute bottom-0 left-0 w-64 h-64 sm:w-96 sm:h-96 bg-gradient-to-br from-secondary/10 to-primary/10 rounded-full blur-3xl -z-0"></div>
@@ -604,6 +606,7 @@ export default function Index() {
           </div>
         </div>
       </section>
+      </div>
     </Layout>
   );
 }
