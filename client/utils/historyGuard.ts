@@ -86,9 +86,6 @@ export function setupHistoryGuard() {
 
   isGuarding = true;
   lastUrl = getUrlKey();
-  
-  // Store original pushState before overriding
-  const originalPushState = window.history.pushState;
 
   // Store original methods
   const originalPushState = window.history.pushState;
