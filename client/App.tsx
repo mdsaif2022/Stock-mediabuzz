@@ -31,6 +31,7 @@ import NavigationMonitor from "@/components/NavigationMonitor";
 import "@/utils/navigationDebug"; // Initialize debug utilities in development
 import "@/utils/testBackButton"; // Initialize back button test utility
 import "@/utils/diagnoseBackButton"; // Initialize comprehensive diagnosis utility
+import "@/utils/testBackButtonSimple"; // Initialize simple back button test
 
 const queryClient = new QueryClient({
   defaultOptions: {
