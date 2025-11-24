@@ -153,11 +153,24 @@ export function setupHistoryGuard() {
                               hasReactRouterState ||
                               isProgrammaticNavigation;
     
-    if (isReactRouterCall) {
-      // React Router navigation - allow it (might be updating state or handling navigation)
+    // CRITICAL: Even if it's React Router, if URL is the same, we should still block duplicates
+    // React Router should never push the same URL multiple times - that's a bug
+    // Only allow if it's React Router AND it's been more than 100ms since last push (not rapid spam)
+    if (isReactRouterCall && timeSinceLastPush > 100) {
+      // React Router navigation with delay - might be legitimate state update
       lastPushedUrl = newUrlKey;
-      logPushState(newUrlKey, false, 'React Router navigation - allowing');
+      logPushState(newUrlKey, false, 'React Router navigation (delayed) - allowing');
       return originalPushState.call(window.history, state, title, url);
+    }
+    
+    // If it's React Router but rapid (< 100ms), it's likely a duplicate - block it
+    if (isReactRouterCall && timeSinceLastPush <= 100) {
+      logPushState(newUrlKey, true, 'React Router rapid duplicate - blocking');
+      console.warn('[History Guard] Blocking rapid React Router duplicate:', newUrlKey, {
+        timeSinceLastPush,
+        hasReactRouterState,
+      });
+      return originalReplaceState.call(window.history, state, title, url);
     }
     
     // Same URL AND not from React Router - this is likely a duplicate from ad scripts or other code
