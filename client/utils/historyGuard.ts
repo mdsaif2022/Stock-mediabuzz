@@ -96,8 +96,8 @@ export function setupHistoryGuard() {
   let pushStateCallStack: string[] = []; // Track recent pushState calls for spam detection
 
   // Override pushState to prevent duplicate entries
-  // EXTREMELY CONSERVATIVE: Only block obvious spam (< 10ms rapid duplicates)
-  // This ensures we NEVER interfere with React Router or legitimate navigation
+  // AGGRESSIVE: Block ANY pushState with the same URL as current (prevents duplicate history entries)
+  // This fixes the issue where 9+ duplicate entries break the back button
   window.history.pushState = function(state: any, title: string, url?: string | URL | null) {
     const now = Date.now();
     const timeSinceLastPush = now - lastPushStateCallTime;
@@ -107,44 +107,28 @@ export function setupHistoryGuard() {
     const currentUrlKey = getUrlKey();
     const newUrlKey = normalizeUrl(url);
     
-    // If this is programmatic navigation from React Router, always allow it
-    if (isProgrammaticNavigation) {
-      lastPushedUrl = newUrlKey;
-      return originalPushState.call(window.history, state, title, url);
-    }
-    
-    // EXTREMELY STRICT: Only block if:
-    // 1. It's the EXACT same URL as current (including query/hash)
-    // 2. AND it's the same as the last pushed URL
-    // 3. AND it happened within 5ms (extremely rapid - definitely spam, not user action)
-    // 4. AND the URL is NOT different (if URL is different, it's legitimate navigation)
-    // This is so strict that it will NEVER block legitimate React Router navigation
-    const isExtremelyRapidDuplicate = 
-      newUrlKey === currentUrlKey && 
-      newUrlKey === lastPushedUrl && 
-      timeSinceLastPush < 5; // Only catch obvious spam (< 5ms - even stricter)
-    
-    // NEVER block if URL is different - that's always legitimate navigation
+    // CRITICAL: If URL is different, always allow (legitimate navigation)
     if (newUrlKey !== currentUrlKey) {
-      // URL is different - this is legitimate navigation, always allow
       lastPushedUrl = newUrlKey;
       return originalPushState.call(window.history, state, title, url);
     }
     
-    // Only block if it's the exact same URL AND extremely rapid (spam)
-    if (isExtremelyRapidDuplicate) {
-      // This is definitely spam - use replaceState instead
-      console.warn('[History Guard] Blocking extremely rapid duplicate:', newUrlKey, {
-        timeSinceLastPush,
-      });
-      return originalReplaceState.call(window.history, state, title, url);
+    // URL is the SAME as current - this creates a duplicate entry
+    // Block it UNLESS it's programmatic navigation from React Router
+    // (React Router might push same URL with different state, which is OK)
+    if (isProgrammaticNavigation) {
+      // React Router navigation - allow it (might be updating state)
+      lastPushedUrl = newUrlKey;
+      return originalPushState.call(window.history, state, title, url);
     }
     
-    // Update tracking for next comparison
-    lastPushedUrl = newUrlKey;
-    
-    // Allow ALL other pushState calls (including React Router navigation)
-    return originalPushState.call(window.history, state, title, url);
+    // Same URL AND not programmatic navigation - this is a duplicate!
+    // Use replaceState instead to avoid creating duplicate history entry
+    console.warn('[History Guard] Blocking duplicate pushState (same URL):', newUrlKey, {
+      timeSinceLastPush,
+      isProgrammaticNavigation,
+    });
+    return originalReplaceState.call(window.history, state, title, url);
   };
 
   // Also protect replaceState from being abused
@@ -169,7 +153,7 @@ export function setupHistoryGuard() {
     // DO NOT call preventDefault() or stopPropagation() - let React Router handle it
   }, false); // Use bubble phase (default) - React Router handles it first
 
-  console.log('[History Guard] Active - very conservative mode (mobile & desktop optimized)');
+  console.log('[History Guard] Active - aggressive mode (blocks duplicate same-URL entries)');
 }
 
 /**
