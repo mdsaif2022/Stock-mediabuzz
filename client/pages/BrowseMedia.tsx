@@ -1,11 +1,10 @@
 import { useEffect, useMemo, useState, useRef } from "react";
-import { Link, useSearchParams, useParams, useNavigate, useNavigationType, useLocation } from "react-router-dom";
+import { Link, useSearchParams, useParams, useNavigate, useNavigationType } from "react-router-dom";
 import { Loader2, Search, Filter, Play, Image as ImageIcon, Music, Smartphone, FileText, ArrowRight } from "lucide-react";
 import Layout from "@/components/Layout";
 import { Media } from "@shared/api";
 import { apiFetch } from "@/lib/api";
 import { VideoCard } from "@/components/media/VideoCard";
-import { isBackNavigationActive } from "@/utils/backNavigationDetector";
 
 const CATEGORY_OPTIONS: Array<{ id: string; label: string; icon: React.ComponentType<{ className?: string }> }> = [
   { id: "all", label: "All", icon: Filter },
@@ -28,9 +27,7 @@ export default function BrowseMedia() {
   const { category: categoryParam } = useParams<{ category?: string }>();
   const [searchParams, setSearchParams] = useSearchParams();
   const navigate = useNavigate();
-  const location = useLocation();
-  const navigationType = useNavigationType(); // 'POP' = browser back/forward, 'PUSH' = programmatic, 'REPLACE' = replace
-  const prevLocationRef = useRef(location.pathname + location.search);
+  const navigationType = useNavigationType();
   
   // Get category from URL path param (new structure) or query param (legacy)
   const rawCategory = categoryParam || searchParams.get("category");
@@ -40,101 +37,45 @@ export default function BrowseMedia() {
   
   // Sync URL path with category when category changes via query params (for backward compatibility)
   // Only sync ONCE on initial mount if we have a category in query params but not in path params
-  // This prevents creating excessive history entries
-  // CRITICAL: Never sync on browser back/forward navigation (POP)
+  // CRITICAL: Never sync on back/forward navigation (POP)
   const hasSyncedRef = useRef(false);
-  const lastBackNavTimeRef = useRef(0);
   
   useEffect(() => {
-    // CRITICAL: Don't sync URL if this is browser back/forward navigation
-    // Use both useNavigationType AND the global back navigation detector for reliability
-    const isBrowserNavigation = navigationType === 'POP' || isBackNavigationActive();
-    
-    // Also check if location changed backwards
-    const currentPath = location.pathname + location.search;
-    const prevPath = prevLocationRef.current;
-    
-    // More reliable back detection: check if we're going to a parent route
-    const isPathGoingBack = 
-      currentPath.length < prevPath.length ||
-      (prevPath.startsWith('/browse/') && currentPath === '/browse') ||
-      (prevPath.startsWith('/browse/') && currentPath.startsWith('/browse/') && 
-       prevPath.split('/').filter(Boolean).length > currentPath.split('/').filter(Boolean).length) ||
-      // Detect going from detail page back to category page
-      (prevPath.match(/\/browse\/[^/]+\/[^/]+$/) && currentPath.match(/\/browse\/[^/]+$/));
-    
-    // Check BEFORE updating
-    const wasBackNav = isBrowserNavigation || isPathGoingBack;
-    
-    // Update previous location for next comparison
-    prevLocationRef.current = currentPath;
-    
-    // If it's browser navigation OR path is going back, don't sync
-    const isBackNav = wasBackNav;
-    
-    if (isBackNav) {
-      // On browser navigation, mark the time and prevent redirects
-      lastBackNavTimeRef.current = Date.now();
-      // DO NOT reset hasSyncedRef on back navigation - keep it as is
-      // This prevents URL syncing from running again after back navigation
-      // Only reset if we're actually navigating forward to a new page
-      
-      if (process.env.NODE_ENV === 'development') {
-        console.log('[BrowseMedia] ✅ Back navigation detected - BLOCKING all redirects', {
-          currentPath,
-          prevPath,
-          navigationType,
-          isBackNavigationActive: isBackNavigationActive(),
-          categoryParam,
-          activeCategory,
-          hasSyncedRef: hasSyncedRef.current,
-          timestamp: new Date().toISOString()
-        });
-      }
-      return; // CRITICAL: Exit early, don't do ANY URL syncing
-    }
-    
-    // If we recently had back navigation (within last 2 seconds), don't sync
-    // This prevents redirects immediately after back navigation completes
-    // Increased to 2 seconds to prevent redirects after back navigation
-    const timeSinceLastBack = Date.now() - lastBackNavTimeRef.current;
-    if (timeSinceLastBack < 2000) {
-      if (process.env.NODE_ENV === 'development') {
-        console.log('[BrowseMedia] ⏳ Recent back nav detected - skipping sync', {
-          timeSinceLastBack: timeSinceLastBack + 'ms'
-        });
+    // If user pressed browser back or forward, do NOT run any redirect logic
+    const isBrowserBack = navigationType === "POP";
+    if (isBrowserBack) {
+      if (process.env.NODE_ENV === "development") {
+        console.log("[BrowseMedia] BACK navigation detected - skipping URL sync");
       }
       return;
     }
-    
-    // Only sync ONCE if:
-    // 1. We haven't synced yet (hasSyncedRef.current === false)
-    // 2. We have a category in query params but NOT in path params (legacy URL: ?category=video)
-    // 3. Category is not "all"
-    if (!hasSyncedRef.current) {
-      const categoryInQuery = searchParams.get("category");
-      
-      // If we have category in path params, we're already on correct URL structure - mark as synced
-      if (categoryParam) {
-        hasSyncedRef.current = true;
-        return;
-      }
-      
-      // If we have category in query params but not in path, sync once
-      if (categoryInQuery && !categoryParam && activeCategory !== "all") {
-        hasSyncedRef.current = true;
-        // Update URL to use path param instead of query param
-        // Use replace: true to avoid adding history entry for this sync
-        const newSearchParams = new URLSearchParams(searchParams);
-        newSearchParams.delete("category");
-        const queryString = newSearchParams.toString();
-        navigate(`/browse/${activeCategory}${queryString ? `?${queryString}` : ""}`, { replace: true });
-      } else if (!categoryInQuery && !categoryParam) {
-        // No category at all - mark as synced
-        hasSyncedRef.current = true;
-      }
+
+    if (hasSyncedRef.current) {
+      return;
     }
-  }, [activeCategory, categoryParam, searchParams, navigate, navigationType, location.pathname, location.search]);
+
+    const categoryInQuery = searchParams.get("category");
+
+    if (!categoryParam && categoryInQuery && activeCategory !== "all") {
+      hasSyncedRef.current = true;
+
+      const p = new URLSearchParams(searchParams);
+      p.delete("category");
+      const qs = p.toString();
+
+      navigate(`/browse/${activeCategory}${qs ? `?${qs}` : ""}`, {
+        replace: true,
+      });
+    } else {
+      hasSyncedRef.current = true;
+    }
+  }, [
+    categoryParam,
+    searchParams,
+    activeCategory,
+    navigate,
+    navigationType
+  ]);
 
   const [mediaItems, setMediaItems] = useState<Media[]>([]);
   const [page, setPage] = useState(1);
@@ -258,21 +199,21 @@ export default function BrowseMedia() {
       {/* Page Container with distinct visual separation */}
       <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-slate-50 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950">
         {/* Page Header with gradient background */}
-        <div className="bg-gradient-to-r from-primary/10 via-secondary/5 to-accent/10 border-b border-border/50 py-12 sm:py-16">
+        <div className="bg-gradient-to-r from-primary/10 via-secondary/5 to-accent/10 border-b border-border/50 py-4 sm:py-6">
           <div className="container mx-auto max-w-6xl px-4 sm:px-6">
-            <header className="space-y-4 text-center">
-              <p className="text-sm font-semibold text-primary uppercase tracking-wide">Media Library</p>
-              <h1 className="text-3xl sm:text-4xl md:text-5xl font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
+            <header className="space-y-2 text-center">
+              <p className="text-xs sm:text-sm font-semibold text-primary uppercase tracking-wide">Media Library</p>
+              <h1 className="text-2xl sm:text-3xl md:text-4xl font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
                 Browse All Free Assets
               </h1>
-              <p className="text-muted-foreground max-w-3xl mx-auto text-lg">
+              <p className="text-muted-foreground max-w-3xl mx-auto text-sm sm:text-base">
                 Filter by category, search by keywords, and sort through the latest uploads from creators around the world.
               </p>
             </header>
           </div>
         </div>
         
-        <div className="container mx-auto max-w-6xl px-4 sm:px-6 py-8 sm:py-12 space-y-8">
+        <div className="container mx-auto max-w-6xl px-4 sm:px-6 py-6 sm:py-8 space-y-6">
 
           <div className="bg-white dark:bg-slate-900 border border-border rounded-2xl p-4 sm:p-6 space-y-4 shadow-lg backdrop-blur-sm">
             <form onSubmit={handleSearchSubmit} className="flex flex-col md:flex-row gap-3">

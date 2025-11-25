@@ -1,4 +1,5 @@
 import { useState, useEffect } from "react";
+import { useLocation } from "react-router-dom";
 import { ChevronLeft, ChevronRight, X } from "lucide-react";
 
 interface Ad {
@@ -62,11 +63,16 @@ const adsterraLinks = [
 ];
 
 export default function AdsSlider() {
+  const location = useLocation();
   const [currentIndex, setCurrentIndex] = useState(0);
   const [adsterraIndex, setAdsterraIndex] = useState(0);
   const [isVisible, setIsVisible] = useState(true);
   const [customAds, setCustomAds] = useState<Ad[]>([]);
   const [showAdsterra, setShowAdsterra] = useState(false);
+
+  // CRITICAL: Only show ads on home page (/) to prevent history manipulation
+  // Ads on other pages can interfere with back button navigation
+  const isHomePage = location.pathname === '/';
 
   // Filter active custom ads with Header placement
   useEffect(() => {
@@ -75,9 +81,9 @@ export default function AdsSlider() {
     );
     setCustomAds(activeHeaderAds);
     
-    // Show Adsterra only if no custom ads
-    setShowAdsterra(activeHeaderAds.length === 0);
-  }, []);
+    // Show Adsterra only if no custom ads AND we're on home page
+    setShowAdsterra(activeHeaderAds.length === 0 && isHomePage);
+  }, [isHomePage]);
 
   // Auto-rotate custom ads
   useEffect(() => {
@@ -100,6 +106,12 @@ export default function AdsSlider() {
 
     return () => clearInterval(interval);
   }, [showAdsterra]);
+
+  // CRITICAL: Don't show ads on pages other than home page
+  // This prevents ad scripts from manipulating browser history
+  if (!isHomePage) {
+    return null;
+  }
 
   // Don't show anything if closed
   if (!isVisible) {

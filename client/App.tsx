@@ -28,17 +28,6 @@ import { ADMIN_BASE_PATH } from "./constants/routes";
 import { apiFetch } from "@/lib/api";
 import ScrollToTop from "@/components/ScrollToTop";
 import NavigationMonitor from "@/components/NavigationMonitor";
-import "@/utils/navigationDebug"; // Initialize debug utilities in development
-import "@/utils/testBackButton"; // Initialize back button test utility
-import "@/utils/diagnoseBackButton"; // Initialize comprehensive diagnosis utility
-import "@/utils/testBackButtonSimple"; // Initialize simple back button test
-import "@/utils/diagnoseHistory"; // Initialize history diagnosis utility
-import "@/utils/cleanHistory"; // Initialize history cleanup utility
-import "@/utils/debugBackButton"; // Initialize back button debug utility
-import "@/utils/checkHistoryEntries"; // Initialize history entries checker
-import "@/utils/clearDuplicateHistory"; // Initialize clear duplicate history utility
-import "@/utils/forceRefreshHistory"; // Initialize force refresh history utility
-import "@/utils/showHistoryGuardLogs"; // Initialize show history guard logs utility
 
 const queryClient = new QueryClient({
   defaultOptions: {

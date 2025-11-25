@@ -1,7 +1,6 @@
 import "./global.css";
 import { createRoot } from "react-dom/client";
 import App from "./App";
-import { setupHistoryGuard } from "./utils/historyGuard";
 import { setupBackNavigationDetector } from "./utils/backNavigationDetector";
 
 // Load Adsterra script (replace with actual Adsterra ID)
@@ -24,19 +23,92 @@ const loadAdsterraScript = () => {
 
 // Load Adsterra on app start (non-blocking)
 if (typeof window !== "undefined") {
-  // CRITICAL: Setup history guard FIRST (before anything else) to prevent duplicate URL entries
-  // This must run before React Router or any other code that might use history API
-  // Set it up immediately, even before other initialization
-  setupHistoryGuard();
+  // CRITICAL: Check history state IMMEDIATELY on page load
+  const initialHistoryLength = window.history.length;
+  const initialUrl = window.location.href;
+  const initialState = window.history.state;
   
-  // Log initial state AFTER guard is set up
-  console.log('[Main] Initial history state:', {
-    length: window.history.length,
-    url: window.location.href,
-    note: 'If length > 10, duplicates exist from before guard setup',
-  });
+  // Monitor for any pushState/replaceState calls that happen during page load
+  let pushStateCallCount = 0;
+  let replaceStateCallCount = 0;
+  const originalPushState = window.history.pushState;
+  const originalReplaceState = window.history.replaceState;
   
-  // Setup back navigation detector to reliably detect browser back/forward
+  window.history.pushState = function(...args) {
+    pushStateCallCount++;
+    if (process.env.NODE_ENV === 'development') {
+      console.warn('[History Monitor] pushState called #' + pushStateCallCount, {
+        url: args[2],
+        state: args[0],
+        stack: new Error().stack,
+      });
+    }
+    return originalPushState.apply(window.history, args);
+  };
+  
+  window.history.replaceState = function(...args) {
+    replaceStateCallCount++;
+    if (process.env.NODE_ENV === 'development') {
+      console.warn('[History Monitor] replaceState called #' + replaceStateCallCount, {
+        url: args[2],
+        state: args[0],
+        stack: new Error().stack,
+      });
+    }
+    return originalReplaceState.apply(window.history, args);
+  };
+  
+  if (initialHistoryLength > 10) {
+    console.group('🚨 CRITICAL: History is ALREADY polluted on page load!');
+    console.error('History Length:', initialHistoryLength, '(should be 1 on fresh page load)');
+    console.error('Current URL:', initialUrl);
+    console.error('History State:', initialState);
+    console.error('');
+    console.error('This means the browser is RESTORING a previous session!');
+    console.error('');
+    console.error('Possible causes:');
+    console.error('  1. Browser Session Restore is enabled (check browser settings)');
+    console.error('  2. Service Worker is preserving state (check DevTools > Application > Service Workers)');
+    console.error('  3. Browser extension is interfering');
+    console.error('  4. Browser is restoring tabs from previous session');
+    console.error('  5. Ad network scripts are manipulating history');
+    console.error('');
+    console.error('🔧 SOLUTIONS:');
+    console.error('  A. Disable Session Restore:');
+    console.error('     - Chrome: Settings > On startup > Open a new tab');
+    console.error('     - Firefox: Settings > General > Restore previous session (uncheck)');
+    console.error('  B. Clear Service Workers:');
+    console.error('     - DevTools > Application > Service Workers > Unregister all');
+    console.error('  C. Use Incognito/Private Mode (guarantees clean history)');
+    console.error('  D. Close ALL browser windows, then reopen');
+    console.error('  E. Check for ad network scripts in DevTools > Network tab');
+    console.error('');
+    console.error('⚠️ IMPORTANT: Until history is cleared, back button will NOT work correctly!');
+    console.error('');
+    console.error('📊 Monitoring: Watch console for pushState/replaceState calls during page load');
+    console.groupEnd();
+  } else {
+    console.log('[Main] ✅ History is clean on page load:', {
+      historyLength: initialHistoryLength,
+      url: initialUrl,
+    });
+    console.log('[Main] 📊 Monitoring history changes - will log any pushState/replaceState calls');
+  }
+  
+  // Log summary after a short delay to catch any history manipulation during initialization
+  setTimeout(() => {
+    if (pushStateCallCount > 0 || replaceStateCallCount > 0) {
+      console.warn('[History Monitor] Summary after initialization:', {
+        pushStateCalls: pushStateCallCount,
+        replaceStateCalls: replaceStateCallCount,
+        currentHistoryLength: window.history.length,
+        note: 'If history length increased, something is creating duplicate entries!',
+      });
+    }
+  }, 2000);
+  
+  // CRITICAL: Setup back navigation detector FIRST
+  // This must run before React Router initializes to catch popstate events early
   setupBackNavigationDetector();
   // Suppress console warnings from ad iframes (not our code)
   // Set this up BEFORE loading Adsterra to catch early errors

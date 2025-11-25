@@ -1,6 +1,6 @@
 import Layout from "@/components/Layout";
 import { Download, Share2, Heart, Clock, Eye, Tag, AlertCircle, Play, Image as ImageIcon, Music, Zap, Check, Smartphone } from "lucide-react";
-import { Link, useParams, useNavigate, useNavigationType, useLocation } from "react-router-dom";
+import { Link, useParams, useNavigate, useLocation, useNavigationType } from "react-router-dom";
 import { useState, useEffect, useRef } from "react";
 import { Media, MediaResponse } from "@shared/api";
 import { apiFetch, API_BASE_URL } from "@/lib/api";
@@ -14,8 +14,7 @@ export default function MediaDetail() {
   const { category, id } = useParams<{ category?: string; id: string }>();
   const navigate = useNavigate();
   const location = useLocation();
-  const navigationType = useNavigationType(); // 'POP' = browser back/forward, 'PUSH' = programmatic, 'REPLACE' = replace
-  const prevLocationRef = useRef(location.pathname + location.search);
+  const navigationType = useNavigationType();
   const [isFavorite, setIsFavorite] = useState(false);
   const [isDownloading, setIsDownloading] = useState(false);
   const [media, setMedia] = useState<Media | null>(null);
@@ -28,88 +27,180 @@ export default function MediaDetail() {
   const downloadAttemptsRef = useRef(0); // Ref to track attempts synchronously (fixes rapid click bug)
   const lastRedirectedIdRef = useRef<string | null>(null); // Track which ID we redirected for
   const isProcessingBackNavRef = useRef(false); // Track if we're currently processing back navigation
+  const previousLocationRef = useRef<string>(''); // Track previous location to detect back navigation
+  const hasPerformedRedirectRef = useRef(false); // Track if we've already performed redirect for this mount
+  const mountTimeRef = useRef<number>(0); // Track when component mounted
+  const hasEverDetectedBackNavRef = useRef(false); // CRITICAL: Track if we've EVER detected back nav for this mount
+  const lastPopStateTimeRef = useRef<number>(0); // Track when popstate was last detected
+
+  // Track mount time on component mount
+  useEffect(() => {
+    mountTimeRef.current = Date.now();
+    previousLocationRef.current = location.pathname + location.search;
+    
+    // Listen for popstate events directly to catch back navigation
+    const handlePopState = () => {
+      hasEverDetectedBackNavRef.current = true;
+      isProcessingBackNavRef.current = true;
+      lastPopStateTimeRef.current = Date.now();
+      if (process.env.NODE_ENV === 'development') {
+        console.log('[MediaDetail] Popstate detected - marking as back navigation permanently');
+      }
+    };
+    
+    window.addEventListener('popstate', handlePopState, true);
+    
+    return () => {
+      // Reset flags on unmount
+      isProcessingBackNavRef.current = false;
+      hasPerformedRedirectRef.current = false;
+      hasEverDetectedBackNavRef.current = false;
+      window.removeEventListener('popstate', handlePopState, true);
+    };
+  }, []);
 
   // Fetch media data from API
   useEffect(() => {
     const fetchMedia = async () => {
       if (!id) return;
       
-      // CRITICAL: Check back navigation FIRST - if active, skip ALL redirect logic
-      const isBrowserNavigation = navigationType === 'POP' || isBackNavigationActive();
+      // CRITICAL: SIMPLIFIED back navigation detection - check these in order:
+      // 1. React Router's navigationType === 'POP' (most reliable)
+      // 2. Global backNavigationDetector (catches popstate events)
+      // 3. Local persistent flag (if we've ever detected back nav for this mount)
+      // 
+      // If ANY of these are true, NEVER run redirect logic
+      const isPopNavigation = navigationType === 'POP';
+      const isBackNavDetected = isBackNavigationActive(); // This now checks hasEverDetectedBackNav globally
+      const hasLocalBackNav = hasEverDetectedBackNavRef.current;
       
-      // If we're processing back navigation, skip everything immediately
-      if (isProcessingBackNavRef.current || isBrowserNavigation) {
-        if (process.env.NODE_ENV === 'development') {
-          console.log('[MediaDetail] Back navigation detected - BLOCKING all redirects');
-        }
-        // Just fetch media, don't redirect
-        try {
-          setIsLoading(true);
-          const response = await apiFetch(`/api/media/${id}`);
-          if (response.ok) {
-            const data = await response.json();
-            setMedia(data);
-            setDownloadAttempts(0);
-            downloadAttemptsRef.current = 0;
-          }
-        } catch (error) {
-          console.error("Failed to fetch media:", error);
-        } finally {
-          setIsLoading(false);
-        }
-        return; // Exit early - no redirects during back navigation
+      // SIMPLE RULE: If ANY back navigation indicator is true, block ALL redirects
+      const shouldBlockRedirects = isPopNavigation || isBackNavDetected || hasLocalBackNav || isProcessingBackNavRef.current;
+      
+      // Log navigation state for debugging (development only)
+      if (process.env.NODE_ENV === 'development') {
+        console.log('[MediaDetail] Navigation check:', {
+          id,
+          category,
+          navigationType,
+          isPopNavigation,
+          isBackNavDetected,
+          hasLocalBackNav,
+          isProcessingBackNav: isProcessingBackNavRef.current,
+          shouldBlockRedirects: shouldBlockRedirects ? '✅ YES - Redirects BLOCKED' : '❌ NO - Redirects allowed',
+          currentUrl: window.location.href,
+          historyLength: window.history.length,
+        });
       }
       
-      // Also check if location changed backwards (pathname went from longer to shorter)
-      const currentPath = location.pathname + location.search;
-      const prevPath = prevLocationRef.current;
-      
-      // More reliable back detection: check if we're going to a parent route
-      const prevPathParts = prevPath.split('/').filter(Boolean);
-      const currentPathParts = currentPath.split('/').filter(Boolean);
-      const isPathGoingBack = 
-        currentPath.length < prevPath.length || 
-        (prevPath.includes('/browse/') && currentPath === '/browse') ||
-        (prevPath.startsWith('/browse/') && currentPath.startsWith('/browse/') && 
-         prevPathParts.length > currentPathParts.length) ||
-        (prevPath.match(/\/browse\/[^/]+\/[^/]+$/) && currentPath.match(/\/browse\/[^/]+$/));
-      
-      // Update previous location for next comparison
-      prevLocationRef.current = currentPath;
-      
-      // If path is going back, set processing flag and skip redirects
-      // Use longer timeout to prevent redirects after back navigation completes
-      if (isPathGoingBack) {
+      // CRITICAL: If this is back/forward navigation, NEVER run redirect logic
+      // This prevents unwanted redirects that would override the browser's native back behavior
+      if (shouldBlockRedirects) {
+        // Mark that we're processing back navigation - PERMANENTLY for this mount
         isProcessingBackNavRef.current = true;
-        setTimeout(() => {
-          isProcessingBackNavRef.current = false;
-        }, 2000); // Increased to 2 seconds to prevent redirects after back navigation
+        hasEverDetectedBackNavRef.current = true;
         
-        // Just fetch media, don't redirect
+        if (process.env.NODE_ENV === 'development') {
+          console.log('[MediaDetail] ⚠️ BACK navigation detected - BLOCKING all redirects and URL sync', {
+            id,
+            category,
+            currentUrl: window.location.href,
+            isPopNavigation,
+            isBackNavDetected,
+            hasLocalBackNav,
+            reason: hasLocalBackNav 
+              ? 'Back nav was previously detected (persistent)' 
+              : isPopNavigation
+                ? 'POP navigation detected'
+                : isBackNavDetected
+                  ? 'Back nav detector active'
+                  : 'Currently processing back nav',
+          });
+        }
+        
+        // Still fetch the media data (user might be navigating back to a page they've seen)
+        // But skip ALL redirect logic to preserve native back button behavior
         try {
           setIsLoading(true);
           const response = await apiFetch(`/api/media/${id}`);
           if (response.ok) {
             const data = await response.json();
             setMedia(data);
+            // Reset download attempts when media changes
             setDownloadAttempts(0);
             downloadAttemptsRef.current = 0;
           }
+          // On error during back navigation, don't redirect - let user see the error state
+          // or stay on the page they navigated back to
         } catch (error) {
-          console.error("Failed to fetch media:", error);
+          console.error("Failed to fetch media during back navigation:", error);
+          // Don't redirect on error during back navigation
         } finally {
           setIsLoading(false);
+          // CRITICAL: DO NOT clear the back navigation flag
+          // Keep it set for the entire mount to prevent redirects if user presses back again
         }
-        return; // Exit early - no redirects
+        return; // Exit early - no redirects on back navigation
       }
       
-      // Reset redirect tracking when ID changes
-      if (lastRedirectedIdRef.current !== id) {
+      // CRITICAL: Only clear back nav flag if we're on a COMPLETELY NEW forward navigation
+      // (different ID means we navigated to a new page via link click, not back button)
+      // This ensures the flag persists if user is still on the same page
+      if (!shouldBlockRedirects && lastRedirectedIdRef.current !== id) {
+        // New page via forward navigation - safe to clear flag
+        isProcessingBackNavRef.current = false;
+        hasEverDetectedBackNavRef.current = false;
+      }
+      
+      // Reset redirect tracking when ID changes (only for forward navigation)
+      // CRITICAL: Only reset if this is NOT back navigation and not currently processing back nav
+      // This prevents redirect from running when user presses back button
+      if (lastRedirectedIdRef.current !== id && !shouldBlockRedirects) {
         lastRedirectedIdRef.current = null;
       }
       
-      // Only redirect if we're NOT on back navigation AND don't have category
-      const shouldRedirect = !category;
+      // CRITICAL: If we've EVER detected back navigation (locally or globally), NEVER redirect
+      // This is the ultimate safeguard - once back nav is detected, it stays detected
+      // Check both local ref and global flag for maximum reliability
+      const globalBackNavDetected = isBackNavigationActive(); // This now checks hasEverDetectedBackNav
+      if (hasEverDetectedBackNavRef.current || globalBackNavDetected || shouldBlockRedirects) {
+        if (process.env.NODE_ENV === 'development') {
+          console.log('[MediaDetail] ⛔ PERMANENT BLOCK: Back navigation detected - NO redirects allowed', {
+            id,
+            category,
+            currentPath: location.pathname,
+            hasLocalBackNav: hasEverDetectedBackNavRef.current,
+            globalBackNav: globalBackNavDetected,
+            shouldBlock: shouldBlockRedirects,
+          });
+        }
+        // Still fetch media data, but skip ALL redirect logic
+        // This ensures back button works correctly without interference
+        try {
+          setIsLoading(true);
+          const response = await apiFetch(`/api/media/${id}`);
+          if (response.ok) {
+            const data = await response.json();
+            setMedia(data);
+            setDownloadAttempts(0);
+            downloadAttemptsRef.current = 0;
+          }
+        } catch (error) {
+          console.error("Failed to fetch media:", error);
+          // CRITICAL: Even on error, don't redirect if back nav was detected
+        } finally {
+          setIsLoading(false);
+        }
+        return; // Exit early - no redirects ever if back nav was detected
+      }
+      
+      // Only redirect if this was accessed via legacy route without category
+      // This only runs on forward navigation (not back navigation)
+      // CRITICAL: Multiple checks to ensure we never redirect on back navigation
+      // Also check if we're already on the correct URL to avoid unnecessary redirects
+      const currentPath = location.pathname;
+      const isLegacyRoute = currentPath === `/media/${id}`;
+      const shouldRedirect = isLegacyRoute && !category && !shouldBlockRedirects;
       
       try {
         setIsLoading(true);
@@ -122,41 +213,103 @@ export default function MediaDetail() {
           downloadAttemptsRef.current = 0;
           
           // If accessed via legacy route (/media/:id) without category, redirect to hierarchical URL
-          // BUT: Never redirect on browser back/forward navigation
-          if (shouldRedirect && data.category && lastRedirectedIdRef.current !== id) {
+          // This only happens on forward navigation (back navigation was already handled above)
+          // CRITICAL: Multiple checks to ensure we never redirect on back navigation
+          // Also verify we're actually on the legacy route before redirecting
+          // CRITICAL: Only redirect ONCE per mount to prevent re-redirects
+          const canRedirect = shouldRedirect && 
+                              isLegacyRoute &&
+                              data.category && 
+                              lastRedirectedIdRef.current !== id && 
+                              !shouldBlockRedirects &&
+                              !isProcessingBackNavRef.current &&
+                              !hasPerformedRedirectRef.current;
+          
+          if (canRedirect) {
+            // Mark that we've performed a redirect for this mount
+            hasPerformedRedirectRef.current = true;
             const categoryPath = data.category.toLowerCase();
             lastRedirectedIdRef.current = id;
-            // Use replace: true to avoid adding extra history entry for legacy route redirect
-            navigate(`/browse/${categoryPath}/${id}`, { replace: true });
+            
+            // CRITICAL: Check history length before redirecting
+            // If history is deep (user has navigated through multiple pages),
+            // we should NOT use replace: true as it will corrupt the history stack
+            const historyLength = window.history.length;
+            const isDeepHistory = historyLength > 3;
+            
+            if (process.env.NODE_ENV === 'development') {
+              console.log('[MediaDetail] Redirecting legacy route to hierarchical URL:', {
+                from: `/media/${id}`,
+                to: `/browse/${categoryPath}/${id}`,
+                currentPath,
+                isLegacyRoute,
+                historyLength,
+                isDeepHistory,
+                isBackNavigation: isBrowserBack,
+                isProcessingBackNav: isProcessingBackNavRef.current,
+                shouldBlockRedirects,
+                useReplace: !isDeepHistory,
+                note: isDeepHistory 
+                  ? 'Deep history - using push to preserve history stack' 
+                  : 'Shallow history - using replace to avoid duplicate entry',
+              });
+            }
+            
+            // CRITICAL FIX: Only use replace: true for shallow history (initial page load)
+            // For deep history (after multiple navigations), use push to preserve history stack
+            // This prevents history corruption when navigating through multiple items
+            if (isDeepHistory) {
+              // Deep history - use push to preserve the navigation stack
+              // This ensures back button can return through all previous pages
+              navigate(`/browse/${categoryPath}/${id}`, { replace: false });
+            } else {
+              // Shallow history (initial load) - use replace to avoid duplicate entry
+              navigate(`/browse/${categoryPath}/${id}`, { replace: true });
+            }
             return;
+          } else if (isLegacyRoute && shouldBlockRedirects) {
+            // We're on legacy route but back navigation is detected - don't redirect
+            if (process.env.NODE_ENV === 'development') {
+              console.log('[MediaDetail] On legacy route but back navigation detected - NOT redirecting:', {
+                currentPath,
+                isLegacyRoute,
+                shouldBlockRedirects,
+                isBrowserBack,
+                isProcessingBackNav: isProcessingBackNavRef.current,
+              });
+            }
           }
           
         } else {
-          // Only redirect on error if NOT browser navigation
-          // Use the same back navigation check as above
-          const isBackNavCheck = navigationType === 'POP' || isBackNavigationActive() || isProcessingBackNavRef.current;
-          if (!isBackNavCheck) {
-            // Use replace: true to avoid adding to history when media not found
-            // Navigate back to category page if category exists, otherwise to browse
+          // Only redirect on error if NOT browser back navigation
+          // Use replace: true to avoid adding to history when media not found
+          // Navigate back to category page if category exists, otherwise to browse
+          if (!shouldBlockRedirects) {
             if (category) {
               navigate(`/browse/${category}`, { replace: true });
             } else {
               navigate("/browse", { replace: true });
             }
+          } else {
+            if (process.env.NODE_ENV === 'development') {
+              console.log('[MediaDetail] Media not found, but blocking redirect due to back navigation');
+            }
           }
         }
       } catch (error) {
         console.error("Failed to fetch media:", error);
-        // Only redirect on error if NOT browser navigation
-        // Use the same back navigation check as above
-        const isBackNavCheck = navigationType === 'POP' || isBackNavigationActive() || isProcessingBackNavRef.current;
-        if (!isBackNavCheck) {
-          // Use replace: true to avoid adding to history when error occurs
-          // Navigate back to category page if category exists, otherwise to browse
+        // Only redirect on error if NOT browser back navigation
+        // Use replace: true to avoid adding to history when error occurs
+        // Navigate back to category page if category exists, otherwise to browse
+        if (!shouldBlockRedirects) {
           if (category) {
             navigate(`/browse/${category}`, { replace: true });
           } else {
             navigate("/browse", { replace: true });
+          }
+        } else {
+          if (process.env.NODE_ENV === 'development') {
+            console.log('[MediaDetail] Error fetching media, but blocking redirect due to back navigation');
           }
         }
       } finally {
@@ -165,8 +318,71 @@ export default function MediaDetail() {
     };
 
     fetchMedia();
-    // Include all dependencies: id, navigationType, category, and location (used in shouldRedirect logic)
-  }, [id, navigationType, category, navigate, location.pathname, location.search]);
+    // CRITICAL: Only depend on id and category - NOT navigationType or location
+    // This prevents the effect from re-running when back button is pressed
+    // We check navigationType inside the effect, but don't re-run the effect when it changes
+    // 
+    // IMPORTANT: This effect should ONLY run when id or category actually changes
+    // NOT when location changes due to back navigation
+  }, [id, category, navigate]);
+  
+  // CRITICAL: Separate effect to detect back navigation via location changes
+  // This runs when location changes and checks if it's back navigation
+  useEffect(() => {
+    const currentLocation = location.pathname + location.search;
+    const previousLocation = previousLocationRef.current;
+    
+    // CRITICAL: Always check navigationType and backNavigationActive on every location change
+    // This catches back navigation even if the main effect hasn't run yet
+    if (navigationType === 'POP' || isBackNavigationActive()) {
+      hasEverDetectedBackNavRef.current = true;
+      isProcessingBackNavRef.current = true;
+      lastPopStateTimeRef.current = Date.now();
+      
+      if (process.env.NODE_ENV === 'development') {
+        console.log('[MediaDetail] ⚠️ Back navigation detected in location effect - setting permanent flag', {
+          previousLocation,
+          currentLocation,
+          id,
+          navigationType,
+          isBackNavActive: isBackNavigationActive(),
+        });
+      }
+    }
+    
+    // If location changed but we're on the same ID, this might be back navigation
+    if (currentLocation !== previousLocation && id && previousLocation.includes(id)) {
+      // Check if this looks like back navigation (same ID, different URL structure)
+      const isLegacyRoute = previousLocation === `/media/${id}`;
+      const isNewRoute = currentLocation.includes(`/browse/`) && currentLocation.includes(`/${id}`);
+      
+      // If we went from legacy route to new route with same ID, this was likely a redirect
+      // But if we're going backwards in the URL structure, it might be back navigation
+      if (isLegacyRoute && isNewRoute) {
+        // This was a redirect, not back navigation - allow it
+        previousLocationRef.current = currentLocation;
+        return;
+      }
+      
+      // If navigationType is POP, definitely back navigation
+      if (navigationType === 'POP' || isBackNavigationActive()) {
+        hasEverDetectedBackNavRef.current = true;
+        isProcessingBackNavRef.current = true;
+        lastPopStateTimeRef.current = Date.now();
+        
+        if (process.env.NODE_ENV === 'development') {
+          console.log('[MediaDetail] Location changed with same ID - detected as back navigation', {
+            previousLocation,
+            currentLocation,
+            id,
+            navigationType,
+          });
+        }
+      }
+    }
+    
+    previousLocationRef.current = currentLocation;
+  }, [location.pathname, location.search, id, navigationType]);
 
   useEffect(() => {
     if (!media) {
