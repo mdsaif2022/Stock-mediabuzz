@@ -247,20 +247,67 @@ export const proxyVideoPreview: RequestHandler = async (req, res) => {
       return;
     }
 
-    // CRITICAL: Check if this is a Cloudinary video - use Cloudinary transformation for better performance
+    // Get range request header
+    const range = req.headers.range;
+    
+    // CRITICAL: Check if this is a thumbnail request (no range or small range at start)
+    // Thumbnail requests only need first 2MB for metadata extraction
+    const isThumbnailRequest = !range || (range.startsWith('bytes=0-') && parseInt(range.split('-')[1] || '0') < 2 * 1024 * 1024);
+    
+    // For thumbnail generation, fetch only first chunk (2MB)
+    if (isThumbnailRequest) {
+      const maxChunkSize = 2 * 1024 * 1024; // 2MB
+      const thumbnailRange = `bytes=0-${maxChunkSize}`;
+      
+      try {
+        const thumbnailResponse = await fetch(media.fileUrl, {
+          method: 'GET',
+          headers: {
+            'User-Agent': 'Mozilla/5.0',
+            'Range': thumbnailRange,
+          },
+        });
+        
+        if (thumbnailResponse.ok || thumbnailResponse.status === 206) {
+          const contentType = thumbnailResponse.headers.get('content-type') || 'video/mp4';
+          
+          // Set headers
+          res.setHeader('Access-Control-Allow-Origin', '*');
+          res.setHeader('Access-Control-Allow-Methods', 'GET, HEAD, OPTIONS');
+          res.setHeader('Access-Control-Allow-Headers', 'Range');
+          res.setHeader('Content-Type', contentType);
+          res.setHeader('Accept-Ranges', 'bytes');
+          res.setHeader('Cache-Control', 'public, max-age=3600');
+          
+          if (thumbnailResponse.status === 206) {
+            const contentRange = thumbnailResponse.headers.get('content-range');
+            const contentLength = thumbnailResponse.headers.get('content-length');
+            if (contentRange) res.setHeader('Content-Range', contentRange);
+            if (contentLength) res.setHeader('Content-Length', contentLength);
+            res.status(206);
+          }
+          
+          const buffer = await thumbnailResponse.arrayBuffer();
+          res.send(Buffer.from(buffer));
+          return;
+        }
+      } catch (thumbErr: any) {
+        console.error("Thumbnail request error:", thumbErr);
+        // Fall through to full video proxy
+      }
+    }
+    
+    // For video playback (not thumbnail), we need proper range request support
+    // CRITICAL: Check if this is a Cloudinary video
     const isCloudinaryVideo = media.fileUrl.includes('cloudinary.com') || media.fileUrl.includes('res.cloudinary.com');
     
-    // For Cloudinary videos, redirect to Cloudinary's optimized streaming URL
+    // For Cloudinary videos in production, use direct URL with CORS headers
+    // Cloudinary supports range requests natively
     if (isCloudinaryVideo) {
-      // Cloudinary videos support range requests natively
-      // Just redirect to the Cloudinary URL with proper CORS
-      res.setHeader('Access-Control-Allow-Origin', '*');
-      res.redirect(302, media.fileUrl);
-      return;
+      // Set CORS headers and redirect to Cloudinary
+      // But we need to proxy it to add CORS headers since Cloudinary might not have them
+      // Actually, let's proxy it to ensure CORS works
     }
-
-    // For non-Cloudinary videos, proxy with proper range request handling
-    const range = req.headers.range;
     
     // Fetch the video from origin with range support
     let fileResponse: Response;
@@ -272,7 +319,7 @@ export const proxyVideoPreview: RequestHandler = async (req, res) => {
         },
       };
       
-      // Add range header if present
+      // Add range header if present (for video playback seeking)
       if (range) {
         fetchOptions.headers = {
           ...fetchOptions.headers,
@@ -287,7 +334,7 @@ export const proxyVideoPreview: RequestHandler = async (req, res) => {
       return;
     }
 
-    if (!fileResponse.ok) {
+    if (!fileResponse.ok && fileResponse.status !== 206) {
       res.status(fileResponse.status).json({ 
         error: "Failed to fetch video", 
         message: fileResponse.statusText 
@@ -307,15 +354,15 @@ export const proxyVideoPreview: RequestHandler = async (req, res) => {
     res.setHeader('Accept-Ranges', 'bytes');
     res.setHeader('Cache-Control', 'public, max-age=3600'); // Cache for 1 hour
     
-    // Handle range requests for video seeking
+    // Handle range requests for video seeking (CRITICAL for video playback)
     if (range && fileResponse.status === 206) {
-      // Partial content response
+      // Partial content response - this is needed for video playback
       const contentRange = fileResponse.headers.get('content-range');
       const contentLength = fileResponse.headers.get('content-length');
       
       if (contentRange) {
         res.setHeader('Content-Range', contentRange);
-        res.status(206); // Partial Content
+        res.status(206); // Partial Content - required for range requests
       }
       if (contentLength) {
         res.setHeader('Content-Length', contentLength);
@@ -327,51 +374,29 @@ export const proxyVideoPreview: RequestHandler = async (req, res) => {
       }
     }
 
-    // CRITICAL FIX: For Vercel/serverless, we need to handle this carefully
-    // The issue is that loading entire video into memory can exceed function limits
-    // For thumbnail generation, we only need a small portion of the video
-    // So we'll fetch a small chunk (first 2MB) which should be enough for metadata + first frame
-    
-    // Check if this is a range request for thumbnail generation (small chunk)
-    const isThumbnailRequest = !range || range.includes('bytes=0-');
-    const maxChunkSize = 2 * 1024 * 1024; // 2MB should be enough for thumbnail
-    
-    if (isThumbnailRequest || !range) {
-      // For thumbnail generation, fetch only first chunk
-      const thumbnailRange = `bytes=0-${maxChunkSize}`;
-      const thumbnailResponse = await fetch(media.fileUrl, {
-        method: 'GET',
-        headers: {
-          'User-Agent': 'Mozilla/5.0',
-          'Range': thumbnailRange,
-        },
-      });
-      
-      if (thumbnailResponse.ok || thumbnailResponse.status === 206) {
-        const buffer = await thumbnailResponse.arrayBuffer();
-        res.send(Buffer.from(buffer));
-        return;
-      }
-    }
-    
-    // For full video requests, try to stream (but this might fail for large videos in Vercel)
-    // In production, consider using Cloudinary or CDN for video streaming
+    // CRITICAL: For video playback, we need to stream properly
+    // But Vercel serverless functions have limits, so we'll stream in chunks
     try {
+      // For small videos (< 5MB), load into buffer
+      // For larger videos, this might fail but we'll try
       const buffer = await fileResponse.arrayBuffer();
-      // Check buffer size - if too large, return error suggesting CDN
-      if (buffer.byteLength > 10 * 1024 * 1024) { // 10MB limit
+      
+      // Check buffer size - warn but don't block for video playback
+      // (thumbnails are handled separately above)
+      if (buffer.byteLength > 50 * 1024 * 1024) { // 50MB limit for video playback
         res.status(413).json({ 
           error: "Video too large for serverless function",
-          message: "Please use direct video URL or CDN for large videos"
+          message: "Video exceeds 50MB limit. Consider using direct video URL or CDN."
         });
         return;
       }
+      
       res.send(Buffer.from(buffer));
     } catch (bufferError: any) {
-      console.error("Buffer error:", bufferError);
+      console.error("Video buffer error:", bufferError);
       res.status(500).json({ 
         error: "Failed to load video", 
-        message: "Video may be too large for serverless function. Consider using direct URL."
+        message: "Video may be too large for serverless function. Consider using direct URL or CDN."
       });
     }
   } catch (error: any) {

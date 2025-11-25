@@ -32,18 +32,29 @@ export function VideoCard({ media, to, variant = "detailed", className }: VideoC
 
   // Use proxy URL for video preview to avoid CORS issues
   // Only use proxy for videos, not other media types
-  // CRITICAL: Use absolute URL in production (Vercel) to ensure correct domain
+  // CRITICAL: For Cloudinary videos, use direct URL (they support range requests natively)
+  // For other videos, use proxy endpoint
   const isVideo = media.category?.toLowerCase() === "video";
-  const getVideoProxyUrl = (id: string) => {
+  const getVideoUrl = (fileUrl: string, id: string) => {
+    // Check if this is a Cloudinary video
+    const isCloudinary = fileUrl.includes('cloudinary.com') || fileUrl.includes('res.cloudinary.com');
+    
+    if (isCloudinary) {
+      // Cloudinary videos support range requests and CORS natively
+      // Use direct URL for better performance and reliability
+      return fileUrl;
+    }
+    
+    // For non-Cloudinary videos, use proxy endpoint
+    // CRITICAL: Use absolute URL in production (Vercel) to ensure correct domain
     if (typeof window !== 'undefined') {
-      // Use current origin to ensure correct domain in production
       return `${window.location.origin}/api/media/preview/${id}`;
     }
     return `/api/media/preview/${id}`;
   };
   
   const videoUrl = (media.fileUrl && isVideo)
-    ? getVideoProxyUrl(media.id)
+    ? getVideoUrl(media.fileUrl, media.id)
     : "";
 
   // Determine if video should be loaded and visible
@@ -234,6 +245,7 @@ export function VideoCard({ media, to, variant = "detailed", className }: VideoC
               poster={safeThumbnail}
               muted
               playsInline
+              crossOrigin="anonymous"
               preload={shouldPreloadVideo ? "metadata" : "none"}
               className={cn("w-full h-full object-cover transition-opacity duration-300 absolute inset-0 z-10", {
                 "opacity-0 pointer-events-none": !isPreviewReady || previewError || !shouldShowVideo,
