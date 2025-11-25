@@ -14,7 +14,15 @@
         navigate("/dashboard");
       }
     } catch (err: any) {
-      if (err?.code === "auth/popup-closed-by-user" || err?.code === "auth/cancelled-popup-request") {
+      // Handle Firebase unauthorized domain error
+      if (err?.code === "auth/unauthorized-domain") {
+        const currentDomain = window.location.hostname;
+        setError(
+          `Google sign-in is not authorized for this domain (${currentDomain}). ` +
+          `Please contact the administrator to add this domain to Firebase Console. ` +
+          `Go to Firebase Console > Authentication > Settings > Authorized domains and add: ${currentDomain}`
+        );
+      } else if (err?.code === "auth/popup-closed-by-user" || err?.code === "auth/cancelled-popup-request") {
         setError("Google sign-in was cancelled. Please try again.");
       } else {
         setError(err.message || "Failed to sign in with Google.");

@@ -123,15 +123,28 @@ export function AuthProvider({ children }: AuthProviderProps) {
   };
 
   const loginWithGoogle = async (accountType?: AccountType) => {
-    const provider = new GoogleAuthProvider();
-    const credential = await signInWithPopup(auth, provider);
-    await syncUserRecord({
-      email: credential.user.email || "",
-      name: credential.user.displayName || credential.user.email || "",
-      firebaseUid: credential.user.uid,
-      emailVerified: credential.user.emailVerified,
-      accountType,
-    });
+    try {
+      const provider = new GoogleAuthProvider();
+      const credential = await signInWithPopup(auth, provider);
+      await syncUserRecord({
+        email: credential.user.email || "",
+        name: credential.user.displayName || credential.user.email || "",
+        firebaseUid: credential.user.uid,
+        emailVerified: credential.user.emailVerified,
+        accountType,
+      });
+    } catch (error: any) {
+      // Re-throw with more context for unauthorized domain errors
+      if (error?.code === "auth/unauthorized-domain") {
+        const currentDomain = typeof window !== "undefined" ? window.location.hostname : "unknown";
+        throw new Error(
+          `Google sign-in is not authorized for domain: ${currentDomain}. ` +
+          `Please add this domain to Firebase Console > Authentication > Settings > Authorized domains.`
+        );
+      }
+      // Re-throw other errors as-is
+      throw error;
+    }
   };
 
   const resetPassword = async (email: string) => {
