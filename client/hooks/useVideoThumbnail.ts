@@ -26,18 +26,50 @@ export function useVideoThumbnail(videoUrl?: string, existing?: string | null, m
   const hasValidExisting = isLikelyImageSource(existing);
   
   // Use proxy endpoint for video thumbnails to avoid CORS issues
-  // If mediaId is provided, use the preview proxy endpoint
-  // CRITICAL: Use absolute URL in production (Vercel) to ensure correct domain
-  const getProxyUrl = (id: string) => {
-    if (typeof window !== 'undefined') {
-      // Use current origin to ensure correct domain in production
-      return `${window.location.origin}/api/media/preview/${id}`;
+  // CRITICAL: For Cloudinary videos, use Cloudinary's video transformation to get thumbnail
+  // This avoids the need to proxy the entire video
+  const getThumbnailUrl = (url: string, id?: string) => {
+    // Check if this is a Cloudinary video URL
+    const isCloudinary = url.includes('cloudinary.com') || url.includes('res.cloudinary.com');
+    
+    if (isCloudinary && url.includes('/video/')) {
+      // Use Cloudinary's video transformation to extract a frame at 1 second
+      // Format: https://res.cloudinary.com/{cloud_name}/video/upload/so_1/{public_id}.jpg
+      try {
+        const urlObj = new URL(url);
+        const pathParts = urlObj.pathname.split('/');
+        const videoIndex = pathParts.indexOf('video');
+        if (videoIndex !== -1 && pathParts[videoIndex + 1] === 'upload') {
+          // Extract the public_id and cloud_name
+          const cloudName = pathParts[videoIndex - 1] || pathParts[1];
+          const publicIdParts = pathParts.slice(videoIndex + 2);
+          const publicId = publicIdParts.join('/').replace(/\.(mp4|webm|mov|avi)$/i, '');
+          
+          // Generate thumbnail URL using Cloudinary transformation
+          // so_1 = seek to 1 second, w_640 = width 640, h_360 = height 360, q_auto = quality auto
+          const thumbnailUrl = `https://res.cloudinary.com/${cloudName}/video/upload/so_1,w_640,h_360,q_auto,f_jpg/${publicId}.jpg`;
+          return thumbnailUrl;
+        }
+      } catch (e) {
+        // If URL parsing fails, fall back to proxy
+        console.warn("Failed to parse Cloudinary URL, using proxy:", e);
+      }
     }
-    return `/api/media/preview/${id}`;
+    
+    // For non-Cloudinary videos or if Cloudinary parsing fails, use proxy
+    // CRITICAL: Use absolute URL in production (Vercel) to ensure correct domain
+    if (id) {
+      if (typeof window !== 'undefined') {
+        return `${window.location.origin}/api/media/preview/${id}`;
+      }
+      return `/api/media/preview/${id}`;
+    }
+    
+    return url;
   };
   
   const thumbnailVideoUrl = mediaId && videoUrl
-    ? getProxyUrl(mediaId)
+    ? getThumbnailUrl(videoUrl, mediaId)
     : videoUrl;
   
   // Check cache first for initial state
@@ -82,6 +114,23 @@ export function useVideoThumbnail(videoUrl?: string, existing?: string | null, m
         if (!thumbnailUrl || thumbnailUrl === FALLBACK_THUMBNAIL) {
           setThumbnailUrl(persistentThumbnailRef.current);
           setStatus("ready");
+        }
+      }
+      return;
+    }
+
+    // CRITICAL: Check if thumbnailVideoUrl is already an image (Cloudinary thumbnail)
+    // If it's a Cloudinary thumbnail image, use it directly without video extraction
+    const isThumbnailImage = isLikelyImageSource(thumbnailVideoUrl);
+    if (isThumbnailImage) {
+      // This is already a thumbnail image (from Cloudinary transformation)
+      if (persistentThumbnailRef.current !== thumbnailVideoUrl) {
+        persistentThumbnailRef.current = thumbnailVideoUrl;
+        setThumbnailUrl(thumbnailVideoUrl);
+        setStatus("ready");
+        // Cache it
+        if (videoUrl) {
+          thumbnailCache.set(videoUrl, thumbnailVideoUrl);
         }
       }
       return;
