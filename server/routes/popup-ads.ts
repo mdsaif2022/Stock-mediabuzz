@@ -80,11 +80,27 @@ export const getPopupAds: RequestHandler = async (req, res) => {
 
     // If route is provided, filter ads that target this route
     if (route && typeof route === "string") {
-      filteredAds = popupAdsDatabase.filter(
-        (ad) =>
-          ad.isActive &&
-          (ad.targetPages.includes(route) || ad.targetPages.includes("*") || ad.targetPages.includes("all"))
-      );
+      filteredAds = popupAdsDatabase.filter((ad) => {
+        if (!ad.isActive) return false;
+        
+        // Check for exact match
+        if (ad.targetPages.includes(route)) return true;
+        
+        // Check for wildcard (all pages)
+        if (ad.targetPages.includes("*") || ad.targetPages.includes("all")) return true;
+        
+        // Check for pattern matches (routes ending with /* should match any route starting with that prefix)
+        for (const targetPage of ad.targetPages) {
+          if (targetPage.endsWith("/*")) {
+            const prefix = targetPage.slice(0, -2); // Remove "/*" suffix
+            if (route.startsWith(prefix + "/") || route === prefix) {
+              return true;
+            }
+          }
+        }
+        
+        return false;
+      });
     }
 
     // Sort by createdAt (newest first)
