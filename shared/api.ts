@@ -226,3 +226,50 @@ export interface GeneralSettings {
 export interface DemoResponse {
   message: string;
 }
+
+// Pop-up Ad Types
+export interface PopupAd {
+  id: string;
+  title: string;
+  description?: string;
+  mediaType: "image" | "video";
+  mediaUrl: string;
+  buttonText?: string;
+  buttonLink?: string;
+  targetPages: string[]; // Array of route paths where the ad should appear (e.g., ["/", "/browse", "/categories"])
+  isActive: boolean;
+  clicks: number;
+  impressions: number;
+  createdAt: string;
+  updatedAt: string;
+  showDelay?: number; // Delay in milliseconds before showing the pop-up (default: 2000)
+  closeAfter?: number; // Auto-close after X milliseconds (optional)
+  maxDisplays?: number; // Maximum number of times to show to the same user (optional, tracked via localStorage)
+}
+
+export interface PopupAdCreateRequest {
+  title: string;
+  description?: string;
+  mediaType: "image" | "video";
+  mediaUrl: string;
+  buttonText?: string;
+  buttonLink?: string;
+  targetPages: string[];
+  isActive: boolean;
+  showDelay?: number;
+  closeAfter?: number;
+  maxDisplays?: number;
+}
+
+export interface PopupAdUpdateRequest extends Partial<PopupAdCreateRequest> {
+  id: string;
+}
+
+export interface PopupAdResponse {
+  data: PopupAd[];
+  total: number;
+}
+
+export interface PopupAdImpressionRequest {
+  adId: string;
+}

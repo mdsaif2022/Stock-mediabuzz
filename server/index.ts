@@ -9,6 +9,7 @@ import * as adminRoutes from "./routes/admin";
 import * as creatorRoutes from "./routes/creators.js";
 import * as settingsRoutes from "./routes/settings.js";
 import * as usersRoutes from "./routes/users.js";
+import * as popupAdsRoutes from "./routes/popup-ads.js";
 import { handleFileUpload, handleUrlUpload, upload, handleAssetUpload } from "./routes/upload.js";
 
 export function createServer() {
@@ -128,6 +129,15 @@ export function createServer() {
   app.post("/api/upload/file", upload.array("files", 10), handleFileUpload);
   app.post("/api/upload/url", handleUrlUpload);
   app.post("/api/upload/asset", upload.single("file"), handleAssetUpload);
+
+  // Pop-up ads routes
+  app.get("/api/popup-ads", popupAdsRoutes.getPopupAds);
+  app.get("/api/popup-ads/:id", popupAdsRoutes.getPopupAdById);
+  app.post("/api/popup-ads", popupAdsRoutes.createPopupAd);
+  app.put("/api/popup-ads/:id", popupAdsRoutes.updatePopupAd);
+  app.delete("/api/popup-ads/:id", popupAdsRoutes.deletePopupAd);
+  app.post("/api/popup-ads/:id/impression", popupAdsRoutes.trackImpression);
+  app.post("/api/popup-ads/:id/click", popupAdsRoutes.trackClick);
 
   return app;
 }

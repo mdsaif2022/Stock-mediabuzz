@@ -1,5 +1,6 @@
 import Header from "./Header";
 import Footer from "./Footer";
+import PopupAd from "./PopupAd";
 import { useEffect, useState } from "react";
 import { apiFetch } from "@/lib/api";
 import { useLocation } from "react-router-dom";
@@ -75,6 +76,7 @@ export default function Layout({ children }: LayoutProps) {
         </div>
       </main>
       <Footer />
+      <PopupAd />
     </div>
   );
 }

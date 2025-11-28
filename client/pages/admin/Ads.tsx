@@ -1,6 +1,11 @@
 import AdminLayout from "@/components/AdminLayout";
-import { Plus, Edit, Trash2, Search, Copy, Upload, X, Image as ImageIcon, Video, Link as LinkIcon, File } from "lucide-react";
-import { useState, useRef } from "react";
+import { Plus, Edit, Trash2, Search, Copy, Upload, X, Image as ImageIcon, Video, Link as LinkIcon, File, Loader2 } from "lucide-react";
+import { useState, useRef, useEffect } from "react";
+import { PopupAd, PopupAdCreateRequest } from "@shared/api";
+import { apiFetch } from "@/lib/api";
+import { useToast } from "@/hooks/use-toast";
+import { Button } from "@/components/ui/button";
+import { Checkbox } from "@/components/ui/checkbox";
 
 interface Ad {
   id: number;
@@ -158,7 +163,7 @@ export default function AdminAds() {
         <div className="flex justify-between items-center">
           <div>
             <h1 className="text-3xl font-bold">Ads Manager</h1>
-            <p className="text-muted-foreground mt-2">Manage Adsterra and custom ads</p>
+            <p className="text-muted-foreground mt-2">Manage banner ads and pop-up ads</p>
           </div>
           <button
             onClick={() => setShowAddForm(!showAddForm)}
@@ -500,7 +505,486 @@ export default function AdminAds() {
             </tbody>
           </table>
         </div>
+
+        {/* Pop-up Ads Section */}
+        <div className="mt-12 border-t border-border pt-6">
+          <PopupAdsManager />
+        </div>
       </div>
     </AdminLayout>
+  );
+}
+
+// Pop-up Ads Manager Component
+function PopupAdsManager() {
+  const { toast } = useToast();
+  const [popupAds, setPopupAds] = useState<PopupAd[]>([]);
+  const [loading, setLoading] = useState(true);
+  const [showAddForm, setShowAddForm] = useState(false);
+  const [editingAd, setEditingAd] = useState<PopupAd | null>(null);
+  const [searchQuery, setSearchQuery] = useState("");
+
+  const availableRoutes = [
+    { value: "/", label: "Home Page" },
+    { value: "/browse", label: "Browse Media" },
+    { value: "/categories", label: "Categories" },
+    { value: "/contact", label: "Contact" },
+    { value: "*", label: "All Pages" },
+  ];
+
+  const [formData, setFormData] = useState<PopupAdCreateRequest>({
+    title: "",
+    description: "",
+    mediaType: "image",
+    mediaUrl: "",
+    buttonText: "",
+    buttonLink: "",
+    targetPages: [],
+    isActive: true,
+    showDelay: 2000,
+    closeAfter: undefined,
+    maxDisplays: undefined,
+  });
+
+  // Fetch pop-up ads
+  useEffect(() => {
+    fetchPopupAds();
+  }, []);
+
+  const fetchPopupAds = async () => {
+    try {
+      setLoading(true);
+      const response = await apiFetch("/api/popup-ads");
+      const data = await response.json();
+      setPopupAds(data.data || []);
+    } catch (error) {
+      toast({
+        title: "Error",
+        description: "Failed to fetch pop-up ads",
+        variant: "destructive",
+      });
+    } finally {
+      setLoading(false);
+    }
+  };
+
+  const handleSubmit = async (e: React.FormEvent) => {
+    e.preventDefault();
+    
+    if (!formData.title || !formData.mediaUrl || formData.targetPages.length === 0) {
+      toast({
+        title: "Validation Error",
+        description: "Please fill in all required fields",
+        variant: "destructive",
+      });
+      return;
+    }
+
+    try {
+      if (editingAd) {
+        // Update existing ad
+        const response = await apiFetch(`/api/popup-ads/${editingAd.id}`, {
+          method: "PUT",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(formData),
+        });
+        
+        if (!response.ok) throw new Error("Failed to update ad");
+        
+        toast({
+          title: "Success",
+          description: "Pop-up ad updated successfully",
+        });
+      } else {
+        // Create new ad
+        const response = await apiFetch("/api/popup-ads", {
+          method: "POST",
+          headers: { "Content-Type": "application/json" },
+          body: JSON.stringify(formData),
+        });
+        
+        if (!response.ok) throw new Error("Failed to create ad");
+        
+        toast({
+          title: "Success",
+          description: "Pop-up ad created successfully",
+        });
+      }
+      
+      fetchPopupAds();
+      resetForm();
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to save pop-up ad",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleDelete = async (id: string) => {
+    if (!confirm("Are you sure you want to delete this pop-up ad?")) return;
+
+    try {
+      const response = await apiFetch(`/api/popup-ads/${id}`, {
+        method: "DELETE",
+      });
+      
+      if (!response.ok) throw new Error("Failed to delete ad");
+      
+      toast({
+        title: "Success",
+        description: "Pop-up ad deleted successfully",
+      });
+      
+      fetchPopupAds();
+    } catch (error: any) {
+      toast({
+        title: "Error",
+        description: error.message || "Failed to delete pop-up ad",
+        variant: "destructive",
+      });
+    }
+  };
+
+  const handleEdit = (ad: PopupAd) => {
+    setEditingAd(ad);
+    setFormData({
+      title: ad.title,
+      description: ad.description || "",
+      mediaType: ad.mediaType,
+      mediaUrl: ad.mediaUrl,
+      buttonText: ad.buttonText || "",
+      buttonLink: ad.buttonLink || "",
+      targetPages: ad.targetPages,
+      isActive: ad.isActive,
+      showDelay: ad.showDelay || 2000,
+      closeAfter: ad.closeAfter,
+      maxDisplays: ad.maxDisplays,
+    });
+    setShowAddForm(true);
+  };
+
+  const resetForm = () => {
+    setFormData({
+      title: "",
+      description: "",
+      mediaType: "image",
+      mediaUrl: "",
+      buttonText: "",
+      buttonLink: "",
+      targetPages: [],
+      isActive: true,
+      showDelay: 2000,
+      closeAfter: undefined,
+      maxDisplays: undefined,
+    });
+    setEditingAd(null);
+    setShowAddForm(false);
+  };
+
+  const toggleRoute = (route: string) => {
+    setFormData((prev) => ({
+      ...prev,
+      targetPages: prev.targetPages.includes(route)
+        ? prev.targetPages.filter((r) => r !== route)
+        : [...prev.targetPages, route],
+    }));
+  };
+
+  const filteredAds = popupAds.filter((ad) =>
+    ad.title.toLowerCase().includes(searchQuery.toLowerCase())
+  );
+
+  return (
+    <div className="space-y-6">
+      {/* Header */}
+      <div className="flex justify-between items-center">
+        <div>
+          <h2 className="text-2xl font-bold">Pop-up Ads</h2>
+          <p className="text-muted-foreground mt-1">Manage custom pop-up advertisements</p>
+        </div>
+        <Button
+          onClick={() => {
+            resetForm();
+            setShowAddForm(true);
+          }}
+          className="flex items-center gap-2"
+        >
+          <Plus className="w-4 h-4" />
+          Add Pop-up Ad
+        </Button>
+      </div>
+
+      {/* Add/Edit Form */}
+      {showAddForm && (
+        <div className="bg-white dark:bg-slate-900 rounded-lg border border-border p-6 shadow-sm">
+          <div className="flex items-center justify-between mb-6">
+            <h3 className="text-xl font-bold">{editingAd ? "Edit" : "Add"} Pop-up Ad</h3>
+            <button
+              onClick={resetForm}
+              className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors"
+            >
+              <X className="w-5 h-5" />
+            </button>
+          </div>
+
+          <form onSubmit={handleSubmit} className="space-y-6">
+            <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+              <div className="md:col-span-2">
+                <label className="block text-sm font-medium mb-2">Title *</label>
+                <input
+                  type="text"
+                  value={formData.title}
+                  onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+                  required
+                  className="w-full px-3 py-2 border border-border rounded-lg bg-slate-50 dark:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-primary"
+                />
+              </div>
+
+              <div className="md:col-span-2">
+                <label className="block text-sm font-medium mb-2">Description</label>
+                <textarea
+                  value={formData.description}
+                  onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+                  className="w-full px-3 py-2 border border-border rounded-lg bg-slate-50 dark:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-primary resize-none"
+                  rows={3}
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium mb-2">Media Type *</label>
+                <select
+                  value={formData.mediaType}
+                  onChange={(e) => setFormData({ ...formData, mediaType: e.target.value as "image" | "video" })}
+                  required
+                  className="w-full px-3 py-2 border border-border rounded-lg bg-slate-50 dark:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-primary"
+                >
+                  <option value="image">Image</option>
+                  <option value="video">Video</option>
+                </select>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium mb-2">Media URL *</label>
+                <input
+                  type="url"
+                  value={formData.mediaUrl}
+                  onChange={(e) => setFormData({ ...formData, mediaUrl: e.target.value })}
+                  required
+                  placeholder="https://example.com/image.jpg"
+                  className="w-full px-3 py-2 border border-border rounded-lg bg-slate-50 dark:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-primary"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium mb-2">Button Text</label>
+                <input
+                  type="text"
+                  value={formData.buttonText}
+                  onChange={(e) => setFormData({ ...formData, buttonText: e.target.value })}
+                  placeholder="Learn More"
+                  className="w-full px-3 py-2 border border-border rounded-lg bg-slate-50 dark:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-primary"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium mb-2">Button Link</label>
+                <input
+                  type="url"
+                  value={formData.buttonLink}
+                  onChange={(e) => setFormData({ ...formData, buttonLink: e.target.value })}
+                  placeholder="https://example.com"
+                  className="w-full px-3 py-2 border border-border rounded-lg bg-slate-50 dark:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-primary"
+                />
+              </div>
+
+              <div className="md:col-span-2">
+                <label className="block text-sm font-medium mb-2">Target Pages *</label>
+                <div className="grid grid-cols-2 md:grid-cols-3 gap-3 p-4 border border-border rounded-lg bg-slate-50 dark:bg-slate-800">
+                  {availableRoutes.map((route) => (
+                    <div key={route.value} className="flex items-center space-x-2">
+                      <Checkbox
+                        id={`route-${route.value}`}
+                        checked={formData.targetPages.includes(route.value)}
+                        onCheckedChange={() => toggleRoute(route.value)}
+                      />
+                      <label
+                        htmlFor={`route-${route.value}`}
+                        className="text-sm font-medium cursor-pointer"
+                      >
+                        {route.label}
+                      </label>
+                    </div>
+                  ))}
+                </div>
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium mb-2">Show Delay (ms)</label>
+                <input
+                  type="number"
+                  value={formData.showDelay}
+                  onChange={(e) => setFormData({ ...formData, showDelay: parseInt(e.target.value) || 2000 })}
+                  min="0"
+                  className="w-full px-3 py-2 border border-border rounded-lg bg-slate-50 dark:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-primary"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium mb-2">Auto-close After (ms)</label>
+                <input
+                  type="number"
+                  value={formData.closeAfter || ""}
+                  onChange={(e) => setFormData({ ...formData, closeAfter: e.target.value ? parseInt(e.target.value) : undefined })}
+                  min="0"
+                  placeholder="Optional"
+                  className="w-full px-3 py-2 border border-border rounded-lg bg-slate-50 dark:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-primary"
+                />
+              </div>
+
+              <div>
+                <label className="block text-sm font-medium mb-2">Max Displays Per User</label>
+                <input
+                  type="number"
+                  value={formData.maxDisplays || ""}
+                  onChange={(e) => setFormData({ ...formData, maxDisplays: e.target.value ? parseInt(e.target.value) : undefined })}
+                  min="1"
+                  placeholder="Optional"
+                  className="w-full px-3 py-2 border border-border rounded-lg bg-slate-50 dark:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-primary"
+                />
+              </div>
+
+              <div className="md:col-span-2 flex items-center space-x-2">
+                <Checkbox
+                  id="isActive"
+                  checked={formData.isActive}
+                  onCheckedChange={(checked) => setFormData({ ...formData, isActive: !!checked })}
+                />
+                <label htmlFor="isActive" className="text-sm font-medium cursor-pointer">
+                  Active
+                </label>
+              </div>
+            </div>
+
+            <div className="flex gap-2">
+              <Button type="submit" className="flex-1">
+                {editingAd ? "Update" : "Create"} Pop-up Ad
+              </Button>
+              <Button type="button" variant="outline" onClick={resetForm}>
+                Cancel
+              </Button>
+            </div>
+          </form>
+        </div>
+      )}
+
+      {/* Search */}
+      <div className="relative">
+        <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
+        <input
+          type="text"
+          placeholder="Search pop-up ads..."
+          value={searchQuery}
+          onChange={(e) => setSearchQuery(e.target.value)}
+          className="w-full pl-10 pr-4 py-2 border border-border rounded-lg bg-white dark:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-primary"
+        />
+      </div>
+
+      {/* Pop-up Ads Table */}
+      {loading ? (
+        <div className="flex items-center justify-center py-12">
+          <Loader2 className="w-8 h-8 animate-spin text-muted-foreground" />
+        </div>
+      ) : (
+        <div className="bg-white dark:bg-slate-900 rounded-lg border border-border overflow-hidden">
+          <table className="w-full">
+            <thead className="border-b border-border bg-slate-50 dark:bg-slate-800">
+              <tr>
+                <th className="px-6 py-3 text-left text-sm font-semibold">Title</th>
+                <th className="px-6 py-3 text-left text-sm font-semibold">Media Type</th>
+                <th className="px-6 py-3 text-left text-sm font-semibold">Target Pages</th>
+                <th className="px-6 py-3 text-left text-sm font-semibold">Status</th>
+                <th className="px-6 py-3 text-left text-sm font-semibold">Clicks</th>
+                <th className="px-6 py-3 text-left text-sm font-semibold">Impressions</th>
+                <th className="px-6 py-3 text-left text-sm font-semibold">CTR</th>
+                <th className="px-6 py-3 text-left text-sm font-semibold">Actions</th>
+              </tr>
+            </thead>
+            <tbody className="divide-y divide-border">
+              {filteredAds.length === 0 ? (
+                <tr>
+                  <td colSpan={8} className="px-6 py-8 text-center text-muted-foreground">
+                    No pop-up ads found. Create your first one!
+                  </td>
+                </tr>
+              ) : (
+                filteredAds.map((ad) => {
+                  const ctr = ad.impressions > 0 ? ((ad.clicks / ad.impressions) * 100).toFixed(2) : "0.00";
+                  return (
+                    <tr key={ad.id} className="hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors">
+                      <td className="px-6 py-4 text-sm font-medium">{ad.title}</td>
+                      <td className="px-6 py-4 text-sm">
+                        <span className={`px-2 py-1 rounded-full text-xs font-semibold ${
+                          ad.mediaType === "video"
+                            ? "bg-purple-100 dark:bg-purple-900/30 text-purple-700 dark:text-purple-300"
+                            : "bg-blue-100 dark:bg-blue-900/30 text-blue-700 dark:text-blue-300"
+                        }`}>
+                          {ad.mediaType}
+                        </span>
+                      </td>
+                      <td className="px-6 py-4 text-sm">
+                        <div className="flex flex-wrap gap-1">
+                          {ad.targetPages.slice(0, 2).map((page) => (
+                            <span key={page} className="px-2 py-0.5 bg-slate-100 dark:bg-slate-800 rounded text-xs">
+                              {page === "*" ? "All" : page}
+                            </span>
+                          ))}
+                          {ad.targetPages.length > 2 && (
+                            <span className="px-2 py-0.5 bg-slate-100 dark:bg-slate-800 rounded text-xs">
+                              +{ad.targetPages.length - 2}
+                            </span>
+                          )}
+                        </div>
+                      </td>
+                      <td className="px-6 py-4 text-sm">
+                        {ad.isActive ? (
+                          <span className="px-2 py-1 bg-green-100 dark:bg-green-900/30 text-green-800 dark:text-green-200 rounded text-xs font-semibold">
+                            Active
+                          </span>
+                        ) : (
+                          <span className="px-2 py-1 bg-slate-100 dark:bg-slate-800 text-slate-700 dark:text-slate-300 rounded text-xs font-semibold">
+                            Inactive
+                          </span>
+                        )}
+                      </td>
+                      <td className="px-6 py-4 text-sm font-semibold">{ad.clicks.toLocaleString()}</td>
+                      <td className="px-6 py-4 text-sm">{ad.impressions.toLocaleString()}</td>
+                      <td className="px-6 py-4 text-sm font-semibold">{ctr}%</td>
+                      <td className="px-6 py-4 text-sm">
+                        <div className="flex gap-2">
+                          <button
+                            onClick={() => handleEdit(ad)}
+                            className="p-1 hover:bg-slate-100 dark:hover:bg-slate-800 rounded transition-colors"
+                          >
+                            <Edit className="w-4 h-4" />
+                          </button>
+                          <button
+                            onClick={() => handleDelete(ad.id)}
+                            className="p-1 hover:bg-destructive/10 rounded transition-colors text-destructive"
+                          >
+                            <Trash2 className="w-4 h-4" />
+                          </button>
+                        </div>
+                      </td>
+                    </tr>
+                  );
+                })
+              )}
+            </tbody>
+          </table>
+        </div>
+      )}
+    </div>
   );
 }
