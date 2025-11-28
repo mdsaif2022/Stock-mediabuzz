@@ -15,6 +15,9 @@ export function VideoPlayer({ src, poster, preload = "metadata", className }: Vi
   const containerRef = useRef<HTMLDivElement>(null);
   const clickTimeoutRef = useRef<NodeJS.Timeout | null>(null);
   const isDoubleClickRef = useRef(false);
+  const doubleClickTimeoutRef = useRef<NodeJS.Timeout | null>(null);
+  const lastClickTimeRef = useRef(0);
+  const lastClickXRef = useRef(0);
   const [isPlaying, setIsPlaying] = useState(false);
   const [currentTime, setCurrentTime] = useState(0);
   const [duration, setDuration] = useState(0);
@@ -141,23 +144,130 @@ export function VideoPlayer({ src, poster, preload = "metadata", className }: Vi
     };
   }, [src]);
 
-  // Cleanup timeout on unmount
+  // Cleanup timeouts on unmount
   useEffect(() => {
     return () => {
       if (clickTimeoutRef.current) {
         clearTimeout(clickTimeoutRef.current);
       }
+      if (doubleClickTimeoutRef.current) {
+        clearTimeout(doubleClickTimeoutRef.current);
+      }
     };
   }, []);
 
-  const handleVideoClick = () => {
+  // Disable context menu on video element (cross-browser)
+  useEffect(() => {
     const video = videoRef.current;
     if (!video) return;
-    if (video.paused) {
-      video.play();
-    } else {
-      video.pause();
+
+    // Prevent context menu
+    const preventContextMenu = (e: Event) => {
+      e.preventDefault();
+      e.stopPropagation();
+      return false;
+    };
+
+    // Disable controls menu items (browser-specific)
+    video.setAttribute("controlsList", "nodownload noplaybackrate nopictureinpicture");
+    video.disablePictureInPicture = true;
+
+    // Add event listeners
+    video.addEventListener("contextmenu", preventContextMenu);
+    
+    // CSS approach: prevent text selection and context menu
+    video.style.userSelect = "none";
+    video.style.webkitUserSelect = "none";
+    video.style.webkitTouchCallout = "none";
+
+    return () => {
+      video.removeEventListener("contextmenu", preventContextMenu);
+    };
+  }, [src]);
+
+  // Disable context menu completely
+  const handleContextMenu = (e: React.MouseEvent<HTMLVideoElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    return false;
+  };
+
+  // Handle double-click seek on video element
+  const handleVideoDoubleClick = (e: React.MouseEvent<HTMLVideoElement>) => {
+    e.preventDefault();
+    e.stopPropagation();
+    
+    // Clear any pending single-click action
+    if (doubleClickTimeoutRef.current) {
+      clearTimeout(doubleClickTimeoutRef.current);
+      doubleClickTimeoutRef.current = null;
     }
+    
+    const video = videoRef.current;
+    if (!video) return;
+
+    // Get click position relative to video element
+    const rect = e.currentTarget.getBoundingClientRect();
+    const clickX = e.clientX - rect.left;
+    const videoWidth = rect.width;
+    const isLeftHalf = clickX < videoWidth / 2;
+
+    // Seek by 5 seconds (left = rewind, right = advance)
+    seekBy(isLeftHalf ? -5 : 5);
+    
+    // Reset click tracking
+    lastClickTimeRef.current = 0;
+    lastClickXRef.current = 0;
+  };
+
+  const handleVideoClick = (e: React.MouseEvent<HTMLVideoElement>) => {
+    // Don't interfere with native controls when they're enabled
+    // Only handle single-click play/pause when controls are disabled
+    if (duration > 0) {
+      // Let native controls handle the click, but still allow double-click seek
+      return;
+    }
+
+    // Handle double-click detection for seek
+    const now = Date.now();
+    const timeSinceLastClick = now - lastClickTimeRef.current;
+    const clickX = e.clientX;
+    
+    // Check if this is a double-click (within 300ms and similar X position)
+    if (
+      timeSinceLastClick < 300 &&
+      Math.abs(clickX - lastClickXRef.current) < 10
+    ) {
+      // This is likely a double-click, prevent single click action
+      if (doubleClickTimeoutRef.current) {
+        clearTimeout(doubleClickTimeoutRef.current);
+        doubleClickTimeoutRef.current = null;
+      }
+      // Don't do anything here - let onDoubleClick handle it
+      return;
+    }
+
+    // Store click info for double-click detection
+    lastClickTimeRef.current = now;
+    lastClickXRef.current = clickX;
+
+    // Delay single click action to allow double-click detection
+    if (doubleClickTimeoutRef.current) {
+      clearTimeout(doubleClickTimeoutRef.current);
+    }
+    
+    doubleClickTimeoutRef.current = setTimeout(() => {
+      const video = videoRef.current;
+      if (!video || duration > 0) return;
+      
+      // Toggle play/pause
+      if (video.paused) {
+        video.play();
+      } else {
+        video.pause();
+      }
+      doubleClickTimeoutRef.current = null;
+    }, 300);
   };
 
   return (
@@ -168,8 +278,17 @@ export function VideoPlayer({ src, poster, preload = "metadata", className }: Vi
         poster={poster ?? undefined}
         preload={preload}
         controls={duration > 0}
-        className="w-full h-full bg-black"
+        controlsList="nodownload noplaybackrate nopictureinpicture"
+        disablePictureInPicture
+        className="w-full h-full bg-black select-none"
+        style={{
+          userSelect: "none",
+          WebkitUserSelect: "none",
+          WebkitTouchCallout: "none",
+        }}
+        onContextMenu={handleContextMenu}
         onClick={duration === 0 ? handleVideoClick : undefined}
+        onDoubleClick={handleVideoDoubleClick}
         onLoadedMetadata={(e) => {
           const video = e.currentTarget;
           if (video.duration && isFinite(video.duration) && video.duration > 0) {

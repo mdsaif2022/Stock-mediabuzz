@@ -247,10 +247,22 @@ export function VideoCard({ media, to, variant = "detailed", className }: VideoC
               playsInline
               crossOrigin="anonymous"
               preload={shouldPreloadVideo ? "metadata" : "none"}
-              className={cn("w-full h-full object-cover transition-opacity duration-300 absolute inset-0 z-10", {
+              controlsList="nodownload noplaybackrate nopictureinpicture"
+              disablePictureInPicture
+              className={cn("w-full h-full object-cover transition-opacity duration-300 absolute inset-0 z-10 select-none", {
                 "opacity-0 pointer-events-none": !isPreviewReady || previewError || !shouldShowVideo,
                 "opacity-100": isPreviewReady && !previewError && shouldShowVideo,
               })}
+              style={{
+                userSelect: "none",
+                WebkitUserSelect: "none",
+                WebkitTouchCallout: "none",
+              }}
+              onContextMenu={(e) => {
+                e.preventDefault();
+                e.stopPropagation();
+                return false;
+              }}
               onLoadedData={() => {
                 if (shouldShowVideo) {
                   setIsPreviewReady(true);

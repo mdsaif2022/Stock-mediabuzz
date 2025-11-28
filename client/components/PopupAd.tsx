@@ -217,12 +217,24 @@ export default function PopupAd() {
             {currentAd.mediaType === "video" ? (
               <video
                 src={currentAd.mediaUrl}
-                className="w-full h-full max-w-full max-h-full object-contain"
+                className="w-full h-full max-w-full max-h-full object-contain select-none"
                 autoPlay
                 muted
                 loop
                 playsInline
                 controls={false}
+                controlsList="nodownload noplaybackrate nopictureinpicture"
+                disablePictureInPicture
+                style={{
+                  userSelect: "none",
+                  WebkitUserSelect: "none",
+                  WebkitTouchCallout: "none",
+                }}
+                onContextMenu={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  return false;
+                }}
               />
             ) : (
               <img
