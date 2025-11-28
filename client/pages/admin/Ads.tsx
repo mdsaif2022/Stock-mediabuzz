@@ -527,7 +527,7 @@ function PopupAdsManager() {
   const availableRoutes = [
     { value: "/", label: "Home Page" },
     { value: "/browse", label: "Browse Media" },
-    { value: "/browse/*", label: "Media Detail/Download Page" },
+    { value: "/browse/*/*", label: "Media Detail/Download Page Only" },
     { value: "/categories", label: "Categories" },
     { value: "/contact", label: "Contact" },
     { value: "*", label: "All Pages" },

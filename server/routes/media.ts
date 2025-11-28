@@ -1,14 +1,10 @@
 import { RequestHandler } from "express";
 import { Media, MediaResponse, MediaUploadRequest } from "@shared/api";
 import { promises as fs } from "fs";
-import { join, dirname } from "path";
-import { fileURLToPath } from "url";
+import { join } from "path";
+import { DATA_DIR } from "../utils/dataPath.js";
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
-
-// Path to the data file
-const DATA_DIR = join(__dirname, "../data");
+// Path to the data file (persistent across builds)
 const MEDIA_DB_FILE = join(DATA_DIR, "media-database.json");
 
 const CATEGORY_KEYS: Media["category"][] = ["video", "image", "audio", "template", "apk"];

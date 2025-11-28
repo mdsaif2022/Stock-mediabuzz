@@ -9,12 +9,9 @@ import {
   CreatorStoragePurchaseRequest,
 } from "@shared/api";
 import { promises as fs } from "fs";
-import { join, dirname } from "path";
-import { fileURLToPath } from "url";
+import { join } from "path";
+import { DATA_DIR } from "../utils/dataPath.js";
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
-const DATA_DIR = join(__dirname, "../data");
 const CREATORS_DB_FILE = join(DATA_DIR, "creators-database.json");
 const STORAGE_BASE_GB = 5;
 const GB_IN_BYTES = 1024 * 1024 * 1024;

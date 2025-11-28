@@ -7,14 +7,10 @@ import {
   PopupAdImpressionRequest,
 } from "@shared/api";
 import { promises as fs } from "fs";
-import { join, dirname } from "path";
-import { fileURLToPath } from "url";
+import { join } from "path";
+import { DATA_DIR } from "../utils/dataPath.js";
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
-
-// Path to the data file
-const DATA_DIR = join(__dirname, "../data");
+// Path to the data file (persistent across builds)
 const POPUP_ADS_DB_FILE = join(DATA_DIR, "popup-ads-database.json");
 
 const DEFAULT_POPUP_ADS: PopupAd[] = [];
@@ -89,11 +85,21 @@ export const getPopupAds: RequestHandler = async (req, res) => {
         // Check for wildcard (all pages)
         if (ad.targetPages.includes("*") || ad.targetPages.includes("all")) return true;
         
-        // Check for pattern matches (routes ending with /* should match any route starting with that prefix)
+        // Check for pattern matches
         for (const targetPage of ad.targetPages) {
-          if (targetPage.endsWith("/*")) {
+          // Pattern: /browse/*/* matches only media detail pages (e.g., /browse/video/123)
+          if (targetPage === "/browse/*/*") {
+            // Match routes like /browse/category/id (exactly 2 segments after /browse/)
+            const parts = route.split("/").filter(Boolean);
+            if (parts.length === 3 && parts[0] === "browse") {
+              return true;
+            }
+          }
+          // Pattern: routes ending with /* match any route starting with that prefix
+          else if (targetPage.endsWith("/*")) {
             const prefix = targetPage.slice(0, -2); // Remove "/*" suffix
-            if (route.startsWith(prefix + "/") || route === prefix) {
+            // Only match if route has additional path segments (not the exact prefix)
+            if (route.startsWith(prefix + "/") && route !== prefix) {
               return true;
             }
           }

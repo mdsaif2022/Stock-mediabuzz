@@ -26,5 +26,12 @@ dist-ssr
 .config/
 !.env
 
-# Data files
-server/data/
+# Data files - JSON database files are NOT tracked in Git (contains sensitive user data)
+# The README.md should be tracked for documentation
+server/data/*.json
+server/data/*.db
+server/data/*.sqlite
+
+# Allow tracking the data directory structure and README
+!server/data/
+server/data/README.md
