@@ -3,6 +3,25 @@ import { createRoot } from "react-dom/client";
 import App from "./App";
 import { setupBackNavigationDetector } from "./utils/backNavigationDetector";
 
+// Initialize theme immediately to prevent flash of unstyled content
+(function initializeTheme() {
+  const THEME_STORAGE_KEY = "freemediabuzz-theme";
+  const stored = localStorage.getItem(THEME_STORAGE_KEY);
+  
+  if (stored === "dark") {
+    document.documentElement.classList.add("dark");
+  } else if (stored === "light") {
+    document.documentElement.classList.remove("dark");
+  } else {
+    // Use system preference if no stored preference
+    if (window.matchMedia("(prefers-color-scheme: dark)").matches) {
+      document.documentElement.classList.add("dark");
+    } else {
+      document.documentElement.classList.remove("dark");
+    }
+  }
+})();
+
 // DISABLED: Adsterra script loading
 // CRITICAL: We load Adsterra ads ONLY in iframes (AdsSlider component)
 // Loading the script globally allows it to manipulate browser history

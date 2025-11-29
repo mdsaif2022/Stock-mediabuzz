@@ -3,6 +3,7 @@ import { LogOut, Menu, X, BarChart3, FileText, Radio, Users, Settings, Home } fr
 import { useState, useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { ADMIN_BASE_PATH } from "@/constants/routes";
+import { ThemeToggle } from "./ThemeToggle";
 
 interface AdminLayoutProps {
   children: React.ReactNode;
@@ -162,10 +163,13 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
               <Menu className="w-5 h-5" />
             )}
           </button>
-          <div className="text-right">
-            <p className="text-xs sm:text-sm text-muted-foreground">
-              {currentUser?.email || "Admin"}
-            </p>
+          <div className="flex items-center gap-4">
+            <ThemeToggle />
+            <div className="text-right">
+              <p className="text-xs sm:text-sm text-muted-foreground">
+                {currentUser?.email || "Admin"}
+              </p>
+            </div>
           </div>
         </div>
 

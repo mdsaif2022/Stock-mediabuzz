@@ -3,6 +3,7 @@ import { useState } from "react";
 import { Menu, X, LogOut, LogIn, User } from "lucide-react";
 import AdsSlider from "./AdsSlider";
 import { useAuth } from "@/contexts/AuthContext";
+import { ThemeToggle } from "./ThemeToggle";
 
 export default function Header() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
@@ -72,6 +73,8 @@ export default function Header() {
 
           {/* Right Section */}
           <div className="flex items-center gap-4">
+            {/* Theme Toggle */}
+            <ThemeToggle />
             {/* Desktop Auth Buttons */}
             {!isLoggedIn ? (
               <div className="hidden sm:flex gap-2">
@@ -155,6 +158,13 @@ export default function Header() {
         {/* Mobile Navigation */}
         {isMenuOpen && (
           <nav className="md:hidden pb-4 border-t border-border space-y-1">
+            {/* Mobile Theme Toggle */}
+            <div className="px-4 py-2 border-b border-border">
+              <div className="flex items-center justify-between">
+                <span className="text-sm font-medium">Theme</span>
+                <ThemeToggle />
+              </div>
+            </div>
             <Link
               to="/browse"
               onClick={() => setIsMenuOpen(false)}
