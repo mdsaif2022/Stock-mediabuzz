@@ -206,7 +206,7 @@ export default function Index() {
           <div className="max-w-4xl mx-auto text-center">
             <div className="inline-flex items-center gap-2 px-3 sm:px-4 py-1.5 sm:py-2 rounded-full bg-gradient-to-r from-primary/10 to-accent/10 border border-primary/20 mb-4 sm:mb-6">
               <Zap className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-primary flex-shrink-0" />
-              <span className="text-xs sm:text-sm font-medium text-primary">Join 500K+ creators using FreeMediaBuzz</span>
+              <span className="text-xs sm:text-sm font-medium text-primary">Join 3.4M+ creators using FreeMediaBuzz</span>
             </div>
 
             <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-bold leading-tight mb-4 sm:mb-6 animate-fade-in px-2">
@@ -243,15 +243,15 @@ export default function Index() {
             {/* Stats */}
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 sm:gap-6 pt-6 sm:pt-8 border-t border-border px-2">
               <div className="animate-slide-up" style={{ animationDelay: "0.1s" }}>
-                <p className="text-2xl sm:text-3xl md:text-4xl font-bold text-primary">2.5M</p>
+                <p className="text-2xl sm:text-3xl md:text-4xl font-bold text-primary">12.8M+</p>
                 <p className="text-xs sm:text-sm text-muted-foreground mt-1">Media Files</p>
               </div>
               <div className="animate-slide-up" style={{ animationDelay: "0.2s" }}>
-                <p className="text-2xl sm:text-3xl md:text-4xl font-bold text-secondary">500K+</p>
+                <p className="text-2xl sm:text-3xl md:text-4xl font-bold text-secondary">3.4M+</p>
                 <p className="text-xs sm:text-sm text-muted-foreground mt-1">Active Users</p>
               </div>
               <div className="animate-slide-up" style={{ animationDelay: "0.3s" }}>
-                <p className="text-2xl sm:text-3xl md:text-4xl font-bold text-accent">10.5M</p>
+                <p className="text-2xl sm:text-3xl md:text-4xl font-bold text-accent">48.6M+</p>
                 <p className="text-xs sm:text-sm text-muted-foreground mt-1">Downloads</p>
               </div>
               <div className="animate-slide-up" style={{ animationDelay: "0.4s" }}>
