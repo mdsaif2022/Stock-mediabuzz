@@ -64,7 +64,7 @@ export default function Header() {
               <img
                 src={siteLogo}
                 alt="Site Logo"
-                className="h-8 w-auto sm:h-10 max-w-[120px] sm:max-w-[150px] object-contain flex-shrink-0"
+                className="h-8 w-8 sm:h-10 sm:w-10 rounded-full object-cover flex-shrink-0"
                 loading="lazy"
                 onError={() => {
                   setSiteLogo("");
@@ -75,7 +75,7 @@ export default function Header() {
               <img
                 src="/apple-touch-icon.png"
                 alt="FreeMediaBuzz Logo"
-                className="h-8 w-8 sm:h-10 sm:w-10 rounded-lg object-cover flex-shrink-0"
+                className="h-8 w-8 sm:h-10 sm:w-10 rounded-full object-cover flex-shrink-0"
                 loading="lazy"
                 onError={(event) => {
                   (event.currentTarget as HTMLImageElement).style.display = "none";
@@ -83,7 +83,7 @@ export default function Header() {
                 }}
               />
             ) : (
-              <div className="h-8 w-8 sm:h-10 sm:w-10 bg-gradient-to-br from-primary to-accent rounded-lg flex items-center justify-center flex-shrink-0">
+              <div className="h-8 w-8 sm:h-10 sm:w-10 bg-gradient-to-br from-primary to-accent rounded-full flex items-center justify-center flex-shrink-0">
                 <span className="text-white font-bold text-lg">F</span>
               </div>
             )}

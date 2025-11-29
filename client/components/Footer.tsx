@@ -1,7 +1,39 @@
 import { Link } from "react-router-dom";
 import { Mail, MapPin, Heart } from "lucide-react";
+import { useState, useEffect } from "react";
+import { apiFetch } from "@/lib/api";
 
 export default function Footer() {
+  const [siteLogo, setSiteLogo] = useState<string | null>(null);
+  const [logoFailed, setLogoFailed] = useState(false);
+
+  // Load site logo from settings
+  useEffect(() => {
+    const loadLogo = async () => {
+      try {
+        const res = await apiFetch("/api/settings/branding");
+        if (res.ok) {
+          const branding = await res.json();
+          if (branding?.logo) {
+            setSiteLogo(branding.logo);
+            setLogoFailed(false);
+          } else {
+            setSiteLogo(null);
+          }
+        }
+      } catch (error) {
+        console.error("Failed to load site logo:", error);
+        setSiteLogo(null);
+      }
+    };
+
+    loadLogo();
+
+    // Refresh logo every 30 seconds in case it was updated
+    const interval = setInterval(loadLogo, 30000);
+    return () => clearInterval(interval);
+  }, []);
+
   return (
     <footer className="bg-slate-900 dark:bg-slate-950 text-slate-100">
       <div className="container mx-auto px-4">
@@ -9,14 +41,38 @@ export default function Footer() {
         <div className="grid grid-cols-1 md:grid-cols-4 gap-8 py-12">
           {/* Brand Section */}
           <div className="space-y-4">
-            <div className="flex items-center gap-2">
-              <div className="w-8 h-8 bg-gradient-to-br from-primary to-accent rounded-lg flex items-center justify-center">
-                <span className="text-white font-bold text-lg">F</span>
-              </div>
-              <span className="text-lg font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent">
+            <Link to="/" className="flex items-center gap-2 group">
+              {siteLogo ? (
+                <img
+                  src={siteLogo}
+                  alt="FreeMediaBuzz Logo"
+                  className="h-8 w-8 rounded-full object-cover flex-shrink-0 transition-transform group-hover:scale-105"
+                  loading="lazy"
+                  onError={() => {
+                    setSiteLogo(null);
+                    setLogoFailed(true);
+                  }}
+                />
+              ) : !logoFailed ? (
+                <img
+                  src="/apple-touch-icon.png"
+                  alt="FreeMediaBuzz Logo"
+                  className="h-8 w-8 rounded-full object-cover flex-shrink-0 transition-transform group-hover:scale-105"
+                  loading="lazy"
+                  onError={(event) => {
+                    (event.currentTarget as HTMLImageElement).style.display = "none";
+                    setLogoFailed(true);
+                  }}
+                />
+              ) : (
+                <div className="h-8 w-8 bg-gradient-to-br from-primary to-accent rounded-full flex items-center justify-center flex-shrink-0 transition-transform group-hover:scale-105">
+                  <span className="text-white font-bold text-lg">F</span>
+                </div>
+              )}
+              <span className="text-lg font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent transition-opacity group-hover:opacity-90">
                 FreeMediaBuzz
               </span>
-            </div>
+            </Link>
             <p className="text-sm text-slate-400">
               Free stock media for creators, developers, and businesses. Download videos, images, audio, and templates without limits.
             </p>

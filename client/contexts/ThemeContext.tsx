@@ -6,6 +6,10 @@ interface ThemeContextType {
   theme: Theme;
   toggleTheme: () => void;
   setTheme: (theme: Theme) => void;
+  isAnimating: boolean;
+  animationDirection: "rise" | "set" | null;
+  triggerAnimation: (direction: "rise" | "set") => void;
+  handleAnimationComplete: () => void;
 }
 
 const ThemeContext = createContext<ThemeContextType | undefined>(undefined);
@@ -25,6 +29,10 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     }
     return "light";
   });
+
+  const [isAnimating, setIsAnimating] = useState(false);
+  const [animationDirection, setAnimationDirection] = useState<"rise" | "set" | null>(null);
+  const [pendingTheme, setPendingTheme] = useState<Theme | null>(null);
 
   useEffect(() => {
     const root = document.documentElement;
@@ -58,8 +66,42 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
     }
   }, []);
 
+  const triggerAnimation = (direction: "rise" | "set") => {
+    setAnimationDirection(direction);
+    setIsAnimating(true);
+  };
+
+  const handleAnimationComplete = () => {
+    setIsAnimating(false);
+    setAnimationDirection(null);
+    // Clear pending theme - it should already be applied during animation
+    // This ensures final state is correct
+    if (pendingTheme) {
+      setPendingTheme(null);
+    }
+  };
+
   const toggleTheme = () => {
-    setThemeState((prev) => (prev === "dark" ? "light" : "dark"));
+    const currentTheme = theme;
+    const newTheme = currentTheme === "dark" ? "light" : "dark";
+    
+    // Determine animation direction based on theme transition
+    // Dark → Light: sun rises (from bottom to top)
+    // Light → Dark: sun sets (from top to bottom)
+    const direction = currentTheme === "dark" ? "rise" : "set";
+    
+    // Store the new theme to apply gradually during animation
+    setPendingTheme(newTheme);
+    
+    // Trigger animation first
+    triggerAnimation(direction);
+    
+    // Start theme transition early (at 15% of animation) for gradual color blending
+    // Animation is 1.8s, so we change theme at ~270ms (15% of 1800ms)
+    // This creates a smooth transition as sun moves - colors gradually change with sun movement
+    setTimeout(() => {
+      setThemeState(newTheme);
+    }, 270); // Start theme change early for gradual transition
   };
 
   const setTheme = (newTheme: Theme) => {
@@ -67,7 +109,15 @@ export function ThemeProvider({ children }: { children: ReactNode }) {
   };
 
   return (
-    <ThemeContext.Provider value={{ theme, toggleTheme, setTheme }}>
+    <ThemeContext.Provider value={{ 
+      theme, 
+      toggleTheme, 
+      setTheme, 
+      isAnimating, 
+      animationDirection,
+      triggerAnimation,
+      handleAnimationComplete,
+    }}>
       {children}
     </ThemeContext.Provider>
   );

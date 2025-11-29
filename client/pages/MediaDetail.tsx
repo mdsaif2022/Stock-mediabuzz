@@ -1009,7 +1009,7 @@ export default function MediaDetail() {
                     <img
                       src={media.iconUrl}
                       alt={`${media.title} icon`}
-                      className="w-20 h-20 rounded-2xl object-cover border border-border"
+                      className="w-20 h-20 rounded-full object-cover border border-border"
                       loading="lazy"
                     />
                     <p className="text-sm font-semibold">App Icon</p>
