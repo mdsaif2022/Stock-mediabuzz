@@ -222,10 +222,6 @@ export interface GeneralSettings {
   maintenanceMode: boolean;
 }
 
-// Example response type for /api/demo
-export interface DemoResponse {
-  message: string;
-}
 
 // Pop-up Ad Types
 export interface PopupAd {

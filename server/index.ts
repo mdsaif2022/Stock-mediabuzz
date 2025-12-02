@@ -1,7 +1,6 @@
 import "dotenv/config";
 import express from "express";
 import cors from "cors";
-import { handleDemo } from "./routes/demo";
 import * as mediaRoutes from "./routes/media";
 import * as authRoutes from "./routes/auth";
 import * as downloadRoutes from "./routes/downloads";
@@ -69,13 +68,11 @@ export function createServer() {
     next();
   });
 
-  // Example API routes
+  // Health check endpoint
   app.get("/api/ping", (_req, res) => {
     const ping = process.env.PING_MESSAGE ?? "ping";
     res.json({ message: ping });
   });
-
-  app.get("/api/demo", handleDemo);
 
   // Auth routes
   app.post("/api/auth/signup", authRoutes.signup);
@@ -95,6 +92,8 @@ export function createServer() {
   app.get("/api/media/test-cloudinary", mediaRoutes.testCloudinary); // Test Cloudinary connection
   app.post("/api/media/sync-cloudinary", mediaRoutes.syncFromCloudinary); // Sync from Cloudinary
   app.get("/api/media/sync-cloudinary", mediaRoutes.syncFromCloudinary); // Sync from Cloudinary (GET for easy testing)
+  app.post("/api/media/clean-descriptions", mediaRoutes.cleanMediaDescriptions); // Clean up descriptions
+  app.get("/api/media/clean-descriptions", mediaRoutes.cleanMediaDescriptions); // Clean up descriptions (GET for easy testing)
   app.get("/api/media/preview/:mediaId", downloadRoutes.proxyVideoPreview); // Video preview proxy (before :id route)
   app.get("/api/media/:id", mediaRoutes.getMediaById);
   app.post("/api/media", mediaRoutes.createMedia); // Admin only

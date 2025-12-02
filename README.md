@@ -318,54 +318,32 @@ This creates optimized static files in `dist/spa/` ready for cPanel upload.
 #### cPanel Deployment (Recommended for Static Hosting)
 - **Frontend**: Deploy to cPanel (static files)
 - **Backend**: Deploy separately to Render/Railway/Heroku
-- **Documentation**: See comprehensive guides:
-  - `CPANEL_QUICK_START.md` - Quick deployment steps
-  - `CPANEL_DEPLOYMENT.md` - Complete deployment guide
-  - `CPANEL_VERIFICATION.md` - Testing checklist
-  - `STEP_BY_STEP_GUIDE.md` - Detailed instructions
-  - `CPANEL_ANSWER.md` - FAQ and answers
+- **Complete Guide**: See `CPANEL_DEPLOYMENT_COMPLETE.md` for step-by-step instructions
 
 #### Other Deployment Options
-- **Vercel**: Frontend deployment (configure `vercel.json`)
+- **Vercel**: Full-stack deployment (configure `vercel.json`)
 - **Netlify**: Full-stack deployment (configure `netlify.toml`)
-- **Render**: Backend API deployment
+- **Render**: Backend API deployment (see `RENDER_ENV_VARIABLES.md`)
 - **Self-hosted**: Run with Node.js
 
-**Important**: For cPanel deployment, you must deploy the backend separately as cPanel only supports static files. See deployment guides for details.
+**Important**: For cPanel deployment, you must deploy the backend separately as cPanel only supports static files. The frontend communicates with the backend via API calls.
 
-## 📊 Platform Statistics
+## 🔐 Security Notes
 
-- **2.5M** Media Files
-- **10.5M** Downloads
-- **500K+** Active Users
+- Admin credentials are configured via environment variables (`ADMIN_EMAIL`, `ADMIN_PASSWORD`)
+- CORS is configured to only allow requests from your production domain
+- API keys and secrets should never be committed to version control
+- Use environment variables for all sensitive configuration
 
-### Category Breakdown
-- **Video**: 45.2K files
-- **Images**: 120K files
-- **Audio**: 28.5K files
-- **Templates**: 12K files
-- **APK**: 5K files
+## 🗄️ Data Persistence
 
-## 📝 Recent Updates
+The platform supports multiple storage backends:
 
-### Deployment
-- ✅ Added comprehensive cPanel deployment guides
-- ✅ Added `build:cpanel` script for automated cPanel builds
-- ✅ Added `.htaccess` configuration for React Router SPA support
-- ✅ Created step-by-step deployment documentation
+- **Production (Vercel)**: Uses Vercel KV (Redis) for persistent storage
+- **Production (Render)**: Uses Upstash Redis or file storage
+- **Development**: Uses local file storage (`server/data/`)
 
-### Video Features
-- ✅ Fixed video hover preview playback
-- ✅ Fixed video thumbnail display
-- ✅ Improved video loading and play logic
-
-### Ad Integration
-- ✅ Added 15 new Adsteera links to download flow
-- ✅ Added 15 new Adsteera links to header slider
-- ✅ Improved ad rotation and selection logic
-
-### Statistics
-- ✅ Updated platform statistics (2.5M Media Files, 10.5M Downloads)
+All media metadata is synced from Cloudinary and stored in the configured database. To sync existing Cloudinary files, use the sync endpoint (see `SYNC_CLOUDINARY_RENDER.md`).
 
 ## 🤝 Contributing
 
@@ -381,20 +359,19 @@ This project is private and proprietary. All rights reserved.
 
 ## 📚 Documentation
 
-### Deployment Guides
-- **`CPANEL_QUICK_START.md`** - Quick cPanel deployment reference
-- **`CPANEL_DEPLOYMENT.md`** - Complete cPanel deployment guide
-- **`CPANEL_VERIFICATION.md`** - Post-deployment testing checklist
-- **`STEP_BY_STEP_GUIDE.md`** - Detailed step-by-step instructions
-- **`CPANEL_ANSWER.md`** - FAQ and common questions
-- **`CPANEL_SIMPLE_GUIDE.md`** - Simplified deployment guide
-- **`VISUAL_GUIDE.md`** - Visual flow diagrams
-- **`QUICK_COMMANDS.md`** - Copy-paste command reference
+### Production Deployment
+- **`CPANEL_DEPLOYMENT_COMPLETE.md`** - Complete cPanel deployment guide (frontend + backend)
+- **`RENDER_ENV_VARIABLES.md`** - Backend environment variables setup for Render
+- **`SYNC_CLOUDINARY_RENDER.md`** - How to sync Cloudinary media to your database
 
-### Configuration Guides
-- **`ENVIRONMENT_VARIABLES.md`** - Environment variable setup
-- **`ENV_SETUP.md`** - Environment configuration guide
-- **`DEPLOYMENT_CHECKLIST.md`** - Pre-deployment checklist
+### Configuration
+- **`ENVIRONMENT_VARIABLES.md`** - Complete environment variables reference
+- **`ADMIN_MEDIA_GUIDE.md`** - Admin guide for managing media content
+
+### Additional Guides
+- **`FIREBASE_DOMAIN_SETUP.md`** - Firebase authentication setup
+- **`NAVIGATION_GUIDE.md`** - Navigation and routing information
+- **`BACK_BUTTON_FIX.md`** - Browser navigation fixes
 
 ## 👥 Support
 

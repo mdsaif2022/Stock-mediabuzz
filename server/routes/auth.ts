@@ -2,7 +2,7 @@ import { RequestHandler } from "express";
 import { AuthResponse, LoginRequest, SignupRequest, AuthUser } from "@shared/api";
 import "dotenv/config";
 
-// Mock user database
+// Mock user database (for auth - production should use real database)
 const userDatabase: AuthUser[] = [
   {
     id: "1",
@@ -10,13 +10,6 @@ const userDatabase: AuthUser[] = [
     name: "Admin User",
     role: "admin",
     createdAt: "2024-01-01",
-  },
-  {
-    id: "2",
-    email: "user@example.com",
-    name: "John Doe",
-    role: "user",
-    createdAt: "2024-01-15",
   },
 ];
 

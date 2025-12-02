@@ -77,44 +77,15 @@ export const getUsersData: RequestHandler = (req, res) => {
     return;
   }
 
+  // This endpoint should fetch from real users database
+  // For now, return empty array - users are managed via /api/admin/users
   const { page = 1, pageSize = 20 } = req.query;
-
-  const mockUsers = [
-    {
-      id: "1",
-      name: "John Doe",
-      email: "john@example.com",
-      downloads: 245,
-      role: "user",
-      status: "active",
-      joinedDate: "2024-01-15",
-    },
-    {
-      id: "2",
-      name: "Jane Smith",
-      email: "jane@example.com",
-      downloads: 189,
-      role: "user",
-      status: "active",
-      joinedDate: "2024-02-20",
-    },
-    {
-      id: "3",
-      name: "Mike Johnson",
-      email: "mike@example.com",
-      downloads: 156,
-      role: "user",
-      status: "active",
-      joinedDate: "2024-03-10",
-    },
-  ];
-
   const pageNum = parseInt(page as string) || 1;
   const pageSizeNum = parseInt(pageSize as string) || 20;
 
   res.json({
-    data: mockUsers,
-    total: mockUsers.length,
+    data: [],
+    total: 0,
     page: pageNum,
     pageSize: pageSizeNum,
   });

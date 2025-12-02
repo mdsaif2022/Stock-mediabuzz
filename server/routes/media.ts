@@ -16,75 +16,8 @@ const normalizeCategoryValue = (cat?: string): Media["category"] | "" => {
   return normalized as Media["category"] | "";
 };
 
-// Default initial data
-const DEFAULT_MEDIA: Media[] = [
-  {
-    id: "1",
-    title: "Cinematic Urban Sunset",
-    description: "A stunning 4K video of an urban sunset with beautiful golden and orange hues",
-    category: "video",
-    type: "4K",
-    fileSize: "1.2 GB",
-    duration: "00:45",
-    previewUrl: "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='1280' height='720'%3E%3Crect fill='%234F46E5' width='1280' height='720'/%3E%3Ctext fill='white' font-family='Arial' font-size='48' x='50%25' y='50%25' text-anchor='middle' dominant-baseline='middle'%3EUrban Sunset%3C/text%3E%3C/svg%3E",
-    fileUrl: "https://cloudinary.example.com/media/1",
-    tags: ["sunset", "urban", "4k", "cinematic"],
-    downloads: 12500,
-    views: 45300,
-    isPremium: false,
-    uploadedBy: "CreativeStudio Pro",
-    uploadedDate: "2024-11-15",
-    cloudinaryAccount: 1,
-  },
-  {
-    id: "2",
-    title: "Professional Business Background",
-    description: "High-quality business background image perfect for presentations",
-      category: "image",
-      type: "5K",
-      fileSize: "2.4 MB",
-      previewUrl: "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='1280' height='720'%3E%3Crect fill='%2310B981' width='1280' height='720'/%3E%3Ctext fill='white' font-family='Arial' font-size='48' x='50%25' y='50%25' text-anchor='middle' dominant-baseline='middle'%3EBusiness BG%3C/text%3E%3C/svg%3E",
-      fileUrl: "https://cloudinary.example.com/media/2",
-      tags: ["business", "professional", "background"],
-      downloads: 8300,
-      views: 24500,
-      isPremium: true,
-      uploadedBy: "DesignHub",
-      uploadedDate: "2024-11-14",
-      cloudinaryAccount: 2,
-    },
-    {
-      id: "3",
-      title: "Sample Android App",
-      description: "Example APK file for testing - download and install on your Android device",
-      category: "apk",
-      type: "Android APK",
-      fileSize: "15.2 MB",
-      previewUrl: "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='1280' height='720'%3E%3Crect fill='%23F59E0B' width='1280' height='720'/%3E%3Ctext fill='white' font-family='Arial' font-size='48' x='50%25' y='50%25' text-anchor='middle' dominant-baseline='middle'%3EAndroid APK%3C/text%3E%3C/svg%3E",
-      fileUrl: "https://cloudinary.example.com/media/3",
-      tags: ["android", "app", "apk"],
-      downloads: 5200,
-      views: 15200,
-      isPremium: false,
-      uploadedBy: "App Developer",
-      uploadedDate: "2024-11-16",
-      cloudinaryAccount: 1,
-    iconUrl: "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='160' height='160'%3E%3Crect fill='%23F59E0B' width='160' height='160'/%3E%3Ctext fill='white' font-family='Arial' font-size='20' x='50%25' y='50%25' text-anchor='middle' dominant-baseline='middle'%3EApp Icon%3C/text%3E%3C/svg%3E",
-    featureScreenshots: [
-      {
-        title: "Home Screen",
-        description: "Clean landing view of the sample app",
-        url: "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='800' height='450'%3E%3Crect fill='%236366F1' width='800' height='450'/%3E%3Ctext fill='white' font-family='Arial' font-size='32' x='50%25' y='50%25' text-anchor='middle' dominant-baseline='middle'%3EScreenshot 1%3C/text%3E%3C/svg%3E",
-      },
-      {
-        title: "Detail Screen",
-        description: "Showcases the modern UI layout",
-        url: "data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='800' height='450'%3E%3Crect fill='%236366F1' width='800' height='450'/%3E%3Ctext fill='white' font-family='Arial' font-size='32' x='50%25' y='50%25' text-anchor='middle' dominant-baseline='middle'%3EScreenshot 2%3C/text%3E%3C/svg%3E",
-      },
-    ],
-    showScreenshots: true,
-    },
-  ];
+// Default initial data - empty for production
+const DEFAULT_MEDIA: Media[] = [];
 
 const sanitizeFeatureScreenshots = (input: any): Media["featureScreenshots"] => {
   if (!input) return [];
@@ -599,7 +532,7 @@ export const syncFromCloudinary: RequestHandler = async (req, res) => {
       const mediaItem: Media = {
         id: uniqueId.replace(/[^a-zA-Z0-9_-]/g, '_'), // Sanitize ID
         title: resource.filename || resource.public_id?.split('/').pop() || `Media from ${server}`,
-        description: `Synced from Cloudinary - ${resource.resource_type}`,
+        description: "", // Empty description - users can add their own
         category,
         type,
         fileSize,
@@ -702,6 +635,51 @@ export const syncFromCloudinary: RequestHandler = async (req, res) => {
       error: "Unexpected error during sync",
       message: error.message,
       stack: process.env.NODE_ENV === "development" ? error.stack : undefined,
+    });
+  }
+};
+
+// Clean up existing media descriptions - Remove "Synced from Cloudinary" text
+export const cleanMediaDescriptions: RequestHandler = async (_req, res) => {
+  try {
+    console.log("🧹 Starting media description cleanup...");
+    
+    const mediaDatabase = await getMediaDatabase();
+    let cleanedCount = 0;
+    
+    // Find and clean items with "Synced from Cloudinary" in description
+    for (const media of mediaDatabase) {
+      if (media.description && media.description.includes("Synced from Cloudinary")) {
+        media.description = ""; // Clear the description
+        cleanedCount++;
+      }
+    }
+    
+    if (cleanedCount > 0) {
+      // Save the cleaned database
+      await saveMediaDatabase(mediaDatabase);
+      console.log(`✅ Cleaned ${cleanedCount} media item descriptions`);
+      
+      res.json({
+        success: true,
+        message: `Cleaned ${cleanedCount} media item descriptions`,
+        cleaned: cleanedCount,
+        total: mediaDatabase.length,
+      });
+    } else {
+      res.json({
+        success: true,
+        message: "No media items with 'Synced from Cloudinary' text found",
+        cleaned: 0,
+        total: mediaDatabase.length,
+      });
+    }
+  } catch (error: any) {
+    console.error("❌ Error cleaning media descriptions:", error);
+    res.status(500).json({
+      success: false,
+      error: "Failed to clean media descriptions",
+      message: error.message,
     });
   }
 };

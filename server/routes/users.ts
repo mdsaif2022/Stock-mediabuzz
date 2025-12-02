@@ -19,18 +19,6 @@ const DEFAULT_USERS: PlatformUser[] = [
     createdAt: "2024-01-01T00:00:00.000Z",
     updatedAt: "2024-01-01T00:00:00.000Z",
   },
-  {
-    id: "user-demo",
-    name: "Demo Member",
-    email: "demo@freemediabuzz.com",
-    accountType: "user",
-    role: "user",
-    status: "active",
-    emailVerified: true,
-    downloads: 12,
-    createdAt: "2024-02-15T12:00:00.000Z",
-    updatedAt: "2024-02-20T08:00:00.000Z",
-  },
 ];
 
 let usersDatabase: PlatformUser[] = [];
