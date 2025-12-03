@@ -353,6 +353,30 @@ export const getDatabaseStatus: RequestHandler = async (_req, res) => {
     const hasVercelKV = !!(process.env.KV_URL || process.env.STORAGE_URL);
     const hasKV = hasUpstashEnv || hasVercelKV;
     
+    // Get sync status
+    let syncStatus = null;
+    try {
+      const { getSyncStatus } = await import("../services/syncService.js");
+      syncStatus = getSyncStatus();
+    } catch (error) {
+      // Sync service not available, ignore
+    }
+    
+    // Test Redis/KV connection
+    let storageTest = "unknown";
+    if (hasKV) {
+      try {
+        const { Database } = await import("../utils/database.js");
+        const testDb = new Database("__health_check__", []);
+        await testDb.save([{ test: true }]);
+        await testDb.load();
+        await testDb.save([]); // Clean up
+        storageTest = "✅ Connected and working";
+      } catch (error: any) {
+        storageTest = `❌ Connection failed: ${error.message}`;
+      }
+    }
+    
     res.json({
       status: "ok",
       storage: {
@@ -366,14 +390,23 @@ export const getDatabaseStatus: RequestHandler = async (_req, res) => {
         hasUpstashRedis: hasUpstashEnv,
         hasVercelKV: hasVercelKV,
         kvUrl: hasKV ? "✅ Set" : "❌ Not set",
+        connectionTest: storageTest,
+        persistenceWarning: !hasKV && (isVercel || process.env.RENDER) 
+          ? "⚠️ Data will NOT persist! Configure Redis/KV to prevent data loss."
+          : hasKV 
+            ? "✅ Data will persist permanently"
+            : "📁 Using file storage (localhost only)",
       },
       media: {
         count: mediaDatabase.length,
         items: mediaDatabase.slice(0, 5).map(m => ({ id: m.id, title: m.title })),
       },
+      sync: syncStatus || {
+        note: "Auto-sync service not initialized",
+      },
       message: hasKV 
         ? "✅ Database configured correctly" 
-        : isVercel 
+        : isVercel || process.env.RENDER
           ? "⚠️ KV not configured - data will not persist!" 
           : "📁 Using file storage (localhost)",
     });
@@ -385,8 +418,14 @@ export const getDatabaseStatus: RequestHandler = async (_req, res) => {
   }
 };
 
-// Sync media from Cloudinary - Rebuilds database from Cloudinary files
-export const syncFromCloudinary: RequestHandler = async (req, res) => {
+// Internal sync function (can be called from RequestHandler or background service)
+export async function performCloudinarySync(): Promise<{
+  success: boolean;
+  message?: string;
+  error?: string;
+  stats?: any;
+  storage?: any;
+}> {
   try {
     console.log("🔄 Starting Cloudinary sync...");
     
@@ -403,13 +442,11 @@ export const syncFromCloudinary: RequestHandler = async (req, res) => {
     } catch (importError: any) {
       console.error("❌ Failed to import Cloudinary functions:", importError);
       console.error("Stack:", importError.stack);
-      return res.status(500).json({
+      return {
         success: false,
         error: "Failed to load Cloudinary module",
         message: importError.message,
-        details: "Check server logs for more information",
-        stack: process.env.NODE_ENV === "development" ? importError.stack : undefined,
-      });
+      };
     }
     
     // List all resources from all Cloudinary accounts
@@ -444,19 +481,16 @@ export const syncFromCloudinary: RequestHandler = async (req, res) => {
         errorDetails = "Cloudinary account not found - check cloud name";
       }
       
-      return res.status(500).json({
+      return {
         success: false,
         error: "Failed to fetch resources from Cloudinary",
         message: cloudinaryError.message,
-        http_code: cloudinaryError.http_code,
-        details: errorDetails,
-        suggestion: "Test connection first: GET /api/media/test-cloudinary",
-      });
+      };
     }
     
     if (allResources.length === 0) {
       console.log("⚠️  No resources found in Cloudinary");
-      return res.json({
+      return {
         success: true,
         message: "No files found in Cloudinary to sync",
         stats: {
@@ -466,7 +500,7 @@ export const syncFromCloudinary: RequestHandler = async (req, res) => {
           skipped: 0,
           totalInDatabase: 0,
         },
-      });
+      };
     }
     
     // Get existing database
@@ -576,7 +610,7 @@ export const syncFromCloudinary: RequestHandler = async (req, res) => {
       console.log(`✅ Database saved successfully`);
     } catch (saveError: any) {
       console.error("❌ Error saving database:", saveError);
-      return res.status(500).json({
+      return {
         success: false,
         error: "Failed to save database",
         message: saveError.message,
@@ -587,8 +621,7 @@ export const syncFromCloudinary: RequestHandler = async (req, res) => {
           skipped: skipped,
           totalInDatabase: mergedDatabase.length,
         },
-        warning: "Files were processed but not saved. Check storage configuration.",
-      });
+      };
     }
     
     console.log(`✅ Sync complete: ${created} new items added, ${skipped} skipped (already exists)`);
@@ -604,7 +637,7 @@ export const syncFromCloudinary: RequestHandler = async (req, res) => {
         ? "⚠️ Temporary (Redis/KV not configured)" 
         : "File Storage";
     
-    res.json({
+    return {
       success: true,
       message: `Synced ${created} new media items from Cloudinary`,
       storage: {
@@ -626,16 +659,26 @@ export const syncFromCloudinary: RequestHandler = async (req, res) => {
         skipped: skipped,
         totalInDatabase: mergedDatabase.length,
       },
-    });
+    };
   } catch (error: any) {
     console.error("❌ Unexpected sync error:", error);
     console.error("Stack:", error.stack);
-    res.status(500).json({
+    return {
       success: false,
       error: "Unexpected error during sync",
       message: error.message,
-      stack: process.env.NODE_ENV === "development" ? error.stack : undefined,
-    });
+    };
+  }
+}
+
+// Sync media from Cloudinary - Rebuilds database from Cloudinary files
+export const syncFromCloudinary: RequestHandler = async (req, res) => {
+  const result = await performCloudinarySync();
+  
+  if (result.success) {
+    res.json(result);
+  } else {
+    res.status(500).json(result);
   }
 };
 

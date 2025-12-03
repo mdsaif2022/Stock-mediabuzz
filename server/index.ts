@@ -11,9 +11,15 @@ import * as usersRoutes from "./routes/users.js";
 import * as popupAdsRoutes from "./routes/popup-ads.js";
 import { handleFileUpload, handleUrlUpload, upload, handleAssetUpload } from "./routes/upload.js";
 import { initializeKV } from "./utils/database.js";
+import { initializeAutoSync } from "./services/syncService.js";
 
 // Initialize database connection (KV on Vercel, file storage on localhost)
-initializeKV().catch(console.error);
+initializeKV()
+  .then(() => {
+    // Initialize auto-sync after database is ready
+    initializeAutoSync();
+  })
+  .catch(console.error);
 
 export function createServer() {
   const app = express();
@@ -92,6 +98,16 @@ export function createServer() {
   app.get("/api/media/test-cloudinary", mediaRoutes.testCloudinary); // Test Cloudinary connection
   app.post("/api/media/sync-cloudinary", mediaRoutes.syncFromCloudinary); // Sync from Cloudinary
   app.get("/api/media/sync-cloudinary", mediaRoutes.syncFromCloudinary); // Sync from Cloudinary (GET for easy testing)
+  
+  // Sync status endpoint
+  app.get("/api/media/sync/status", async (_req, res) => {
+    try {
+      const { getSyncStatus } = await import("./services/syncService.js");
+      res.json(getSyncStatus());
+    } catch (error: any) {
+      res.status(500).json({ error: error.message });
+    }
+  });
   app.post("/api/media/clean-descriptions", mediaRoutes.cleanMediaDescriptions); // Clean up descriptions
   app.get("/api/media/clean-descriptions", mediaRoutes.cleanMediaDescriptions); // Clean up descriptions (GET for easy testing)
   app.get("/api/media/preview/:mediaId", downloadRoutes.proxyVideoPreview); // Video preview proxy (before :id route)

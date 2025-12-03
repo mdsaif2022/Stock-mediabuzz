@@ -37,7 +37,7 @@ ADMIN_PASSWORD=your-secure-password-123
 
 ### 3. Database/Storage (Optional - Recommended)
 
-**Option A: Upstash Redis (Recommended for Render)**
+**Option A: Upstash Redis (Recommended for Render) ✅**
 
 If you want persistent storage (like Vercel KV), use Upstash Redis:
 
@@ -52,6 +52,10 @@ UPSTASH_REDIS_REST_TOKEN=your-token-here
 3. Create new Redis database
 4. Copy `UPSTASH_REDIS_REST_URL` and `UPSTASH_REST_API_TOKEN`
 5. Add to Render environment variables
+
+**✅ You already have Upstash Redis credentials!**
+- See `UPSTASH_REDIS_SETUP.md` for step-by-step setup instructions
+- Add them to Render Environment tab to enable persistent storage
 
 **Option B: Vercel KV (If you have Vercel KV)**
 
@@ -128,9 +132,9 @@ ADMIN_EMAIL=admin@yourdomain.com
 ADMIN_USERNAME=admin
 ADMIN_PASSWORD=MySecurePass123!@#
 
-# OPTIONAL - Database (Upstash Redis)
-UPSTASH_REDIS_REST_URL=https://your-redis.upstash.io
-UPSTASH_REDIS_REST_TOKEN=AXxxxxxxxxxxxxxxxxxxxxx
+# OPTIONAL - Database (Upstash Redis) - RECOMMENDED!
+UPSTASH_REDIS_REST_URL=https://eternal-blowfish-28190.upstash.io
+UPSTASH_REDIS_REST_TOKEN=AW4eAAIncDI4ZDdiMDc2MzBiMDY0ZGFjYWZlYmJhZDM2MGZjMzUzZnAyMjgxOTA
 
 # OPTIONAL - Test
 PING_MESSAGE=pong
@@ -146,6 +150,10 @@ Before deploying, make sure you have:
 - [ ] `ADMIN_EMAIL` set
 - [ ] `ADMIN_USERNAME` set
 - [ ] `ADMIN_PASSWORD` set (strong password!)
+- [x] `UPSTASH_REDIS_REST_URL` set (✅ You have this!)
+- [x] `UPSTASH_REDIS_REST_TOKEN` set (✅ You have this!)
+
+**📝 See `UPSTASH_REDIS_SETUP.md` for detailed setup instructions!**
 - [ ] (Optional) Database variables if using Upstash Redis
 
 ---
