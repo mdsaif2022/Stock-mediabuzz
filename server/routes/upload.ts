@@ -205,6 +205,31 @@ export const handleFileUpload: RequestHandler = async (req, res) => {
 
     // Save to database (KV on Vercel, file on localhost)
     await saveMediaDatabase(currentDatabase);
+    
+    // Verify data was saved (critical for persistence)
+    try {
+      const verifyDatabase = await getMediaDatabase();
+      const savedCount = verifyDatabase.length;
+      if (savedCount < currentDatabase.length) {
+        console.error(`⚠️ Data persistence warning: Expected ${currentDatabase.length} items, found ${savedCount}`);
+        // Retry save
+        await saveMediaDatabase(currentDatabase);
+        console.log("✅ Retry save completed");
+      } else {
+        console.log(`✅ Verified ${savedCount} items persisted to database`);
+      }
+    } catch (verifyError) {
+      console.error("❌ Failed to verify data persistence:", verifyError);
+    }
+
+    // Trigger background sync to ensure Cloudinary and database stay in sync
+    try {
+      const { triggerSyncAfterUpload } = await import("../services/syncService.js");
+      triggerSyncAfterUpload();
+    } catch (syncError) {
+      // Non-critical - just log
+      console.log("Note: Could not trigger post-upload sync:", syncError);
+    }
 
     if (creatorId) {
       await incrementCreatorStorageUsage(creatorId, totalUploadBytes);
@@ -299,6 +324,31 @@ export const handleUrlUpload: RequestHandler = async (req, res) => {
 
     // Save to database (KV on Vercel, file on localhost)
     await saveMediaDatabase(currentDatabase);
+    
+    // Verify data was saved (critical for persistence)
+    try {
+      const verifyDatabase = await getMediaDatabase();
+      const savedCount = verifyDatabase.length;
+      if (savedCount < currentDatabase.length) {
+        console.error(`⚠️ Data persistence warning: Expected ${currentDatabase.length} items, found ${savedCount}`);
+        // Retry save
+        await saveMediaDatabase(currentDatabase);
+        console.log("✅ Retry save completed");
+      } else {
+        console.log(`✅ Verified ${savedCount} items persisted to database`);
+      }
+    } catch (verifyError) {
+      console.error("❌ Failed to verify data persistence:", verifyError);
+    }
+
+    // Trigger background sync to ensure Cloudinary and database stay in sync
+    try {
+      const { triggerSyncAfterUpload } = await import("../services/syncService.js");
+      triggerSyncAfterUpload();
+    } catch (syncError) {
+      // Non-critical - just log
+      console.log("Note: Could not trigger post-upload sync:", syncError);
+    }
 
     res.json({
       success: true,

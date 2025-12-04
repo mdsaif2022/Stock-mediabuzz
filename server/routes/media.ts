@@ -712,6 +712,81 @@ export const syncFromCloudinary: RequestHandler = async (req, res) => {
   }
 };
 
+// Health check endpoint - Verify data persistence
+export const healthCheck: RequestHandler = async (_req, res) => {
+  try {
+    const mediaDatabase = await getMediaDatabase();
+    const initialCount = mediaDatabase.length;
+    
+    // Test write and read
+    const testItem = { id: "__health_check__", test: true, timestamp: Date.now() };
+    const testDatabase = [...mediaDatabase, testItem as any];
+    
+    // Save test data
+    await saveMediaDatabase(testDatabase);
+    
+    // Wait a moment for write to complete
+    await new Promise(resolve => setTimeout(resolve, 500));
+    
+    // Verify it was saved
+    const verifyDatabase = await getMediaDatabase();
+    const verifyCount = verifyDatabase.length;
+    const testItemFound = verifyDatabase.find((item: any) => item.id === "__health_check__");
+    
+    // Clean up test item
+    const cleanDatabase = verifyDatabase.filter((item: any) => item.id !== "__health_check__");
+    await saveMediaDatabase(cleanDatabase);
+    
+    // Check persistence
+    const persistenceOk = verifyCount === initialCount + 1 && testItemFound;
+    const finalDatabase = await getMediaDatabase();
+    const finalCount = finalDatabase.length;
+    
+    // Check storage type
+    const isVercel = !!(process.env.VERCEL || process.env.VERCEL_ENV);
+    const isRender = !!process.env.RENDER;
+    const hasUpstashEnv = !!(process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN);
+    const hasVercelKV = !!(process.env.KV_URL || process.env.STORAGE_URL);
+    const hasKV = hasUpstashEnv || hasVercelKV;
+    
+    res.json({
+      status: persistenceOk ? "healthy" : "unhealthy",
+      persistence: {
+        testPassed: persistenceOk,
+        initialCount,
+        verifyCount,
+        finalCount,
+        testItemFound: !!testItemFound,
+        message: persistenceOk 
+          ? "✅ Data persistence is working correctly"
+          : "❌ Data persistence test failed - data may not be saving",
+      },
+      storage: {
+        type: hasKV 
+          ? (hasUpstashEnv ? "Upstash Redis" : "Vercel KV")
+          : isVercel || isRender
+            ? "⚠️ File Storage (NOT PERSISTENT)"
+            : "File Storage (localhost)",
+        hasKV,
+        isConfigured: hasKV,
+        warning: !hasKV && (isVercel || isRender)
+          ? "⚠️ Redis/KV not configured - data will NOT persist!"
+          : null,
+      },
+      media: {
+        count: finalCount,
+      },
+      timestamp: new Date().toISOString(),
+    });
+  } catch (error: any) {
+    res.status(500).json({
+      status: "error",
+      error: error.message,
+      message: "Health check failed",
+    });
+  }
+};
+
 // Clean up existing media descriptions - Remove "Synced from Cloudinary" text
 export const cleanMediaDescriptions: RequestHandler = async (_req, res) => {
   try {

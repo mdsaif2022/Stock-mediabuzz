@@ -141,30 +141,60 @@ export class Database<T> {
   }
 
   /**
-   * Save data to storage
+   * Save data to storage with retry logic
    */
   async save(data: T[]): Promise<void> {
     const useKV = await shouldUseKV();
+    const isRender = !!process.env.RENDER;
+    const isVercel = !!(process.env.VERCEL || process.env.VERCEL_ENV);
+    
     if (useKV) {
-      try {
-        const redisClient = await getRedis();
-        if (!redisClient) throw new Error("Redis client not available");
-        await redisClient.set(this.key, data);
-        console.log(`✅ Saved ${data.length} items to Redis/KV (${this.key})`);
-      } catch (error) {
-        console.error(`❌ Error saving to KV (${this.key}):`, error);
-        // On Vercel, don't fall back to file storage - throw error
-        if (process.env.VERCEL) {
-          throw new Error(`Failed to save to KV: ${error instanceof Error ? error.message : String(error)}`);
+      // Retry logic for Redis/KV saves (up to 3 attempts)
+      let lastError: Error | null = null;
+      for (let attempt = 1; attempt <= 3; attempt++) {
+        try {
+          const redisClient = await getRedis();
+          if (!redisClient) throw new Error("Redis client not available");
+          
+          await redisClient.set(this.key, data);
+          
+          // Verify the save worked by reading it back
+          const verify = await redisClient.get<T[]>(this.key);
+          if (!verify || verify.length !== data.length) {
+            throw new Error(`Verification failed: Expected ${data.length} items, got ${verify?.length || 0}`);
+          }
+          
+          console.log(`✅ Saved ${data.length} items to Redis/KV (${this.key}) - verified`);
+          return; // Success - exit
+        } catch (error) {
+          lastError = error instanceof Error ? error : new Error(String(error));
+          console.error(`❌ Error saving to KV (${this.key}) - Attempt ${attempt}/3:`, lastError.message);
+          
+          if (attempt < 3) {
+            // Wait before retry (exponential backoff)
+            await new Promise(resolve => setTimeout(resolve, attempt * 500));
+            continue;
+          }
         }
-        // Localhost: fallback to file storage
-        await this.saveToFile(data);
       }
+      
+      // All retries failed
+      console.error(`❌ Failed to save to KV after 3 attempts (${this.key})`);
+      
+      // On Vercel/Render, don't fall back to file storage - throw error
+      if (isVercel || isRender) {
+        throw new Error(`Failed to save to KV after 3 retries: ${lastError?.message || "Unknown error"}`);
+      }
+      
+      // Localhost: fallback to file storage
+      console.log("⚠️  Falling back to file storage (localhost only)");
+      await this.saveToFile(data);
     } else {
-      // Check if we're on Vercel but KV is not configured
-      if (process.env.VERCEL || process.env.VERCEL_ENV) {
-        const errorMsg = `⚠️  CRITICAL: Cannot save data on Vercel without KV! Please set up Vercel KV.`;
+      // Check if we're on Vercel/Render but KV is not configured
+      if (isVercel || isRender) {
+        const errorMsg = `⚠️  CRITICAL: Cannot save data on ${isVercel ? "Vercel" : "Render"} without Redis/KV! Please set up Upstash Redis.`;
         console.error(errorMsg);
+        console.error("⚠️  Your data will NOT persist. Add UPSTASH_REDIS_REST_URL and UPSTASH_REDIS_REST_TOKEN environment variables.");
         throw new Error(errorMsg);
       }
       // File storage fallback (localhost only)

@@ -55,14 +55,15 @@ async function performSync(): Promise<{ success: boolean; stats?: any; error?: s
  * - Sets up periodic sync (every hour by default)
  */
 export function initializeAutoSync() {
-  const syncIntervalMinutes = parseInt(process.env.AUTO_SYNC_INTERVAL_MINUTES || "60", 10);
+  // Default to 15 minutes for faster recovery (was 60)
+  const syncIntervalMinutes = parseInt(process.env.AUTO_SYNC_INTERVAL_MINUTES || "15", 10);
   const enableStartupSync = process.env.AUTO_SYNC_ON_STARTUP !== "false"; // Default: true
   const startupSyncDelay = parseInt(process.env.AUTO_SYNC_STARTUP_DELAY_SECONDS || "30", 10); // Default: 30 seconds
 
   console.log("🔧 Auto-sync service configuration:");
   console.log(`   Startup sync: ${enableStartupSync ? "✅ Enabled" : "❌ Disabled"}`);
   console.log(`   Startup delay: ${startupSyncDelay} seconds`);
-  console.log(`   Periodic sync: Every ${syncIntervalMinutes} minutes`);
+  console.log(`   Periodic sync: Every ${syncIntervalMinutes} minutes (faster recovery)`);
 
   // Sync on startup (after delay to allow database/KV to initialize)
   if (enableStartupSync) {
@@ -103,5 +104,20 @@ export function getSyncStatus() {
  */
 export async function triggerManualSync(): Promise<{ success: boolean; stats?: any; error?: string }> {
   return performSync();
+}
+
+/**
+ * Trigger sync after upload (non-blocking)
+ * This ensures newly uploaded files are immediately synced
+ */
+export function triggerSyncAfterUpload() {
+  // Don't wait for sync to complete - run in background
+  setTimeout(() => {
+    console.log("🔄 Triggering sync after upload...");
+    performSync().catch((error) => {
+      console.error("❌ Post-upload sync failed:", error);
+      // Don't throw - this is a background operation
+    });
+  }, 2000); // Wait 2 seconds for upload to complete
 }
 

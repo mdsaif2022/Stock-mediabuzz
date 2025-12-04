@@ -95,6 +95,7 @@ export function createServer() {
   app.get("/api/media/trending", mediaRoutes.getTrendingMedia);
   app.get("/api/media/categories/summary", mediaRoutes.getCategorySummary);
   app.get("/api/media/database/status", mediaRoutes.getDatabaseStatus); // Diagnostic endpoint
+  app.get("/api/media/health", mediaRoutes.healthCheck); // Health check - verify data persistence
   app.get("/api/media/test-cloudinary", mediaRoutes.testCloudinary); // Test Cloudinary connection
   app.post("/api/media/sync-cloudinary", mediaRoutes.syncFromCloudinary); // Sync from Cloudinary
   app.get("/api/media/sync-cloudinary", mediaRoutes.syncFromCloudinary); // Sync from Cloudinary (GET for easy testing)
