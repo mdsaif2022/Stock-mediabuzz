@@ -84,10 +84,17 @@ async function getRedis() {
       
       // Use explicit constructor instead of fromEnv() to ensure clean values
       console.log("   Creating Redis client...");
-      redis = new Redis({
-        url: cleanUrl,
-        token: cleanToken,
-      });
+      try {
+        redis = new Redis({
+          url: cleanUrl,
+          token: cleanToken,
+        });
+        console.log("   ✅ Redis client created");
+      } catch (createError: any) {
+        console.error("❌ Failed to create Redis client");
+        console.error("   Error:", createError.message || String(createError));
+        throw createError;
+      }
       
       // Test connection with detailed error handling
       console.log("   Testing connection (ping)...");
@@ -101,17 +108,30 @@ async function getRedis() {
         console.error("   Error:", pingError.message || String(pingError));
         console.error("   Error code:", pingError.code);
         console.error("   Error status:", pingError.status);
+        console.error("   Error name:", pingError.name);
+        
+        // Log full error object for debugging
+        if (pingError.response) {
+          console.error("   Response status:", pingError.response.status);
+          console.error("   Response statusText:", pingError.response.statusText);
+        }
         
         // Check for common errors
-        if (pingError.message?.includes("Unauthorized") || pingError.status === 401) {
+        if (pingError.message?.includes("Unauthorized") || pingError.status === 401 || pingError.response?.status === 401) {
           console.error("   ⚠️  Authentication failed - check your token is correct");
           console.error("   ⚠️  Verify token in Upstash console: https://console.upstash.com/");
+          console.error("   ⚠️  Make sure you copied the full token (no spaces, no quotes)");
         }
-        if (pingError.message?.includes("Invalid URL") || pingError.message?.includes("ENOTFOUND")) {
+        if (pingError.message?.includes("Invalid URL") || pingError.message?.includes("ENOTFOUND") || pingError.code === "ENOTFOUND") {
           console.error("   ⚠️  URL is invalid or unreachable - check your URL is correct");
+          console.error("   ⚠️  URL should be: https://eternal-blowfish-28190.upstash.io");
         }
-        if (pingError.message?.includes("fetch") || pingError.message?.includes("network")) {
+        if (pingError.message?.includes("fetch") || pingError.message?.includes("network") || pingError.message?.includes("ECONNREFUSED")) {
           console.error("   ⚠️  Network error - check connectivity to Upstash");
+          console.error("   ⚠️  Check if Upstash is accessible from Render");
+        }
+        if (pingError.message?.includes("timeout") || pingError.code === "ETIMEDOUT") {
+          console.error("   ⚠️  Connection timeout - Upstash may be slow or unreachable");
         }
         
         throw pingError; // Re-throw to be caught by outer catch
@@ -420,6 +440,8 @@ export async function initializeKV() {
   console.log(`   Has Vercel KV vars: ${hasVercelKV}`);
   
   const redisClient = await getRedis();
+  
+  console.log(`   Redis client result: ${redisClient ? "✅ Connected" : "❌ Null (connection failed)"}`);
   
   if (redisClient && (hasUpstashEnv || hasVercelKV)) {
     try {
