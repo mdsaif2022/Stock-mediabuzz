@@ -323,3 +323,15 @@
 .phone-input-custom .PhoneInputCountrySelectArrow {
   display: none;
 }
+
+/* Ad-blocker modal blur effect */
+body.adblock-modal-open {
+  overflow: hidden;
+}
+
+body.adblock-modal-open > #root {
+  filter: blur(4px) brightness(0.7);
+  transition: filter 0.3s ease-in-out;
+  pointer-events: none;
+  user-select: none;
+}

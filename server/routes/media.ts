@@ -349,9 +349,36 @@ export const getDatabaseStatus: RequestHandler = async (_req, res) => {
   try {
     const mediaDatabase = await getMediaDatabase();
     const isVercel = !!(process.env.VERCEL || process.env.VERCEL_ENV);
-    const hasUpstashEnv = !!(process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN);
+    const isRender = !!process.env.RENDER;
+    
+    // Check environment variables (for debugging)
+    const upstashUrl = process.env.UPSTASH_REDIS_REST_URL;
+    const upstashToken = process.env.UPSTASH_REDIS_REST_TOKEN;
+    const hasUpstashEnv = !!(upstashUrl && upstashToken);
     const hasVercelKV = !!(process.env.KV_URL || process.env.STORAGE_URL);
-    const hasKV = hasUpstashEnv || hasVercelKV;
+    const hasVercelKVFull = !!(process.env.KV_REST_API_URL && process.env.KV_REST_API_TOKEN);
+    
+    // Check for Redis initialization errors
+    let redisError = null;
+    
+    // Test Redis/KV connection
+    let storageTest = "unknown";
+    let hasKV = false;
+    
+    if (hasUpstashEnv || hasVercelKV || hasVercelKVFull) {
+      try {
+        const { Database } = await import("../utils/database.js");
+        const testDb = new Database("__health_check__", []);
+        await testDb.save([{ test: true }]);
+        await testDb.load();
+        await testDb.save([]); // Clean up
+        storageTest = "✅ Connected and working";
+        hasKV = true;
+      } catch (error: any) {
+        storageTest = `❌ Connection failed: ${error.message}`;
+        hasKV = false;
+      }
+    }
     
     // Get sync status
     let syncStatus = null;
@@ -362,36 +389,31 @@ export const getDatabaseStatus: RequestHandler = async (_req, res) => {
       // Sync service not available, ignore
     }
     
-    // Test Redis/KV connection
-    let storageTest = "unknown";
-    if (hasKV) {
-      try {
-        const { Database } = await import("../utils/database.js");
-        const testDb = new Database("__health_check__", []);
-        await testDb.save([{ test: true }]);
-        await testDb.load();
-        await testDb.save([]); // Clean up
-        storageTest = "✅ Connected and working";
-      } catch (error: any) {
-        storageTest = `❌ Connection failed: ${error.message}`;
-      }
-    }
-    
     res.json({
       status: "ok",
       storage: {
         type: hasKV 
           ? (hasUpstashEnv ? "Upstash Redis" : "Vercel KV")
-          : isVercel 
+          : isVercel || isRender
             ? "⚠️ None (Redis/KV not configured)" 
             : "File Storage",
         isVercel,
+        isRender,
         hasKV,
         hasUpstashRedis: hasUpstashEnv,
-        hasVercelKV: hasVercelKV,
+        hasVercelKV: hasVercelKV || hasVercelKVFull,
+        // Debug info (shows if env vars are detected, but masked for security)
+        envVars: {
+          upstashUrlSet: !!upstashUrl,
+          upstashTokenSet: !!upstashToken,
+          upstashUrlPreview: upstashUrl ? `${upstashUrl.substring(0, 30)}...` : "Not set",
+          vercelKVSet: hasVercelKV,
+          vercelKVFullSet: hasVercelKVFull,
+        },
         kvUrl: hasKV ? "✅ Set" : "❌ Not set",
         connectionTest: storageTest,
-        persistenceWarning: !hasKV && (isVercel || process.env.RENDER) 
+        redisError: redisError || null,
+        persistenceWarning: !hasKV && (isVercel || isRender) 
           ? "⚠️ Data will NOT persist! Configure Redis/KV to prevent data loss."
           : hasKV 
             ? "✅ Data will persist permanently"
@@ -406,9 +428,17 @@ export const getDatabaseStatus: RequestHandler = async (_req, res) => {
       },
       message: hasKV 
         ? "✅ Database configured correctly" 
-        : isVercel || process.env.RENDER
+        : isVercel || isRender
           ? "⚠️ KV not configured - data will not persist!" 
           : "📁 Using file storage (localhost)",
+      troubleshooting: !hasKV && (isVercel || isRender) ? {
+        step1: "Check Render Dashboard → Environment tab",
+        step2: "Verify variables: UPSTASH_REDIS_REST_URL and UPSTASH_REDIS_REST_TOKEN",
+        step3: "Ensure values have NO quotes and NO trailing spaces",
+        step4: "Redeploy service after adding variables",
+        step5: "Check server logs for connection errors",
+        guide: "See REDIS_TROUBLESHOOTING.md for detailed help",
+      } : null,
     });
   } catch (error: any) {
     res.status(500).json({

@@ -30,6 +30,7 @@ import { ADMIN_BASE_PATH } from "./constants/routes";
 import { apiFetch } from "@/lib/api";
 import ScrollToTop from "@/components/ScrollToTop";
 import NavigationMonitor from "@/components/NavigationMonitor";
+import AdBlockerDetector from "@/components/AdBlockerDetector";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -106,6 +107,7 @@ export default function App() {
               <Sonner />
               <BrowserRouter>
                 <ThemeAnimationWrapper />
+                <AdBlockerDetector />
                 <AppRoutes />
               </BrowserRouter>
             </TooltipProvider>
