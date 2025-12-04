@@ -80,6 +80,37 @@ export function createServer() {
     res.json({ message: ping });
   });
 
+  // Debug endpoint to check environment variables (for troubleshooting)
+  app.get("/api/debug/env", (_req, res) => {
+    const upstashUrl = process.env.UPSTASH_REDIS_REST_URL;
+    const upstashToken = process.env.UPSTASH_REDIS_REST_TOKEN;
+    
+    res.json({
+      hasUrl: !!upstashUrl,
+      hasToken: !!upstashToken,
+      urlLength: upstashUrl?.length || 0,
+      tokenLength: upstashToken?.length || 0,
+      urlPreview: upstashUrl ? `${upstashUrl.substring(0, 30)}...` : "Not set",
+      tokenPreview: upstashToken ? `${upstashToken.substring(0, 10)}...` : "Not set",
+      urlHasQuotes: upstashUrl?.startsWith('"') || upstashUrl?.endsWith('"'),
+      tokenHasQuotes: upstashToken?.startsWith('"') || upstashToken?.endsWith('"'),
+      urlHasSpaces: upstashUrl?.trim() !== upstashUrl,
+      tokenHasSpaces: upstashToken?.trim() !== upstashToken,
+      isRender: !!process.env.RENDER,
+      isVercel: !!(process.env.VERCEL || process.env.VERCEL_ENV),
+      issues: [
+        !upstashUrl && "UPSTASH_REDIS_REST_URL is not set",
+        !upstashToken && "UPSTASH_REDIS_REST_TOKEN is not set",
+        upstashUrl?.startsWith('"') && "URL has quotes at start",
+        upstashUrl?.endsWith('"') && "URL has quotes at end",
+        upstashToken?.startsWith('"') && "Token has quotes at start",
+        upstashToken?.endsWith('"') && "Token has quotes at end",
+        upstashUrl?.trim() !== upstashUrl && "URL has leading/trailing spaces",
+        upstashToken?.trim() !== upstashToken && "Token has leading/trailing spaces",
+      ].filter(Boolean),
+    });
+  });
+
   // Auth routes
   app.post("/api/auth/signup", authRoutes.signup);
   app.post("/api/auth/login", authRoutes.login);

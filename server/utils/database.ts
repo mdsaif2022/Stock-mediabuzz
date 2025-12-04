@@ -26,10 +26,34 @@ async function getRedis() {
     try {
       // Use Upstash Redis SDK (recommended for Upstash Redis)
       const { Redis } = await import("@upstash/redis");
-      redis = Redis.fromEnv();
+      
+      // Get environment variables (trim to remove any spaces)
+      const url = process.env.UPSTASH_REDIS_REST_URL?.trim();
+      const token = process.env.UPSTASH_REDIS_REST_TOKEN?.trim();
+      
+      // Remove quotes if present (common mistake)
+      const cleanUrl = url?.replace(/^["']|["']$/g, '');
+      const cleanToken = token?.replace(/^["']|["']$/g, '');
+      
+      if (!cleanUrl || !cleanToken) {
+        console.error("❌ Upstash Redis env vars are set but empty after cleaning");
+        return null;
+      }
+      
+      // Use explicit constructor instead of fromEnv() to ensure clean values
+      redis = new Redis({
+        url: cleanUrl,
+        token: cleanToken,
+      });
+      
+      // Test connection
+      await redis.ping();
+      console.log("✅ Upstash Redis connected successfully");
       return redis;
-    } catch (error) {
-      console.error("Failed to initialize Upstash Redis:", error);
+    } catch (error: any) {
+      console.error("❌ Failed to initialize Upstash Redis:", error.message || error);
+      console.error("   URL:", process.env.UPSTASH_REDIS_REST_URL ? "Set" : "Not set");
+      console.error("   Token:", process.env.UPSTASH_REDIS_REST_TOKEN ? "Set" : "Not set");
       return null;
     }
   } else if (hasVercelKVFull) {
