@@ -18,7 +18,25 @@ async function getRedis() {
   // Check for Upstash Redis environment variables
   // Upstash Redis SDK reads from: UPSTASH_REDIS_REST_URL and UPSTASH_REDIS_REST_TOKEN
   // Vercel KV uses: KV_URL (or STORAGE_URL if custom prefix) + KV_REST_API_URL + KV_REST_API_TOKEN
+  
+  // Debug: Log all environment variables that start with UPSTASH or REDIS
+  if (process.env.RENDER || process.env.VERCEL) {
+    const redisVars = Object.keys(process.env)
+      .filter(key => key.includes('UPSTASH') || key.includes('REDIS') || key.includes('KV'))
+      .reduce((acc, key) => {
+        acc[key] = process.env[key] ? `${process.env[key]?.substring(0, 20)}...` : 'not set';
+        return acc;
+      }, {} as Record<string, string>);
+    console.log("🔍 Redis-related environment variables:", redisVars);
+  }
+  
   const hasUpstashEnv = process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN;
+  
+  if (!hasUpstashEnv) {
+    console.log("⚠️  Upstash Redis env vars not found:");
+    console.log("   UPSTASH_REDIS_REST_URL:", process.env.UPSTASH_REDIS_REST_URL ? "Set" : "NOT SET");
+    console.log("   UPSTASH_REDIS_REST_TOKEN:", process.env.UPSTASH_REDIS_REST_TOKEN ? "Set" : "NOT SET");
+  }
   const hasVercelKV = process.env.KV_URL || process.env.STORAGE_URL;
   const hasVercelKVFull = process.env.KV_REST_API_URL && process.env.KV_REST_API_TOKEN;
   
