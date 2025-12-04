@@ -67,11 +67,18 @@ async function getRedis() {
       try {
         const redisModule = await import("@upstash/redis");
         Redis = redisModule.Redis;
+        if (!Redis) {
+          throw new Error("Redis class not found in @upstash/redis module");
+        }
         console.log("   ✅ @upstash/redis package loaded");
       } catch (importError: any) {
         console.error("❌ Failed to import @upstash/redis package");
         console.error("   Error:", importError.message || importError);
-        console.error("   ⚠️  Make sure @upstash/redis is installed: pnpm add @upstash/redis");
+        console.error("   Error code:", importError.code);
+        if (importError.code === "MODULE_NOT_FOUND") {
+          console.error("   ⚠️  Package not installed! Run: pnpm add @upstash/redis");
+          console.error("   ⚠️  Then commit and push to trigger redeploy");
+        }
         return null;
       }
       
@@ -177,7 +184,13 @@ async function shouldUseKV(): Promise<boolean> {
   const redisClient = await getRedis();
   const hasUpstashEnv = !!(process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN);
   const hasVercelKV = !!(process.env.KV_URL || process.env.STORAGE_URL);
-  return !!(redisClient && (hasUpstashEnv || hasVercelKV));
+  const shouldUse = !!(redisClient && (hasUpstashEnv || hasVercelKV));
+  
+  if (hasUpstashEnv && !redisClient) {
+    console.log("⚠️  Upstash env vars detected but Redis client is null - connection may have failed");
+  }
+  
+  return shouldUse;
 }
 
 /**
