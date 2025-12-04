@@ -42,8 +42,7 @@ async function getRedis() {
   
   if (hasUpstashEnv) {
     try {
-      // Use Upstash Redis SDK (recommended for Upstash Redis)
-      const { Redis } = await import("@upstash/redis");
+      console.log("🔄 Attempting to connect to Upstash Redis...");
       
       // Get environment variables (trim to remove any spaces)
       const url = process.env.UPSTASH_REDIS_REST_URL?.trim();
@@ -55,23 +54,81 @@ async function getRedis() {
       
       if (!cleanUrl || !cleanToken) {
         console.error("❌ Upstash Redis env vars are set but empty after cleaning");
+        console.error("   URL after clean:", cleanUrl ? "Has value" : "Empty");
+        console.error("   Token after clean:", cleanToken ? "Has value" : "Empty");
+        return null;
+      }
+      
+      console.log("   URL:", cleanUrl.substring(0, 40) + "...");
+      console.log("   Token:", cleanToken.substring(0, 15) + "...");
+      
+      // Use Upstash Redis SDK (recommended for Upstash Redis)
+      let Redis;
+      try {
+        const redisModule = await import("@upstash/redis");
+        Redis = redisModule.Redis;
+        console.log("   ✅ @upstash/redis package loaded");
+      } catch (importError: any) {
+        console.error("❌ Failed to import @upstash/redis package");
+        console.error("   Error:", importError.message || importError);
+        console.error("   ⚠️  Make sure @upstash/redis is installed: pnpm add @upstash/redis");
         return null;
       }
       
       // Use explicit constructor instead of fromEnv() to ensure clean values
+      console.log("   Creating Redis client...");
       redis = new Redis({
         url: cleanUrl,
         token: cleanToken,
       });
       
-      // Test connection
-      await redis.ping();
-      console.log("✅ Upstash Redis connected successfully");
-      return redis;
+      // Test connection with detailed error handling
+      console.log("   Testing connection (ping)...");
+      try {
+        const pingResult = await redis.ping();
+        console.log("✅ Upstash Redis connected successfully!");
+        console.log("   Ping result:", pingResult);
+        return redis;
+      } catch (pingError: any) {
+        console.error("❌ Redis ping failed");
+        console.error("   Error:", pingError.message || String(pingError));
+        console.error("   Error code:", pingError.code);
+        console.error("   Error status:", pingError.status);
+        
+        // Check for common errors
+        if (pingError.message?.includes("Unauthorized") || pingError.status === 401) {
+          console.error("   ⚠️  Authentication failed - check your token is correct");
+          console.error("   ⚠️  Verify token in Upstash console: https://console.upstash.com/");
+        }
+        if (pingError.message?.includes("Invalid URL") || pingError.message?.includes("ENOTFOUND")) {
+          console.error("   ⚠️  URL is invalid or unreachable - check your URL is correct");
+        }
+        if (pingError.message?.includes("fetch") || pingError.message?.includes("network")) {
+          console.error("   ⚠️  Network error - check connectivity to Upstash");
+        }
+        
+        throw pingError; // Re-throw to be caught by outer catch
+      }
     } catch (error: any) {
-      console.error("❌ Failed to initialize Upstash Redis:", error.message || error);
-      console.error("   URL:", process.env.UPSTASH_REDIS_REST_URL ? "Set" : "Not set");
-      console.error("   Token:", process.env.UPSTASH_REDIS_REST_TOKEN ? "Set" : "Not set");
+      console.error("❌ Failed to initialize Upstash Redis");
+      console.error("   Error:", error.message || String(error));
+      console.error("   Error type:", error.constructor?.name || typeof error);
+      console.error("   Error code:", error.code);
+      console.error("   Error status:", error.status);
+      if (error.stack) {
+        console.error("   Stack trace:", error.stack.split('\n').slice(0, 5).join('\n'));
+      }
+      
+      const url = process.env.UPSTASH_REDIS_REST_URL?.trim();
+      const token = process.env.UPSTASH_REDIS_REST_TOKEN?.trim();
+      const cleanUrl = url?.replace(/^["']|["']$/g, '');
+      const cleanToken = token?.replace(/^["']|["']$/g, '');
+      
+      console.error("   URL:", cleanUrl ? `${cleanUrl.substring(0, 30)}...` : "Not set");
+      console.error("   Token:", cleanToken ? `${cleanToken.substring(0, 10)}...` : "Not set");
+      console.error("   URL length:", cleanUrl?.length || 0);
+      console.error("   Token length:", cleanToken?.length || 0);
+      
       return null;
     }
   } else if (hasVercelKVFull) {
@@ -339,23 +396,50 @@ export class Database<T> {
  * Initialize Redis/KV connection (for Vercel/Upstash)
  */
 export async function initializeKV() {
-  const redisClient = await getRedis();
   const isVercel = !!(process.env.VERCEL || process.env.VERCEL_ENV);
+  const isRender = !!process.env.RENDER;
   const hasUpstashEnv = !!(process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN);
   const hasVercelKV = !!(process.env.KV_URL || process.env.STORAGE_URL);
+  
+  console.log("🔧 Initializing KV/Redis connection...");
+  console.log(`   Environment: ${isVercel ? "Vercel" : isRender ? "Render" : "Localhost"}`);
+  console.log(`   Has Upstash env vars: ${hasUpstashEnv}`);
+  console.log(`   Has Vercel KV vars: ${hasVercelKV}`);
+  
+  const redisClient = await getRedis();
   
   if (redisClient && (hasUpstashEnv || hasVercelKV)) {
     try {
       // Test connection by setting a test key
+      console.log("🧪 Testing Redis connection...");
       await redisClient.set("__test__", "ok");
+      const testValue = await redisClient.get("__test__");
       await redisClient.del("__test__");
-      const redisType = hasUpstashEnv ? "Upstash Redis" : "Vercel KV";
-      console.log(`✅ Connected to ${redisType} - Data will persist`);
-    } catch (error) {
-      console.error("❌ Failed to connect to Redis/KV:", error);
+      
+      if (testValue === "ok") {
+        const redisType = hasUpstashEnv ? "Upstash Redis" : "Vercel KV";
+        console.log(`✅ Connected to ${redisType} - Data will persist`);
+        return;
+      } else {
+        throw new Error("Test value mismatch");
+      }
+    } catch (error: any) {
+      console.error("❌ Failed to connect to Redis/KV");
+      console.error("   Error:", error.message || String(error));
+      if (error.stack) {
+        console.error("   Stack:", error.stack);
+      }
+      
       if (isVercel) {
         console.error("⚠️  CRITICAL: On Vercel but Redis/KV connection failed! Data will not persist.");
         console.error("⚠️  Please check your Upstash Redis configuration in Vercel Dashboard.");
+      } else if (isRender) {
+        console.error("⚠️  CRITICAL: On Render but Redis/KV connection failed! Data will not persist.");
+        console.error("⚠️  Please check:");
+        console.error("   1. UPSTASH_REDIS_REST_URL is correct");
+        console.error("   2. UPSTASH_REDIS_REST_TOKEN is correct");
+        console.error("   3. Upstash database is active at https://console.upstash.com/");
+        console.error("   4. Network connectivity to Upstash");
       } else {
         console.log("⚠️  Falling back to file storage");
       }
@@ -367,6 +451,12 @@ export async function initializeKV() {
       console.error("⚠️  1. Go to Vercel Dashboard → Marketplace → Upstash Redis");
       console.error("⚠️  2. Add to your project");
       console.error("⚠️  3. Redeploy");
+    } else if (isRender) {
+      console.error("⚠️  ⚠️  ⚠️  WARNING: Running on Render but Redis/KV is not configured!");
+      console.error("⚠️  Your data will NOT persist. Please set up Upstash Redis:");
+      console.error("⚠️  1. Add UPSTASH_REDIS_REST_URL to Render environment variables");
+      console.error("⚠️  2. Add UPSTASH_REDIS_REST_TOKEN to Render environment variables");
+      console.error("⚠️  3. Redeploy service");
     } else {
       console.log("📁 Using file storage (localhost mode)");
     }
