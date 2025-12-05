@@ -2,6 +2,8 @@ import { RequestHandler } from "express";
 import { Media, MediaResponse, MediaUploadRequest } from "@shared/api";
 import { Database } from "../utils/database.js";
 import { CloudinaryServer } from "../config/cloudinary.js";
+import { isMongoDBAvailable } from "../utils/mongodb.js";
+import * as mongoService from "../services/mongodbService.js";
 
 const CATEGORY_KEYS: Media["category"][] = ["video", "image", "audio", "template", "apk"];
 
@@ -81,12 +83,44 @@ mediaDatabase.load()
     mediaData = [];
   });
 
-// Helper functions to get and save media
+// Helper functions to get and save media (with MongoDB support)
 async function getMediaDatabase(): Promise<Media[]> {
+  const useMongo = await isMongoDBAvailable();
+  
+  if (useMongo) {
+    try {
+      const media = await mongoService.getAllMedia();
+      // Remove MongoDB _id and return as array
+      return media.map((item: any) => {
+        const { _id, ...rest } = item;
+        return rest as Media;
+      });
+    } catch (error) {
+      console.error("❌ Error loading from MongoDB:", error);
+      // Fallback to old database
+      return await mediaDatabase.load();
+    }
+  }
+  
+  // Fallback to old database system
   return await mediaDatabase.load();
 }
 
 async function saveMediaDatabase(data: Media[]): Promise<void> {
+  const useMongo = await isMongoDBAvailable();
+  
+  if (useMongo) {
+    try {
+      await mongoService.replaceAllMedia(data);
+      mediaData = data;
+      return;
+    } catch (error) {
+      console.error("❌ Error saving to MongoDB:", error);
+      // Fallback to old database
+    }
+  }
+  
+  // Fallback to old database system
   await mediaDatabase.save(data);
   mediaData = data;
 }

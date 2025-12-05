@@ -3,6 +3,8 @@ import { AdminUsersResponse, PlatformUser } from "@shared/api";
 import { promises as fs } from "fs";
 import { join } from "path";
 import { DATA_DIR } from "../utils/dataPath.js";
+import { isMongoDBAvailable } from "../utils/mongodb.js";
+import * as mongoService from "../services/mongodbService.js";
 
 const USERS_DB_FILE = join(DATA_DIR, "users-database.json");
 
@@ -24,6 +26,34 @@ const DEFAULT_USERS: PlatformUser[] = [
 let usersDatabase: PlatformUser[] = [];
 
 async function saveUsersDatabase(data: PlatformUser[]): Promise<void> {
+  const useMongo = await isMongoDBAvailable();
+  
+  if (useMongo) {
+    try {
+      // Get all existing users and replace them
+      const existingUsers = await mongoService.getAllUsers();
+      
+      // Delete all existing users
+      for (const user of existingUsers) {
+        await mongoService.deleteUser((user as any)._id.toString());
+      }
+      
+      // Insert new users
+      for (const user of data) {
+        await mongoService.createUser({
+          ...user,
+          createdAt: user.createdAt ? new Date(user.createdAt) : new Date(),
+          updatedAt: user.updatedAt ? new Date(user.updatedAt) : new Date(),
+        });
+      }
+      return;
+    } catch (error) {
+      console.error("❌ Error saving to MongoDB:", error);
+      // Fallback to file storage
+    }
+  }
+  
+  // Fallback to file storage
   await fs.mkdir(DATA_DIR, { recursive: true });
   await fs.writeFile(USERS_DB_FILE, JSON.stringify(data, null, 2), "utf-8");
 }
@@ -35,6 +65,32 @@ async function seedUsers(): Promise<PlatformUser[]> {
 }
 
 async function loadUsersDatabase(): Promise<PlatformUser[]> {
+  const useMongo = await isMongoDBAvailable();
+  
+  if (useMongo) {
+    try {
+      const users = await mongoService.getAllUsers();
+      if (users.length > 0) {
+        // Remove MongoDB _id and return as array
+        return users.map((user: any) => {
+          const { _id, ...rest } = user;
+          return rest as PlatformUser;
+        });
+      }
+      // If empty, seed default users
+      const seeded = await seedUsers();
+      // Save to MongoDB
+      for (const user of seeded) {
+        await mongoService.createUser(user);
+      }
+      return seeded;
+    } catch (error) {
+      console.error("❌ Error loading from MongoDB:", error);
+      // Fallback to file storage
+    }
+  }
+  
+  // Fallback to file storage
   try {
     await fs.mkdir(DATA_DIR, { recursive: true });
     const data = await fs.readFile(USERS_DB_FILE, "utf-8");
@@ -110,7 +166,39 @@ export const registerUser: RequestHandler = async (req, res) => {
   }
 
   try {
-    await saveUsersDatabase(usersDatabase);
+    const useMongo = await isMongoDBAvailable();
+    
+    if (useMongo) {
+      try {
+        // Check if user exists in MongoDB
+        const existingUser = await mongoService.getUserByEmail(emailLower);
+        
+        if (!existingUser) {
+          // Create new user
+          await mongoService.createUser({
+            ...user,
+            uid: firebaseUid,
+          });
+        } else {
+          // Update existing user
+          await mongoService.updateUser(existingUser._id.toString(), {
+            name: user.name,
+            accountType: user.accountType,
+            emailVerified: user.emailVerified,
+            firebaseUid: firebaseUid || existingUser.firebaseUid,
+            status: user.status,
+            updatedAt: user.updatedAt,
+          });
+        }
+      } catch (mongoError) {
+        console.error("❌ Error saving to MongoDB:", mongoError);
+        // Fallback to file storage
+        await saveUsersDatabase(usersDatabase);
+      }
+    } else {
+      await saveUsersDatabase(usersDatabase);
+    }
+    
     res.json(user);
   } catch (error) {
     console.error("Failed to save platform user:", error);

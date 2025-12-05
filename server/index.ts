@@ -81,18 +81,44 @@ if (process.env.RENDER || process.env.VERCEL) {
   console.log("🔍 === END DIAGNOSTICS ===");
 }
 
-// Initialize database connection (KV on Vercel, file storage on localhost)
-initializeKV()
-  .then(() => {
-    // Initialize auto-sync after database is ready
-    // Auto-sync will help recover data even if Redis isn't configured
-    initializeAutoSync();
+// Initialize MongoDB first (highest priority)
+import { initializeMongoDB } from "./utils/mongodb.js";
+import { createIndexes } from "./models/mongodb.js";
+
+initializeMongoDB()
+  .then(async (db) => {
+    if (db) {
+      console.log("✅ MongoDB initialized as primary database");
+      // Create indexes for better performance
+      await createIndexes();
+      // Initialize auto-sync after MongoDB is ready
+      initializeAutoSync();
+    } else {
+      console.log("⚠️  MongoDB not available, falling back to Redis/KV");
+      // Fallback to Redis/KV
+      initializeKV()
+        .then(() => {
+          initializeAutoSync();
+        })
+        .catch((error) => {
+          console.error("❌ Failed to initialize KV:", error);
+          initializeAutoSync();
+        });
+    }
   })
   .catch((error) => {
-    console.error("❌ Failed to initialize KV:", error);
-    // Still initialize auto-sync - it will help recover data
-    console.log("⚠️  Initializing auto-sync anyway to help with data recovery...");
-    initializeAutoSync();
+    console.error("❌ Failed to initialize MongoDB:", error);
+    console.log("⚠️  Falling back to Redis/KV...");
+    // Fallback to Redis/KV
+    initializeKV()
+      .then(() => {
+        initializeAutoSync();
+      })
+      .catch((kvError) => {
+        console.error("❌ Failed to initialize KV:", kvError);
+        console.log("⚠️  Initializing auto-sync anyway...");
+        initializeAutoSync();
+      });
   });
 
 export function createServer() {

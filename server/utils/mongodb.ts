@@ -10,10 +10,10 @@ let mongoDb: Db | null = null;
 let mongoInitialized = false;
 
 /**
- * Get MongoDB connection string from environment variables
+ * Get MongoDB connection string from environment variables or use default
  */
 function getMongoUri(): string | null {
-  // Check for MongoDB URI in environment variables
+  // Check for MongoDB URI in environment variables first
   const uri = process.env.MONGODB_URI?.trim();
   
   if (uri) {
@@ -31,7 +31,10 @@ function getMongoUri(): string | null {
     return `mongodb+srv://${username}:${password}@${cluster}/?retryWrites=true&w=majority&appName=Cluster0`;
   }
   
-  return null;
+  // Default connection string (hardcoded as fallback)
+  const defaultUri = "mongodb+srv://mdh897046_db_user:bpRUzw0GmmJp7iFa@cluster0.cnqz5cm.mongodb.net/?appName=Cluster0";
+  console.log("📝 Using default MongoDB connection string");
+  return defaultUri;
 }
 
 /**
@@ -68,13 +71,14 @@ export async function initializeMongoDB(): Promise<Db | null> {
     
     // Test connection with ping
     await mongoClient.db("admin").command({ ping: 1 });
-    console.log("✅ Successfully connected to MongoDB!");
+    console.log("✅ MongoDB Connected Successfully!");
     
     // Get database name from URI or use default
     const dbName = process.env.MONGODB_DATABASE?.trim() || 'stockmediabuzz';
     mongoDb = mongoClient.db(dbName);
     
     console.log(`✅ Using MongoDB database: ${dbName}`);
+    console.log("✅ MongoDB connection cached for reuse");
     
     return mongoDb;
   } catch (error: any) {

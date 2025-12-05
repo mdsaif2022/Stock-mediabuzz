@@ -11,6 +11,8 @@ import {
 import { promises as fs } from "fs";
 import { join } from "path";
 import { DATA_DIR } from "../utils/dataPath.js";
+import { isMongoDBAvailable } from "../utils/mongodb.js";
+import * as mongoService from "../services/mongodbService.js";
 
 const CREATORS_DB_FILE = join(DATA_DIR, "creators-database.json");
 const STORAGE_BASE_GB = 5;
@@ -147,6 +149,32 @@ async function seedCreators(): Promise<CreatorProfile[]> {
 }
 
 async function loadCreatorsDatabase(): Promise<CreatorProfile[]> {
+  const useMongo = await isMongoDBAvailable();
+  
+  if (useMongo) {
+    try {
+      const creators = await mongoService.getAllCreators();
+      if (creators.length > 0) {
+        // Remove MongoDB _id and return as array
+        return creators.map((creator: any) => {
+          const { _id, ...rest } = creator;
+          return refreshStorageState(rest as CreatorProfile);
+        });
+      }
+      // If empty, seed default creators
+      const seeded = await seedCreators();
+      // Save to MongoDB
+      for (const creator of seeded) {
+        await mongoService.createCreator(creator);
+      }
+      return seeded;
+    } catch (error) {
+      console.error("❌ Error loading from MongoDB:", error);
+      // Fallback to file storage
+    }
+  }
+  
+  // Fallback to file storage
   try {
     await fs.mkdir(DATA_DIR, { recursive: true });
     const data = await fs.readFile(CREATORS_DB_FILE, "utf-8");
@@ -165,6 +193,31 @@ async function loadCreatorsDatabase(): Promise<CreatorProfile[]> {
 }
 
 async function saveCreatorsDatabase(data: CreatorProfile[]): Promise<void> {
+  const useMongo = await isMongoDBAvailable();
+  
+  if (useMongo) {
+    try {
+      // Replace all creators in MongoDB
+      const collection = await mongoService.getCreatorsCollection();
+      if (collection) {
+        await collection.deleteMany({});
+        if (data.length > 0) {
+          await collection.insertMany(data.map(creator => ({
+            ...creator,
+            createdAt: creator.createdAt ? new Date(creator.createdAt) : new Date(),
+            updatedAt: creator.updatedAt ? new Date(creator.updatedAt) : new Date(),
+            lastRequestAt: creator.lastRequestAt ? new Date(creator.lastRequestAt) : new Date(),
+          })));
+        }
+        return;
+      }
+    } catch (error) {
+      console.error("❌ Error saving to MongoDB:", error);
+      // Fallback to file storage
+    }
+  }
+  
+  // Fallback to file storage
   await fs.mkdir(DATA_DIR, { recursive: true });
   await fs.writeFile(CREATORS_DB_FILE, JSON.stringify(data, null, 2), "utf-8");
 }
