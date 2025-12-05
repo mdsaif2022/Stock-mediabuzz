@@ -30,12 +30,19 @@ async function getRedis() {
     console.log("🔍 Redis-related environment variables:", redisVars);
   }
   
-  const hasUpstashEnv = process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN;
+  // Check for Upstash Redis - support multiple token formats
+  const hasToken = !!(process.env.UPSTASH_REDIS_REST_TOKEN || 
+                      process.env.UPSTASH_REDIS_REST_TOKEN_B64 ||
+                      (process.env.UPSTASH_REDIS_REST_TOKEN_PART1 && process.env.UPSTASH_REDIS_REST_TOKEN_PART2));
+  const hasUpstashEnv = !!(process.env.UPSTASH_REDIS_REST_URL && hasToken);
   
   if (!hasUpstashEnv) {
     console.log("⚠️  Upstash Redis env vars not found:");
     console.log("   UPSTASH_REDIS_REST_URL:", process.env.UPSTASH_REDIS_REST_URL ? "Set" : "NOT SET");
     console.log("   UPSTASH_REDIS_REST_TOKEN:", process.env.UPSTASH_REDIS_REST_TOKEN ? "Set" : "NOT SET");
+    console.log("   UPSTASH_REDIS_REST_TOKEN_B64:", process.env.UPSTASH_REDIS_REST_TOKEN_B64 ? "Set" : "NOT SET");
+    console.log("   UPSTASH_REDIS_REST_TOKEN_PART1:", process.env.UPSTASH_REDIS_REST_TOKEN_PART1 ? "Set" : "NOT SET");
+    console.log("   UPSTASH_REDIS_REST_TOKEN_PART2:", process.env.UPSTASH_REDIS_REST_TOKEN_PART2 ? "Set" : "NOT SET");
   }
   const hasVercelKV = process.env.KV_URL || process.env.STORAGE_URL;
   const hasVercelKVFull = process.env.KV_REST_API_URL && process.env.KV_REST_API_TOKEN;
@@ -262,7 +269,11 @@ async function getRedis() {
  */
 async function shouldUseKV(): Promise<boolean> {
   const redisClient = await getRedis();
-  const hasUpstashEnv = !!(process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN);
+  // Check for Upstash Redis - support multiple token formats
+  const hasToken = !!(process.env.UPSTASH_REDIS_REST_TOKEN || 
+                      process.env.UPSTASH_REDIS_REST_TOKEN_B64 ||
+                      (process.env.UPSTASH_REDIS_REST_TOKEN_PART1 && process.env.UPSTASH_REDIS_REST_TOKEN_PART2));
+  const hasUpstashEnv = !!(process.env.UPSTASH_REDIS_REST_URL && hasToken);
   const hasVercelKV = !!(process.env.KV_URL || process.env.STORAGE_URL);
   const shouldUse = !!(redisClient && (hasUpstashEnv || hasVercelKV));
   
@@ -495,7 +506,11 @@ export class Database<T> {
 export async function initializeKV() {
   const isVercel = !!(process.env.VERCEL || process.env.VERCEL_ENV);
   const isRender = !!process.env.RENDER;
-  const hasUpstashEnv = !!(process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN);
+  // Check for Upstash Redis - support multiple token formats
+  const hasToken = !!(process.env.UPSTASH_REDIS_REST_TOKEN || 
+                      process.env.UPSTASH_REDIS_REST_TOKEN_B64 ||
+                      (process.env.UPSTASH_REDIS_REST_TOKEN_PART1 && process.env.UPSTASH_REDIS_REST_TOKEN_PART2));
+  const hasUpstashEnv = !!(process.env.UPSTASH_REDIS_REST_URL && hasToken);
   const hasVercelKV = !!(process.env.KV_URL || process.env.STORAGE_URL);
   
   console.log("🔧 Initializing KV/Redis connection...");
