@@ -13,6 +13,46 @@ import { handleFileUpload, handleUrlUpload, upload, handleAssetUpload } from "./
 import { initializeKV } from "./utils/database.js";
 import { initializeAutoSync } from "./services/syncService.js";
 
+// Log all environment variables at startup (for debugging Render issues)
+if (process.env.RENDER || process.env.VERCEL) {
+  console.log("🔍 === ENVIRONMENT VARIABLES DIAGNOSTICS ===");
+  console.log(`   Platform: ${process.env.RENDER ? "Render" : "Vercel"}`);
+  console.log(`   Service URL: ${process.env.RENDER_SERVICE_URL || "Not set"}`);
+  console.log(`   Service ID: ${process.env.RENDER_SERVICE_ID || "Not set"}`);
+  
+  // Check for Redis variables
+  const redisVars = {
+    UPSTASH_REDIS_REST_URL: process.env.UPSTASH_REDIS_REST_URL ? "✅ SET" : "❌ NOT SET",
+    UPSTASH_REDIS_REST_TOKEN: process.env.UPSTASH_REDIS_REST_TOKEN ? "✅ SET" : "❌ NOT SET",
+  };
+  console.log("   Redis Variables:");
+  console.log(`      UPSTASH_REDIS_REST_URL: ${redisVars.UPSTASH_REDIS_REST_URL}`);
+  if (process.env.UPSTASH_REDIS_REST_URL) {
+    console.log(`         Value preview: ${process.env.UPSTASH_REDIS_REST_URL.substring(0, 40)}...`);
+    console.log(`         Length: ${process.env.UPSTASH_REDIS_REST_URL.length}`);
+    console.log(`         Has quotes: ${process.env.UPSTASH_REDIS_REST_URL.startsWith('"') || process.env.UPSTASH_REDIS_REST_URL.endsWith('"')}`);
+  }
+  console.log(`      UPSTASH_REDIS_REST_TOKEN: ${redisVars.UPSTASH_REDIS_REST_TOKEN}`);
+  if (process.env.UPSTASH_REDIS_REST_TOKEN) {
+    console.log(`         Value preview: ${process.env.UPSTASH_REDIS_REST_TOKEN.substring(0, 15)}...`);
+    console.log(`         Length: ${process.env.UPSTASH_REDIS_REST_TOKEN.length}`);
+    console.log(`         Has quotes: ${process.env.UPSTASH_REDIS_REST_TOKEN.startsWith('"') || process.env.UPSTASH_REDIS_REST_TOKEN.endsWith('"')}`);
+  }
+  
+  // List ALL environment variables (for debugging)
+  const allEnvKeys = Object.keys(process.env).sort();
+  const redisRelatedKeys = allEnvKeys.filter(key => 
+    key.includes('UPSTASH') || key.includes('REDIS') || key.includes('KV')
+  );
+  console.log(`   All Redis-related env vars found: ${redisRelatedKeys.length}`);
+  redisRelatedKeys.forEach(key => {
+    const value = process.env[key];
+    console.log(`      ${key}: ${value ? `SET (length: ${value.length})` : "NOT SET"}`);
+  });
+  
+  console.log("🔍 === END DIAGNOSTICS ===");
+}
+
 // Initialize database connection (KV on Vercel, file storage on localhost)
 initializeKV()
   .then(() => {
