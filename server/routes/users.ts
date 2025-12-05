@@ -108,14 +108,19 @@ async function loadUsersDatabase(): Promise<PlatformUser[]> {
   }
 }
 
-loadUsersDatabase()
-  .then((loaded) => {
-    usersDatabase = loaded;
-    console.log(`Loaded ${loaded.length} platform users`);
-  })
-  .catch((error) => {
-    console.error("Failed to load users database, using empty defaults:", error);
-  });
+// Load users database on startup (skip during build)
+import { isBuildTime } from "../utils/buildCheck.js";
+
+if (!isBuildTime()) {
+  loadUsersDatabase()
+    .then((loaded) => {
+      usersDatabase = loaded;
+      console.log(`Loaded ${loaded.length} platform users`);
+    })
+    .catch((error) => {
+      console.error("Failed to load users database, using empty defaults:", error);
+    });
+}
 
 type RegisterUserPayload = {
   email: string;

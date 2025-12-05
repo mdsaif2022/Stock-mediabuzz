@@ -85,53 +85,67 @@ if (process.env.RENDER || process.env.VERCEL) {
 import { initializeMongoDB } from "./utils/mongodb.js";
 import { createIndexes } from "./models/mongodb.js";
 
+// Check if we're in a build context (not runtime)
+// During build, Vite will import this file but we shouldn't initialize databases
+// Simple detection: if no PORT is set and we're not on a hosting platform, we're likely building
+const isBuildTime = !process.env.PORT && 
+                    !process.env.RENDER && 
+                    !process.env.VERCEL &&
+                    (process.argv.some(arg => arg.includes('vite') || arg.includes('build')) ||
+                     process.env.VITE_BUILD === 'true');
+
 // Initialize MongoDB with proper error handling
-(async () => {
-  try {
-    console.log("🚀 Starting database initialization...");
-    const db = await initializeMongoDB();
-    
-    if (db) {
-      console.log("✅ MongoDB initialized as primary database");
-      // Create indexes for better performance
-      try {
-        await createIndexes();
-      } catch (indexError) {
-        console.error("⚠️  Error creating indexes (non-critical):", indexError);
+// Only run during actual server startup, not during build
+if (!isBuildTime) {
+  (async () => {
+    try {
+      console.log("🚀 Starting database initialization...");
+      const db = await initializeMongoDB();
+      
+      if (db) {
+        console.log("✅ MongoDB initialized as primary database");
+        // Create indexes for better performance
+        try {
+          await createIndexes();
+        } catch (indexError) {
+          console.error("⚠️  Error creating indexes (non-critical):", indexError);
+        }
+        // Initialize auto-sync after MongoDB is ready
+        initializeAutoSync();
+      } else {
+        console.log("⚠️  MongoDB not available, falling back to Redis/KV");
+        console.log("   Check logs above for MongoDB connection error details");
+        // Fallback to Redis/KV
+        try {
+          await initializeKV();
+          initializeAutoSync();
+        } catch (error) {
+          console.error("❌ Failed to initialize KV:", error);
+          console.log("⚠️  Initializing auto-sync anyway...");
+          initializeAutoSync();
+        }
       }
-      // Initialize auto-sync after MongoDB is ready
-      initializeAutoSync();
-    } else {
-      console.log("⚠️  MongoDB not available, falling back to Redis/KV");
-      console.log("   Check logs above for MongoDB connection error details");
+    } catch (error: any) {
+      console.error("❌ Failed to initialize MongoDB:");
+      console.error("   Error:", error?.message || error);
+      if (error?.stack) {
+        console.error("   Stack:", error.stack);
+      }
+      console.log("⚠️  Falling back to Redis/KV...");
       // Fallback to Redis/KV
       try {
         await initializeKV();
         initializeAutoSync();
-      } catch (error) {
-        console.error("❌ Failed to initialize KV:", error);
+      } catch (kvError) {
+        console.error("❌ Failed to initialize KV:", kvError);
         console.log("⚠️  Initializing auto-sync anyway...");
         initializeAutoSync();
       }
     }
-  } catch (error: any) {
-    console.error("❌ Failed to initialize MongoDB:");
-    console.error("   Error:", error?.message || error);
-    if (error?.stack) {
-      console.error("   Stack:", error.stack);
-    }
-    console.log("⚠️  Falling back to Redis/KV...");
-    // Fallback to Redis/KV
-    try {
-      await initializeKV();
-      initializeAutoSync();
-    } catch (kvError) {
-      console.error("❌ Failed to initialize KV:", kvError);
-      console.log("⚠️  Initializing auto-sync anyway...");
-      initializeAutoSync();
-    }
-  }
-})();
+  })();
+} else {
+  console.log("🔧 Build detected - skipping database initialization");
+}
 
 export function createServer() {
   const app = express();

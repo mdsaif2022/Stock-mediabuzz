@@ -66,22 +66,26 @@ const normalizeIconUrl = (value: any): string | undefined => {
 // Create database instance (uses KV on Vercel, file storage on localhost)
 const mediaDatabase = new Database<Media>("media-database", DEFAULT_MEDIA);
 
-// Initialize and load data on startup
+// Initialize and load data on startup (skip during build)
+import { isBuildTime } from "../utils/buildCheck.js";
+
 let mediaData: Media[] = [];
-mediaDatabase.load()
-  .then((loaded) => {
-    mediaData = loaded;
-    if (loaded.length > 0) {
-      console.log(`✅ Loaded ${loaded.length} media items from database`);
-    } else {
-      console.log(`📝 Media database is empty (new installation)`);
-    }
-  })
-  .catch((error) => {
-    console.error("❌ Failed to load media database:", error);
-    // Don't use defaults - start with empty array
-    mediaData = [];
-  });
+if (!isBuildTime()) {
+  mediaDatabase.load()
+    .then((loaded) => {
+      mediaData = loaded;
+      if (loaded.length > 0) {
+        console.log(`✅ Loaded ${loaded.length} media items from database`);
+      } else {
+        console.log(`📝 Media database is empty (new installation)`);
+      }
+    })
+    .catch((error) => {
+      console.error("❌ Failed to load media database:", error);
+      // Don't use defaults - start with empty array
+      mediaData = [];
+    });
+}
 
 // Helper functions to get and save media (with MongoDB support)
 async function getMediaDatabase(): Promise<Media[]> {

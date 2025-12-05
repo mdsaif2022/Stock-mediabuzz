@@ -4,12 +4,12 @@ import { apiFetch } from "@/lib/api";
 // NOTE: In production, use environment variables for sensitive data
 
 const firebaseConfig = {
-  apiKey: process.env.REACT_APP_FIREBASE_API_KEY || "YOUR_API_KEY",
-  authDomain: process.env.REACT_APP_FIREBASE_AUTH_DOMAIN || "freemediabuzz.firebaseapp.com",
-  projectId: process.env.REACT_APP_FIREBASE_PROJECT_ID || "freemediabuzz",
-  storageBucket: process.env.REACT_APP_FIREBASE_STORAGE_BUCKET || "freemediabuzz.appspot.com",
-  messagingSenderId: process.env.REACT_APP_FIREBASE_MESSAGING_SENDER_ID || "YOUR_MESSAGING_SENDER_ID",
-  appId: process.env.REACT_APP_FIREBASE_APP_ID || "YOUR_APP_ID",
+  apiKey: import.meta.env.VITE_FIREBASE_API_KEY || "YOUR_API_KEY",
+  authDomain: import.meta.env.VITE_FIREBASE_AUTH_DOMAIN || "freemediabuzz.firebaseapp.com",
+  projectId: import.meta.env.VITE_FIREBASE_PROJECT_ID || "freemediabuzz",
+  storageBucket: import.meta.env.VITE_FIREBASE_STORAGE_BUCKET || "freemediabuzz.appspot.com",
+  messagingSenderId: import.meta.env.VITE_FIREBASE_MESSAGING_SENDER_ID || "YOUR_MESSAGING_SENDER_ID",
+  appId: import.meta.env.VITE_FIREBASE_APP_ID || "YOUR_APP_ID",
 };
 
 // Firebase Auth Service

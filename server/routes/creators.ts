@@ -222,14 +222,19 @@ async function saveCreatorsDatabase(data: CreatorProfile[]): Promise<void> {
   await fs.writeFile(CREATORS_DB_FILE, JSON.stringify(data, null, 2), "utf-8");
 }
 
-loadCreatorsDatabase()
-  .then((loaded) => {
-    creatorsDatabase = loaded.map((creator) => refreshStorageState(creator));
-    console.log(`Loaded ${loaded.length} creator profiles`);
-  })
-  .catch((error) => {
-    console.error("Failed to load creators database, using empty defaults:", error);
-  });
+// Load creators database on startup (skip during build)
+import { isBuildTime } from "../utils/buildCheck.js";
+
+if (!isBuildTime()) {
+  loadCreatorsDatabase()
+    .then((loaded) => {
+      creatorsDatabase = loaded.map((creator) => refreshStorageState(creator));
+      console.log(`Loaded ${loaded.length} creator profiles`);
+    })
+    .catch((error) => {
+      console.error("Failed to load creators database, using empty defaults:", error);
+    });
+}
 
 export const createOrUpdateCreator: RequestHandler = async (req, res) => {
   const payload: CreatorApplicationRequest = req.body;

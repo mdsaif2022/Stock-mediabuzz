@@ -7,7 +7,12 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 const rootDir = join(__dirname, '..');
 
-const htaccessSource = join(rootDir, 'public', '.htaccess');
+// Check for .htaccess in public folder first, then root
+const htaccessSource = existsSync(join(rootDir, 'public', '.htaccess'))
+  ? join(rootDir, 'public', '.htaccess')
+  : existsSync(join(rootDir, '.htaccess'))
+  ? join(rootDir, '.htaccess')
+  : null;
 const htaccessDest = join(rootDir, 'dist', 'spa', '.htaccess');
 
 // Check for environment variables
@@ -35,8 +40,8 @@ if (!hasEnvProd) {
   }
 }
 
-// Copy .htaccess to dist/spa if it doesn't exist
-if (existsSync(htaccessSource)) {
+// Copy .htaccess to dist/spa if it exists
+if (htaccessSource && existsSync(htaccessSource)) {
   try {
     copyFileSync(htaccessSource, htaccessDest);
     console.log('✅ .htaccess copied to dist/spa/');
@@ -45,7 +50,8 @@ if (existsSync(htaccessSource)) {
     process.exit(1);
   }
 } else {
-  console.warn('⚠️  .htaccess not found in public folder');
+  console.warn('⚠️  .htaccess not found in public/ or root folder');
+  console.warn('   Create .htaccess in public/ folder for React Router support');
 }
 
 console.log('\n📦 cPanel build complete!');

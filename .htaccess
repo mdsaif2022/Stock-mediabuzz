@@ -1,9 +1,5 @@
 # React Router SPA Configuration for Apache/cPanel
 # This file ensures all routes are handled by index.html for client-side routing
-#
-# IMPORTANT: This is for frontend-only (cPanel). Your backend runs on Render.
-# API calls from the frontend go directly to your Render backend URL (configured via VITE_API_BASE_URL).
-# This .htaccess only handles frontend routes on the cPanel domain.
 
 <IfModule mod_rewrite.c>
   RewriteEngine On
@@ -17,8 +13,7 @@
   RewriteCond %{REQUEST_FILENAME} !-f
   RewriteCond %{REQUEST_FILENAME} !-d
 
-  # Don't rewrite API calls (safety measure - API calls go to Render backend, not this domain)
-  # This prevents accidental rewriting if someone tries to access /api/ on cPanel domain
+  # Don't rewrite API calls (if your API is on the same domain)
   RewriteCond %{REQUEST_URI} !^/api/
 
   # Rewrite everything else to index.html to allow client-side routing

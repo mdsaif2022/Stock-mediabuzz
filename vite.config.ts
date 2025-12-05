@@ -23,6 +23,10 @@ export default defineConfig(({ mode }) => ({
       "@shared": path.resolve(__dirname, "./shared"),
     },
   },
+  define: {
+    // Replace process.env.NODE_ENV with import.meta.env.MODE for client-side code
+    'process.env.NODE_ENV': JSON.stringify(mode === 'development' ? 'development' : 'production'),
+  },
 }));
 
 function expressPlugin(): Plugin {

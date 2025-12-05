@@ -3,6 +3,7 @@
  * Loads external ad scripts (Popunder, SocialBar, etc.)
  * These scripts are loaded asynchronously to avoid blocking page load
  * ONLY loads on home page (/) to prevent interference with navigation
+ * Pop-under ad loads only once per session (until refresh or close/reopen)
  */
 
 import { useEffect } from 'react';
@@ -33,6 +34,109 @@ const AD_SCRIPTS: AdScript[] = [
   },
 ];
 
+// Session storage keys for tracking pop-under ad display
+const POPUNDER_SESSION_KEY = 'popunder_ad_shown';
+const PAGE_LOAD_ID_KEY = 'page_load_id';
+
+// Store the initial page load ID when the module loads
+// This will be the same for the entire page session until refresh
+let currentPageLoadId: string | null = null;
+
+/**
+ * Initialize or get the current page load ID
+ * This ID persists for the entire page session (until refresh or close)
+ */
+function initializePageLoadId(): string {
+  if (currentPageLoadId) {
+    return currentPageLoadId;
+  }
+  
+  try {
+    // Try to get existing ID from sessionStorage
+    const stored = sessionStorage.getItem(PAGE_LOAD_ID_KEY);
+    if (stored) {
+      currentPageLoadId = stored;
+      return stored;
+    }
+    
+    // Create new ID for this page load
+    currentPageLoadId = `load_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    sessionStorage.setItem(PAGE_LOAD_ID_KEY, currentPageLoadId);
+    return currentPageLoadId;
+  } catch (error) {
+    // sessionStorage not available, generate temporary ID
+    currentPageLoadId = `load_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+    return currentPageLoadId;
+  }
+}
+
+/**
+ * Check if pop-under has been shown in the current page load session
+ */
+function hasPopunderBeenShown(): boolean {
+  try {
+    const pageLoadId = initializePageLoadId();
+    const shownPageLoadId = sessionStorage.getItem(POPUNDER_SESSION_KEY);
+    
+    if (!shownPageLoadId) {
+      return false; // Never shown
+    }
+    
+    // If shown for the same page load ID, it's already been shown
+    return shownPageLoadId === pageLoadId;
+  } catch (error) {
+    return false; // If we can't check, allow it to show
+  }
+}
+
+/**
+ * Mark pop-under as shown for the current page load session
+ */
+function markPopunderAsShown(): void {
+  try {
+    const pageLoadId = initializePageLoadId();
+    sessionStorage.setItem(POPUNDER_SESSION_KEY, pageLoadId);
+  } catch (error) {
+    // sessionStorage might not be available
+    console.warn('[AdScripts] Could not save pop-under session state');
+  }
+}
+
+// Initialize page load ID when module loads
+// On a real page refresh, this will create a new ID
+// On SPA navigation, this will reuse the existing ID
+if (typeof window !== 'undefined') {
+  // Check if this is a page refresh by looking at navigation timing
+  try {
+    const navEntry = window.performance.getEntriesByType('navigation')[0] as PerformanceNavigationTiming;
+    if (navEntry && navEntry.type === 'reload') {
+      // Page was refreshed - create new page load ID
+      currentPageLoadId = `load_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+      sessionStorage.setItem(PAGE_LOAD_ID_KEY, currentPageLoadId);
+      // Clear the shown flag so pop-under can show again
+      sessionStorage.removeItem(POPUNDER_SESSION_KEY);
+    } else {
+      // Normal navigation or first load - initialize normally
+      initializePageLoadId();
+    }
+  } catch (error) {
+    // Fallback: try older API
+    try {
+      const nav = (window.performance as any).navigation;
+      if (nav && nav.type === 1) { // TYPE_RELOAD
+        currentPageLoadId = `load_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+        sessionStorage.setItem(PAGE_LOAD_ID_KEY, currentPageLoadId);
+        sessionStorage.removeItem(POPUNDER_SESSION_KEY);
+      } else {
+        initializePageLoadId();
+      }
+    } catch (e) {
+      // If all else fails, just initialize normally
+      initializePageLoadId();
+    }
+  }
+}
+
 /**
  * Load a single ad script
  */
@@ -59,8 +163,14 @@ function loadAdScript(script: AdScript): void {
     };
 
     scriptElement.onload = () => {
-      if (process.env.NODE_ENV === 'development') {
+      if (import.meta.env.MODE === 'development') {
         console.log(`[AdScripts] Loaded ${script.name}`);
+      }
+      
+      // Mark pop-under as shown when it loads
+      // The script execution will trigger the pop-under
+      if (script.type === 'popunder') {
+        markPopunderAsShown();
       }
     };
 
@@ -74,6 +184,7 @@ function loadAdScript(script: AdScript): void {
 /**
  * Ad Scripts Loader Component
  * Loads all configured ad scripts ONLY on home page
+ * Pop-under ad loads only once per session
  */
 export default function AdScripts() {
   const location = useLocation();
@@ -88,21 +199,35 @@ export default function AdScripts() {
 
     // Only load ads in production or if explicitly enabled
     const shouldLoadAds = 
-      process.env.NODE_ENV === 'production' || 
-      process.env.VITE_ENABLE_ADS === 'true';
+      import.meta.env.MODE === 'production' || 
+      import.meta.env.VITE_ENABLE_ADS === 'true';
 
     if (!shouldLoadAds) {
-      if (process.env.NODE_ENV === 'development') {
+      if (import.meta.env.MODE === 'development') {
         console.log('[AdScripts] Ads disabled in development mode');
       }
       return;
     }
+
+    // Initialize page load ID (handles refresh detection at module level)
+    initializePageLoadId();
+
+    // Check if pop-under has already been shown in this page load session
+    const popunderAlreadyShown = hasPopunderBeenShown();
 
     // Load all ad scripts with a small delay to avoid blocking initial page load
     const loadDelay = 1000; // 1 second delay
 
     const timer = setTimeout(() => {
       AD_SCRIPTS.forEach((script) => {
+        // Skip pop-under if it's already been shown in this page load session
+        if (script.type === 'popunder' && popunderAlreadyShown) {
+          if (import.meta.env.MODE === 'development') {
+            console.log('[AdScripts] Pop-under already shown in this session, skipping');
+          }
+          return;
+        }
+        
         loadAdScript(script);
       });
     }, loadDelay);

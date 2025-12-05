@@ -54,15 +54,19 @@ async function savePopupAdsDatabase(data: PopupAd[]): Promise<void> {
 // Initialize popupAdsDatabase - start with default data, load async
 let popupAdsDatabase: PopupAd[] = [...DEFAULT_POPUP_ADS];
 
-// Load database on startup
-loadPopupAdsDatabase()
-  .then((loaded) => {
-    popupAdsDatabase = loaded;
-    console.log(`Loaded ${popupAdsDatabase.length} pop-up ads from database`);
-  })
-  .catch((error) => {
-    console.error("Failed to load pop-up ads database:", error);
-  });
+// Load database on startup (skip during build)
+import { isBuildTime } from "../utils/buildCheck.js";
+
+if (!isBuildTime()) {
+  loadPopupAdsDatabase()
+    .then((loaded) => {
+      popupAdsDatabase = loaded;
+      console.log(`Loaded ${popupAdsDatabase.length} pop-up ads from database`);
+    })
+    .catch((error) => {
+      console.error("Failed to load pop-up ads database:", error);
+    });
+}
 
 // GET /api/popup-ads - Get all pop-up ads (with optional filtering by route)
 export const getPopupAds: RequestHandler = async (req, res) => {
