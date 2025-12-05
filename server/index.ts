@@ -161,8 +161,6 @@ export function createServer() {
         "✅ Variables are set correctly!",
         "If Redis still not connecting, check Render logs for connection errors",
       ],
-        upstashToken?.trim() !== upstashToken && "Token has leading/trailing spaces",
-      ].filter(Boolean),
     });
   });
 
