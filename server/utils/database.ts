@@ -1,11 +1,12 @@
 /**
  * Database abstraction layer
- * Supports both Vercel KV (Redis) for serverless environments and file storage for localhost
+ * Supports MongoDB, Vercel KV (Redis) for serverless environments, and file storage for localhost
  */
 
 import { promises as fs } from "fs";
 import { join } from "path";
 import { DATA_DIR } from "./dataPath.js";
+import { getMongoDB, isMongoDBAvailable, initializeMongoDB } from "./mongodb.js";
 
 // Lazy-load Upstash Redis (for Vercel KV/Upstash Redis)
 let redis: any = null;
@@ -311,8 +312,33 @@ export class Database<T> {
 
   /**
    * Load data from storage
+   * Priority: MongoDB > Redis/KV > File Storage
    */
   async load(): Promise<T[]> {
+    // Check MongoDB first (highest priority)
+    const useMongo = await isMongoDBAvailable();
+    if (useMongo) {
+      try {
+        const db = await getMongoDB();
+        if (!db) throw new Error("MongoDB not available");
+        
+        const collection = db.collection<T>(this.key);
+        const data = await collection.find({}).toArray();
+        
+        if (data.length > 0) {
+          console.log(`✅ Loaded ${data.length} items from MongoDB (${this.key})`);
+          return data;
+        }
+        
+        console.log(`📝 MongoDB collection "${this.key}" is empty (new database)`);
+        return [] as T[];
+      } catch (error) {
+        console.error(`❌ Error loading from MongoDB (${this.key}):`, error);
+        // Fall through to Redis/KV or file storage
+      }
+    }
+    
+    // Fall back to Redis/KV
     const useKV = await shouldUseKV();
     if (useKV) {
       try {
@@ -358,12 +384,43 @@ export class Database<T> {
 
   /**
    * Save data to storage with retry logic
+   * Priority: MongoDB > Redis/KV > File Storage
    */
   async save(data: T[]): Promise<void> {
-    const useKV = await shouldUseKV();
     const isRender = !!process.env.RENDER;
     const isVercel = !!(process.env.VERCEL || process.env.VERCEL_ENV);
     
+    // Check MongoDB first (highest priority)
+    const useMongo = await isMongoDBAvailable();
+    if (useMongo) {
+      try {
+        const db = await getMongoDB();
+        if (!db) throw new Error("MongoDB not available");
+        
+        const collection = db.collection<T>(this.key);
+        
+        // Replace all documents in collection
+        await collection.deleteMany({});
+        if (data.length > 0) {
+          await collection.insertMany(data as any[]);
+        }
+        
+        // Verify the save worked
+        const verify = await collection.countDocuments();
+        if (verify !== data.length) {
+          throw new Error(`Verification failed: Expected ${data.length} items, got ${verify}`);
+        }
+        
+        console.log(`✅ Saved ${data.length} items to MongoDB (${this.key}) - verified`);
+        return; // Success - exit
+      } catch (error) {
+        console.error(`❌ Error saving to MongoDB (${this.key}):`, error);
+        // Fall through to Redis/KV or file storage
+      }
+    }
+    
+    // Fall back to Redis/KV
+    const useKV = await shouldUseKV();
     if (useKV) {
       // Retry logic for Redis/KV saves (up to 3 attempts)
       let lastError: Error | null = null;
@@ -514,9 +571,16 @@ export class Database<T> {
 }
 
 /**
- * Initialize Redis/KV connection (for Vercel/Upstash)
+ * Initialize database connections (MongoDB, then Redis/KV)
  */
 export async function initializeKV() {
+  // Initialize MongoDB first (if available)
+  const mongoDb = await initializeMongoDB();
+  if (mongoDb) {
+    console.log("✅ MongoDB initialized - will be used as primary database");
+  }
+  
+  // Then initialize Redis/KV (as fallback or secondary)
   const isVercel = !!(process.env.VERCEL || process.env.VERCEL_ENV);
   const isRender = !!process.env.RENDER;
   // Check for Upstash Redis - support multiple token formats

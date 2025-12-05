@@ -57,6 +57,27 @@ if (process.env.RENDER || process.env.VERCEL) {
     console.log(`      ${key}: ${value ? `SET (length: ${value.length})` : "NOT SET"}`);
   });
   
+  // Check for MongoDB variables
+  const mongoVars = {
+    MONGODB_URI: process.env.MONGODB_URI ? "✅ SET" : "❌ NOT SET",
+    MONGODB_USERNAME: process.env.MONGODB_USERNAME ? "✅ SET" : "❌ NOT SET",
+    MONGODB_PASSWORD: process.env.MONGODB_PASSWORD ? "✅ SET" : "❌ NOT SET",
+    MONGODB_CLUSTER: process.env.MONGODB_CLUSTER ? "✅ SET" : "❌ NOT SET",
+    MONGODB_DATABASE: process.env.MONGODB_DATABASE ? "✅ SET" : "❌ NOT SET",
+  };
+  console.log("   MongoDB Variables:");
+  console.log(`      MONGODB_URI: ${mongoVars.MONGODB_URI}`);
+  if (process.env.MONGODB_URI) {
+    const uri = process.env.MONGODB_URI;
+    // Mask password in URI for security
+    const maskedUri = uri.replace(/mongodb\+srv:\/\/[^:]+:[^@]+@/, 'mongodb+srv://***:***@');
+    console.log(`         Value preview: ${maskedUri.substring(0, 60)}...`);
+  }
+  console.log(`      MONGODB_USERNAME: ${mongoVars.MONGODB_USERNAME}`);
+  console.log(`      MONGODB_PASSWORD: ${mongoVars.MONGODB_PASSWORD}`);
+  console.log(`      MONGODB_CLUSTER: ${mongoVars.MONGODB_CLUSTER}`);
+  console.log(`      MONGODB_DATABASE: ${mongoVars.MONGODB_DATABASE}`);
+  
   console.log("🔍 === END DIAGNOSTICS ===");
 }
 

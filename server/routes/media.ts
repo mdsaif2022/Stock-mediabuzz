@@ -358,10 +358,30 @@ export const getDatabaseStatus: RequestHandler = async (_req, res) => {
     const hasVercelKV = !!(process.env.KV_URL || process.env.STORAGE_URL);
     const hasVercelKVFull = !!(process.env.KV_REST_API_URL && process.env.KV_REST_API_TOKEN);
     
+    // Check for MongoDB
+    const hasMongoURI = !!process.env.MONGODB_URI;
+    const hasMongoComponents = !!(process.env.MONGODB_USERNAME && process.env.MONGODB_PASSWORD && process.env.MONGODB_CLUSTER);
+    const hasMongoDB = hasMongoURI || hasMongoComponents;
+    
     // Check for Redis initialization errors
     let redisError = null;
     
-    // Test Redis/KV connection
+    // Test MongoDB connection (highest priority)
+    let mongoTest = "unknown";
+    let mongoAvailable = false;
+    if (hasMongoDB) {
+      try {
+        const { testMongoDBConnection } = await import("../utils/mongodb.js");
+        const mongoResult = await testMongoDBConnection();
+        mongoTest = mongoResult.message;
+        mongoAvailable = mongoResult.success;
+      } catch (error: any) {
+        mongoTest = `❌ Connection failed: ${error.message}`;
+        mongoAvailable = false;
+      }
+    }
+    
+    // Test Redis/KV connection (fallback)
     let storageTest = "unknown";
     let hasKV = false;
     
@@ -389,35 +409,47 @@ export const getDatabaseStatus: RequestHandler = async (_req, res) => {
       // Sync service not available, ignore
     }
     
+    // Determine storage type (MongoDB > Redis/KV > File)
+    let storageType = "File Storage";
+    if (mongoAvailable) {
+      storageType = "MongoDB";
+    } else if (hasKV) {
+      storageType = hasUpstashEnv ? "Upstash Redis" : "Vercel KV";
+    } else if (isVercel || isRender) {
+      storageType = "⚠️ None (Database not configured)";
+    }
+    
     res.json({
       status: "ok",
       storage: {
-        type: hasKV 
-          ? (hasUpstashEnv ? "Upstash Redis" : "Vercel KV")
-          : isVercel || isRender
-            ? "⚠️ None (Redis/KV not configured)" 
-            : "File Storage",
+        type: storageType,
         isVercel,
         isRender,
-        hasKV,
+        hasMongoDB: mongoAvailable,
+        hasKV: hasKV && !mongoAvailable, // Only true if MongoDB not available
         hasUpstashRedis: hasUpstashEnv,
         hasVercelKV: hasVercelKV || hasVercelKVFull,
         // Debug info (shows if env vars are detected, but masked for security)
         envVars: {
+          mongoURISet: hasMongoURI,
+          mongoComponentsSet: hasMongoComponents,
           upstashUrlSet: !!upstashUrl,
           upstashTokenSet: !!upstashToken,
           upstashUrlPreview: upstashUrl ? `${upstashUrl.substring(0, 30)}...` : "Not set",
           vercelKVSet: hasVercelKV,
           vercelKVFullSet: hasVercelKVFull,
         },
+        mongoTest: mongoAvailable ? mongoTest : (hasMongoDB ? mongoTest : "Not configured"),
         kvUrl: hasKV ? "✅ Set" : "❌ Not set",
-        connectionTest: storageTest,
+        connectionTest: mongoAvailable ? mongoTest : storageTest,
         redisError: redisError || null,
-        persistenceWarning: !hasKV && (isVercel || isRender) 
-          ? "⚠️ Data will NOT persist! Configure Redis/KV to prevent data loss."
+        persistenceWarning: mongoAvailable
+          ? "✅ Data will persist permanently (MongoDB)"
           : hasKV 
-            ? "✅ Data will persist permanently"
-            : "📁 Using file storage (localhost only)",
+            ? "✅ Data will persist permanently (Redis/KV)"
+            : isVercel || isRender
+              ? "⚠️ Data will NOT persist! Configure MongoDB or Redis/KV to prevent data loss."
+              : "📁 Using file storage (localhost only)",
       },
       media: {
         count: mediaDatabase.length,
