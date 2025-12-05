@@ -46,17 +46,34 @@ async function getRedis() {
       
       // Get environment variables (trim to remove any spaces)
       const url = process.env.UPSTASH_REDIS_REST_URL?.trim();
-      let token = process.env.UPSTASH_REDIS_REST_TOKEN?.trim();
+      let token: string | undefined = undefined;
       
       // ALTERNATIVE SOLUTION 1: Support base64 encoded token
-      // If token is base64 encoded, decode it
-      if (token && process.env.UPSTASH_REDIS_REST_TOKEN_B64 === "true") {
+      // Check if token is provided as base64 encoded value in UPSTASH_REDIS_REST_TOKEN_B64
+      const tokenB64 = process.env.UPSTASH_REDIS_REST_TOKEN_B64?.trim();
+      if (tokenB64) {
+        // Token is stored as base64 in UPSTASH_REDIS_REST_TOKEN_B64
         try {
-          console.log("   🔓 Detected base64 encoded token, decoding...");
-          token = Buffer.from(token, 'base64').toString('utf-8');
+          console.log("   🔓 Detected base64 encoded token in UPSTASH_REDIS_REST_TOKEN_B64, decoding...");
+          token = Buffer.from(tokenB64, 'base64').toString('utf-8');
           console.log(`   ✅ Token decoded, new length: ${token.length}`);
         } catch (decodeError) {
           console.error("   ❌ Failed to decode base64 token:", decodeError);
+          console.error("   ⚠️  Make sure UPSTASH_REDIS_REST_TOKEN_B64 contains a valid base64 string");
+        }
+      } else {
+        // Fall back to regular token
+        token = process.env.UPSTASH_REDIS_REST_TOKEN?.trim();
+        
+        // Legacy: If token exists and UPSTASH_REDIS_REST_TOKEN_B64="true" flag is set, decode it
+        if (token && process.env.UPSTASH_REDIS_REST_TOKEN_B64 === "true") {
+          try {
+            console.log("   🔓 Detected base64 encoded token (legacy mode), decoding...");
+            token = Buffer.from(token, 'base64').toString('utf-8');
+            console.log(`   ✅ Token decoded, new length: ${token.length}`);
+          } catch (decodeError) {
+            console.error("   ❌ Failed to decode base64 token:", decodeError);
+          }
         }
       }
       
