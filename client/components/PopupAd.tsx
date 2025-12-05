@@ -27,8 +27,18 @@ export default function PopupAd() {
   const getAdDisplayKey = (adId: string) => `popup_ad_displays_${adId}`;
   const getAdImpressionKey = (adId: string) => `popup_ad_impression_${adId}`;
 
-  // Fetch ads for current route
+  // CRITICAL: Only show popup ads on home page (/) to prevent navigation interference
+  const isHomePage = location.pathname === '/';
+
+  // Fetch ads for current route (only on home page)
   useEffect(() => {
+    // Don't fetch ads if not on home page
+    if (!isHomePage) {
+      setAds([]);
+      setIsLoading(false);
+      return;
+    }
+
     const fetchAds = async () => {
       try {
         setIsLoading(true);
@@ -44,10 +54,18 @@ export default function PopupAd() {
     };
 
     fetchAds();
-  }, [location.pathname]);
+  }, [location.pathname, isHomePage]);
 
-  // Select and show an ad
+  // Select and show an ad (only on home page)
   useEffect(() => {
+    // Don't show ads if not on home page
+    if (!isHomePage) {
+      if (isOpen) {
+        setIsOpen(false);
+      }
+      return;
+    }
+
     // Clear any existing timers
     if (showTimer.current) {
       clearTimeout(showTimer.current);
@@ -109,7 +127,7 @@ export default function PopupAd() {
         clearTimeout(autoCloseTimer.current);
       }
     };
-  }, [ads, isLoading, location.pathname]);
+  }, [ads, isLoading, location.pathname, isHomePage]);
 
   // Track impression when ad opens
   useEffect(() => {

@@ -466,10 +466,10 @@ export default function MediaDetail() {
       const currentAttempt = downloadAttemptsRef.current;
       setDownloadAttempts(currentAttempt);
       
-      // First click: Always show ads
-      // Second click onwards: Randomly decide (show ads OR download)
+      // CRITICAL: Only show ads on home page to prevent navigation interference
+      // MediaDetail is not the home page, so disable ads here
       const isFirstClick = currentAttempt === 1;
-      const shouldShowAds = isFirstClick || Math.random() < 0.5; // First click always shows ads, then 50% chance
+      const shouldShowAds = false; // Disabled - ads only show on home page
       
       // Determine file extension for download attribute
       let fileExtension = 'mp4';
