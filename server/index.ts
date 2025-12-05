@@ -17,9 +17,15 @@ import { initializeAutoSync } from "./services/syncService.js";
 initializeKV()
   .then(() => {
     // Initialize auto-sync after database is ready
+    // Auto-sync will help recover data even if Redis isn't configured
     initializeAutoSync();
   })
-  .catch(console.error);
+  .catch((error) => {
+    console.error("❌ Failed to initialize KV:", error);
+    // Still initialize auto-sync - it will help recover data
+    console.log("⚠️  Initializing auto-sync anyway to help with data recovery...");
+    initializeAutoSync();
+  });
 
 export function createServer() {
   const app = express();
@@ -85,27 +91,76 @@ export function createServer() {
     const upstashUrl = process.env.UPSTASH_REDIS_REST_URL;
     const upstashToken = process.env.UPSTASH_REDIS_REST_TOKEN;
     
+    // Get all Redis-related env vars for debugging
+    const allEnvVars = Object.keys(process.env)
+      .filter(key => key.includes('UPSTASH') || key.includes('REDIS') || key.includes('KV'))
+      .reduce((acc, key) => {
+        const value = process.env[key];
+        acc[key] = {
+          exists: !!value,
+          length: value?.length || 0,
+          preview: value ? `${value.substring(0, 30)}...` : "Not set",
+          hasQuotes: value ? (value.startsWith('"') || value.endsWith('"')) : false,
+          hasSpaces: value ? (value.trim() !== value) : false,
+          firstChar: value ? value[0] : null,
+          lastChar: value ? value[value.length - 1] : null,
+        };
+        return acc;
+      }, {} as Record<string, any>);
+    
+    const issues: string[] = [];
+    if (!upstashUrl) issues.push("❌ UPSTASH_REDIS_REST_URL is NOT set in environment");
+    if (!upstashToken) issues.push("❌ UPSTASH_REDIS_REST_TOKEN is NOT set in environment");
+    if (upstashUrl?.startsWith('"')) issues.push("⚠️ URL has quotes at start - remove quotes!");
+    if (upstashUrl?.endsWith('"')) issues.push("⚠️ URL has quotes at end - remove quotes!");
+    if (upstashToken?.startsWith('"')) issues.push("⚠️ Token has quotes at start - remove quotes!");
+    if (upstashToken?.endsWith('"')) issues.push("⚠️ Token has quotes at end - remove quotes!");
+    if (upstashUrl && upstashUrl.trim() !== upstashUrl) issues.push("⚠️ URL has leading/trailing spaces - remove spaces!");
+    if (upstashToken && upstashToken.trim() !== upstashToken) issues.push("⚠️ Token has leading/trailing spaces - remove spaces!");
+    
     res.json({
-      hasUrl: !!upstashUrl,
-      hasToken: !!upstashToken,
-      urlLength: upstashUrl?.length || 0,
-      tokenLength: upstashToken?.length || 0,
-      urlPreview: upstashUrl ? `${upstashUrl.substring(0, 30)}...` : "Not set",
-      tokenPreview: upstashToken ? `${upstashToken.substring(0, 10)}...` : "Not set",
-      urlHasQuotes: upstashUrl?.startsWith('"') || upstashUrl?.endsWith('"'),
-      tokenHasQuotes: upstashToken?.startsWith('"') || upstashToken?.endsWith('"'),
-      urlHasSpaces: upstashUrl?.trim() !== upstashUrl,
-      tokenHasSpaces: upstashToken?.trim() !== upstashToken,
-      isRender: !!process.env.RENDER,
-      isVercel: !!(process.env.VERCEL || process.env.VERCEL_ENV),
-      issues: [
-        !upstashUrl && "UPSTASH_REDIS_REST_URL is not set",
-        !upstashToken && "UPSTASH_REDIS_REST_TOKEN is not set",
-        upstashUrl?.startsWith('"') && "URL has quotes at start",
-        upstashUrl?.endsWith('"') && "URL has quotes at end",
-        upstashToken?.startsWith('"') && "Token has quotes at start",
-        upstashToken?.endsWith('"') && "Token has quotes at end",
-        upstashUrl?.trim() !== upstashUrl && "URL has leading/trailing spaces",
+      summary: {
+        hasUrl: !!upstashUrl,
+        hasToken: !!upstashToken,
+        bothSet: !!(upstashUrl && upstashToken),
+        isRender: !!process.env.RENDER,
+        isVercel: !!(process.env.VERCEL || process.env.VERCEL_ENV),
+      },
+      upstashUrl: {
+        exists: !!upstashUrl,
+        length: upstashUrl?.length || 0,
+        preview: upstashUrl ? `${upstashUrl.substring(0, 40)}...` : "Not set",
+        hasQuotes: upstashUrl ? (upstashUrl.startsWith('"') || upstashUrl.endsWith('"')) : false,
+        hasSpaces: upstashUrl ? (upstashUrl.trim() !== upstashUrl) : false,
+        firstChar: upstashUrl ? upstashUrl[0] : null,
+        lastChar: upstashUrl ? upstashUrl[upstashUrl.length - 1] : null,
+      },
+      upstashToken: {
+        exists: !!upstashToken,
+        length: upstashToken?.length || 0,
+        preview: upstashToken ? `${upstashToken.substring(0, 15)}...` : "Not set",
+        hasQuotes: upstashToken ? (upstashToken.startsWith('"') || upstashToken.endsWith('"')) : false,
+        hasSpaces: upstashToken ? (upstashToken.trim() !== upstashToken) : false,
+        firstChar: upstashToken ? upstashToken[0] : null,
+        lastChar: upstashToken ? upstashToken[upstashToken.length - 1] : null,
+      },
+      allRedisEnvVars: allEnvVars,
+      issues: issues.length > 0 ? issues : ["✅ No issues detected - variables look correct"],
+      nextSteps: !upstashUrl || !upstashToken ? [
+        "1. Go to Render Dashboard → Your Service → Environment tab",
+        "2. Add UPSTASH_REDIS_REST_URL (NO quotes, NO spaces)",
+        "3. Add UPSTASH_REDIS_REST_TOKEN (NO quotes, NO spaces)",
+        "4. Click 'Save Changes' (this triggers auto-redeploy)",
+        "5. Wait 2-5 minutes for redeploy",
+        "6. Check this endpoint again to verify",
+      ] : issues.length > 0 ? [
+        "1. Remove quotes/spaces from environment variables in Render",
+        "2. Click 'Save Changes' to trigger redeploy",
+        "3. Wait 2-5 minutes and check again",
+      ] : [
+        "✅ Variables are set correctly!",
+        "If Redis still not connecting, check Render logs for connection errors",
+      ],
         upstashToken?.trim() !== upstashToken && "Token has leading/trailing spaces",
       ].filter(Boolean),
     });

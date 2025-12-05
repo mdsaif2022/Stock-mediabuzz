@@ -37,6 +37,14 @@ async function performSync(): Promise<{ success: boolean; stats?: any; error?: s
       const errorMsg = result.error || result.message || "Unknown sync error";
       syncError = errorMsg;
       console.error(`❌ Automatic sync failed: ${errorMsg}`);
+      
+      // Check if it's a Redis connection issue
+      if (errorMsg.includes("Redis") || errorMsg.includes("KV") || errorMsg.includes("persist")) {
+        console.error("⚠️  ⚠️  ⚠️  CRITICAL: Redis/KV connection issue detected!");
+        console.error("⚠️  Data cannot be saved. Check Render logs for Redis connection errors.");
+        console.error("⚠️  Fix Redis connection to enable automatic data persistence.");
+      }
+      
       return { success: false, error: errorMsg };
     }
   } catch (error: any) {
@@ -55,15 +63,16 @@ async function performSync(): Promise<{ success: boolean; stats?: any; error?: s
  * - Sets up periodic sync (every hour by default)
  */
 export function initializeAutoSync() {
-  // Default to 15 minutes for faster recovery (was 60)
-  const syncIntervalMinutes = parseInt(process.env.AUTO_SYNC_INTERVAL_MINUTES || "15", 10);
+  // Default to 5 minutes for faster recovery on Render (was 15, originally 60)
+  // This helps recover data quickly when Redis connection is restored
+  const syncIntervalMinutes = parseInt(process.env.AUTO_SYNC_INTERVAL_MINUTES || "5", 10);
   const enableStartupSync = process.env.AUTO_SYNC_ON_STARTUP !== "false"; // Default: true
   const startupSyncDelay = parseInt(process.env.AUTO_SYNC_STARTUP_DELAY_SECONDS || "30", 10); // Default: 30 seconds
 
   console.log("🔧 Auto-sync service configuration:");
   console.log(`   Startup sync: ${enableStartupSync ? "✅ Enabled" : "❌ Disabled"}`);
   console.log(`   Startup delay: ${startupSyncDelay} seconds`);
-  console.log(`   Periodic sync: Every ${syncIntervalMinutes} minutes (faster recovery)`);
+  console.log(`   Periodic sync: Every ${syncIntervalMinutes} minutes (fast recovery mode)`);
 
   // Sync on startup (after delay to allow database/KV to initialize)
   if (enableStartupSync) {

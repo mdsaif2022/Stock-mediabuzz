@@ -327,6 +327,10 @@ export class Database<T> {
         const errorMsg = `⚠️  CRITICAL: Cannot save data on ${isVercel ? "Vercel" : "Render"} without Redis/KV! Please set up Upstash Redis.`;
         console.error(errorMsg);
         console.error("⚠️  Your data will NOT persist. Add UPSTASH_REDIS_REST_URL and UPSTASH_REDIS_REST_TOKEN environment variables.");
+        console.error("⚠️  Current status:");
+        console.error("   - Has env vars:", !!(process.env.UPSTASH_REDIS_REST_URL && process.env.UPSTASH_REDIS_REST_TOKEN));
+        console.error("   - Redis client:", await getRedis() ? "Available" : "NULL (connection failed)");
+        console.error("⚠️  Check Render logs above for Redis connection errors!");
         throw new Error(errorMsg);
       }
       // File storage fallback (localhost only)

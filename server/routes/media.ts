@@ -640,16 +640,36 @@ export async function performCloudinarySync(): Promise<{
       console.log(`✅ Database saved successfully`);
     } catch (saveError: any) {
       console.error("❌ Error saving database:", saveError);
+      const errorMsg = saveError.message || String(saveError);
+      
+      // Provide detailed error information
+      console.error("⚠️  ⚠️  ⚠️  CRITICAL: Database save failed!");
+      console.error("   Error:", errorMsg);
+      
+      // Check if it's a Redis connection issue
+      if (errorMsg.includes("Redis") || errorMsg.includes("KV") || errorMsg.includes("persist") || errorMsg.includes("not available")) {
+        console.error("⚠️  This is a Redis/KV connection problem!");
+        console.error("⚠️  Your data will NOT persist until Redis is connected.");
+        console.error("⚠️  Check Render logs above for Redis connection errors.");
+        console.error("⚠️  Verify UPSTASH_REDIS_REST_URL and UPSTASH_REDIS_REST_TOKEN in Render Dashboard.");
+      }
+      
       return {
         success: false,
-        error: "Failed to save database",
-        message: saveError.message,
+        error: "Failed to save database - Redis/KV connection required",
+        message: errorMsg,
         stats: {
           totalInCloudinary: allResources.length,
           existingInDatabase: existingDatabase.length,
           newItemsAdded: created,
           skipped: skipped,
           totalInDatabase: mergedDatabase.length,
+        },
+        troubleshooting: {
+          issue: "Database save failed - likely Redis connection problem",
+          action: "Check Render logs for Redis connection errors",
+          check: "Verify UPSTASH_REDIS_REST_URL and UPSTASH_REDIS_REST_TOKEN in Render Dashboard",
+          endpoint: "Check /api/media/database/status for connection details",
         },
       };
     }

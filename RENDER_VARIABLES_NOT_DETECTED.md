@@ -1,276 +1,234 @@
-# 🚨 Environment Variables Not Detected - Fix Guide
+# 🚨 Environment Variables Not Detected on Render
 
-## ❌ Problem
+## ⚠️ Your Current Problem
 
-Your database status shows:
-```json
-{
-  "envVars": {
-    "upstashUrlSet": false,
-    "upstashTokenSet": false
-  }
-}
-```
+The status endpoint shows:
+- `"upstashUrlSet": false`
+- `"upstashTokenSet": false`
 
-This means **Render is not passing the environment variables to your application**.
+**This means Render is NOT passing the environment variables to your application.**
 
 ---
 
-## ✅ Solution: Step-by-Step Fix
+## 🔍 Step 1: Check What Server Sees
 
-### Step 1: Verify Variables Are Actually Saved
+**Open this URL in your browser:**
+```
+https://stock-mediabuzz-1.onrender.com/api/debug/env
+```
 
-1. Go to **Render Dashboard** → Your Service (`stock-mediabuzz-1`)
-2. Click **"Environment"** tab (left sidebar)
-3. **Look for these exact variable names:**
+This will show you:
+- ✅ If variables are detected
+- ✅ If they have quotes or spaces
+- ✅ Exact length and preview
+- ✅ Specific issues found
+
+**Share the output with me so I can help diagnose!**
+
+---
+
+## ✅ Step 2: Verify Variables in Render Dashboard
+
+### Go to Render Dashboard
+
+1. **Open:** https://dashboard.render.com/
+2. **Click:** Your service (the one running your backend)
+3. **Click:** **"Environment"** tab (left sidebar)
+
+### Check Variables Exist
+
+Look for these **exact** variable names:
+- `UPSTASH_REDIS_REST_URL`
+- `UPSTASH_REDIS_REST_TOKEN`
+
+**Common Mistakes:**
+- ❌ `UPSTASH_REDIS_URL` (missing `_REST_`)
+- ❌ `UPSTASH_REDIS_TOKEN` (missing `_REST_`)
+- ❌ `UPSTASH_REDIS_REST_URLS` (extra 'S')
+- ❌ `UPSTASH_REDIS_REST_TOKENS` (extra 'S')
+
+### Check Variable Values
+
+Click on each variable to see its value:
+
+**UPSTASH_REDIS_REST_URL should be:**
+```
+https://eternal-blowfish-28190.upstash.io
+```
+
+**UPSTASH_REDIS_REST_TOKEN should be:**
+```
+AW4eAAIncDI4ZDdiMDc2MzBiMDY0ZGFjYWZlYmJhZDM2MGZjMzUzZnAyMjgxOTA
+```
+
+**⚠️ CRITICAL: NO QUOTES, NO SPACES!**
+
+---
+
+## 🔧 Step 3: Fix Variables (If Wrong)
+
+### If Variables Don't Exist:
+
+1. **Click:** "Add Environment Variable" button
+2. **Name:** `UPSTASH_REDIS_REST_URL`
+3. **Value:** `https://eternal-blowfish-28190.upstash.io` (NO quotes)
+4. **Click:** "Save"
+5. **Repeat** for `UPSTASH_REDIS_REST_TOKEN`
+
+### If Variables Have Quotes:
+
+1. **Click** on the variable
+2. **Edit** the value
+3. **Remove** any quotes (`"` or `'`)
+4. **Click:** "Save"
+
+### If Variables Have Spaces:
+
+1. **Click** on the variable
+2. **Edit** the value
+3. **Remove** any spaces at the start or end
+4. **Click:** "Save"
+
+### If Variable Names Are Wrong:
+
+1. **Delete** the wrong variable
+2. **Add** new variable with **exact** name:
    - `UPSTASH_REDIS_REST_URL`
    - `UPSTASH_REDIS_REST_TOKEN`
-
-**If you DON'T see them:**
-- They weren't saved properly
-- Go to Step 2 to add them
-
-**If you DO see them:**
-- Check Step 3 for common issues
+3. **Add** correct value (NO quotes, NO spaces)
+4. **Click:** "Save"
 
 ---
 
-### Step 2: Add Variables Correctly
+## 🔄 Step 4: Trigger Redeploy
 
-1. In Render Environment tab, click **"Add Environment Variable"**
+**After saving variables:**
 
-2. **Variable 1:**
-   - **Key:** `UPSTASH_REDIS_REST_URL`
-   - **Value:** `https://eternal-blowfish-28190.upstash.io`
-   - **Environment:** Select **"Production"** (or "All")
-   - Click **"Save Changes"**
-   - ⚠️ **Wait for the save to complete** (you'll see a confirmation)
+1. Render **automatically redeploys** when you save environment variables
+2. **Wait 2-5 minutes** for deployment to complete
+3. **Check deployment status** in Render Dashboard → "Events" tab
 
-3. **Variable 2:**
-   - Click **"Add Environment Variable"** again
-   - **Key:** `UPSTASH_REDIS_REST_TOKEN`
-   - **Value:** `AW4eAAIncDI4ZDdiMDc2MzBiMDY0ZGFjYWZlYmJhZDM2MGZjMzUzZnAyMjgxOTA`
-   - **Environment:** Select **"Production"** (or "All")
-   - Click **"Save Changes"**
-   - ⚠️ **Wait for the save to complete**
+**OR manually trigger:**
 
-4. **Verify they're there:**
-   - You should see both variables in the list
-   - Check the "Environment" column shows "Production" or "All"
+1. Go to **"Manual Deploy"** tab
+2. Click **"Deploy latest commit"**
+3. Wait for deployment to complete
 
 ---
 
-### Step 3: Check for Common Mistakes
+## ✅ Step 5: Verify It's Working
 
-#### ❌ Mistake 1: Quotes in Values
-
-**WRONG:**
-```
-Value: "https://eternal-blowfish-28190.upstash.io"
-```
-
-**CORRECT:**
-```
-Value: https://eternal-blowfish-28190.upstash.io
-```
-
-**How to fix:**
-1. Click "Edit" on the variable
-2. Remove quotes from the value
-3. Save
-
-#### ❌ Mistake 2: Wrong Environment
-
-**WRONG:**
-- Variable set for "Preview" only
-- Variable set for "Development" only
-
-**CORRECT:**
-- Variable set for "Production" or "All"
-
-**How to fix:**
-1. Click "Edit" on the variable
-2. Change "Environment" to "Production" or "All"
-3. Save
-
-#### ❌ Mistake 3: Wrong Variable Names
-
-**WRONG:**
-```
-UPSTASH_REDIS_URL
-UPSTASH_REDIS_TOKEN
-REDIS_URL
-REDIS_TOKEN
-```
-
-**CORRECT:**
-```
-UPSTASH_REDIS_REST_URL
-UPSTASH_REDIS_REST_TOKEN
-```
-
-**How to fix:**
-1. Delete the wrong variable
-2. Add new variable with correct name
-
-#### ❌ Mistake 4: Trailing Spaces
-
-**WRONG:**
-```
-Value: https://eternal-blowfish-28190.upstash.io 
-```
-
-**CORRECT:**
-```
-Value: https://eternal-blowfish-28190.upstash.io
-```
-
-**How to fix:**
-1. Click "Edit"
-2. Remove any spaces before/after the value
-3. Save
-
----
-
-### Step 4: Force Redeploy
-
-**After adding/changing variables, you MUST redeploy:**
-
-1. Go to Render Dashboard → Your Service
-2. Click **"Manual Deploy"** button (top right)
-3. Select **"Deploy latest commit"**
-4. Wait for deployment to complete (2-5 minutes)
-5. Watch the logs to see deployment progress
-
-**⚠️ IMPORTANT:** Render should auto-redeploy when you save environment variables, but sometimes it doesn't. Always manually trigger a redeploy to be sure.
-
----
-
-### Step 5: Verify Variables Are Detected
-
-After redeploy, check the debug endpoint:
+### Check Debug Endpoint Again:
 
 ```
 https://stock-mediabuzz-1.onrender.com/api/debug/env
 ```
 
-**Should show:**
+**You should see:**
 ```json
 {
-  "hasUrl": true,
-  "hasToken": true,
-  "urlPreview": "https://eternal-blowfish-2...",
-  "tokenPreview": "AW4eAAIncDI...",
-  "issues": []
+  "summary": {
+    "hasUrl": true,
+    "hasToken": true,
+    "bothSet": true
+  },
+  "issues": ["✅ No issues detected - variables look correct"]
 }
 ```
 
-**If still showing `false`:**
-- Variables aren't being passed to the app
-- Check Render logs for errors
-- Try deleting and re-adding variables
-- Make sure you're checking the correct service
+### Check Status Endpoint:
+
+```
+https://stock-mediabuzz-1.onrender.com/api/media/database/status
+```
+
+**You should see:**
+```json
+{
+  "storage": {
+    "type": "Upstash Redis",
+    "hasKV": true,
+    "envVars": {
+      "upstashUrlSet": true,
+      "upstashTokenSet": true
+    }
+  }
+}
+```
 
 ---
 
-### Step 6: Check Render Logs
+## 🆘 Common Issues & Solutions
 
-1. Go to Render Dashboard → Your Service → **"Logs"** tab
-2. Look for these messages:
+### Issue: Variables saved but still not detected
 
-**✅ Success:**
-```
-🔍 Redis-related environment variables: { UPSTASH_REDIS_REST_URL: 'https://eternal...', ... }
-✅ Upstash Redis connected successfully
-```
+**Possible Causes:**
+1. Service didn't redeploy after saving
+2. Variables saved in wrong service (check you're editing the BACKEND service)
+3. Variable names have typos
 
-**❌ Error:**
-```
-⚠️  Upstash Redis env vars not found:
-   UPSTASH_REDIS_REST_URL: NOT SET
-   UPSTASH_REDIS_REST_TOKEN: NOT SET
-```
+**Solution:**
+1. Check Render Dashboard → Events tab → See if redeploy happened
+2. Manually trigger redeploy
+3. Double-check variable names are EXACTLY:
+   - `UPSTASH_REDIS_REST_URL`
+   - `UPSTASH_REDIS_REST_TOKEN`
 
-**If you see "NOT SET":**
-- Variables aren't being passed to the application
-- Go back to Step 2 and verify they're saved correctly
+### Issue: Variables detected but Redis connection fails
 
----
+**Check Render Logs:**
+1. Go to Render Dashboard → Your Service → **Logs** tab
+2. Look for Redis connection errors
+3. Share the error message with me
 
-## 🔍 Advanced Troubleshooting
+### Issue: "Service not found" or can't access Render Dashboard
 
-### Check All Environment Variables
-
-The debug endpoint shows all Redis-related variables. Check:
-
-```
-GET https://stock-mediabuzz-1.onrender.com/api/debug/env
-```
-
-Look at the `issues` array - it will tell you exactly what's wrong.
-
-### Verify in Render
-
-1. Go to Render Dashboard → Your Service → Environment
-2. Take a screenshot of your variables
-3. Verify:
-   - Names are EXACT (case-sensitive)
-   - Values have NO quotes
-   - Values have NO spaces
-   - Environment is "Production" or "All"
-
-### Test with Manual Variable
-
-If variables still aren't detected, try:
-
-1. Add a test variable: `TEST_VAR=test123`
-2. Redeploy
-3. Check if it appears in logs: `console.log(process.env.TEST_VAR)`
-4. If test variable works but Redis variables don't, there's a typo in the names
+**Solution:**
+1. Make sure you're logged into the correct Render account
+2. Check you're editing the correct service
+3. Verify service is running (not paused)
 
 ---
 
-## 📋 Complete Checklist
+## 📋 Checklist
 
-Before saying it's not working, verify:
+Before asking for help, verify:
 
-- [ ] Variables are in Render Environment tab
-- [ ] Variable names are EXACT: `UPSTASH_REDIS_REST_URL` and `UPSTASH_REDIS_REST_TOKEN`
-- [ ] Values have NO quotes
-- [ ] Values have NO trailing spaces
-- [ ] Environment is set to "Production" or "All"
-- [ ] Clicked "Save Changes" on each variable
-- [ ] Service was redeployed after adding variables
-- [ ] Checked debug endpoint: `/api/debug/env`
-- [ ] Checked server logs for variable detection
-- [ ] Waited 2-5 minutes after redeploy
-
----
-
-## 🆘 Still Not Working?
-
-If you've done everything above and variables still aren't detected:
-
-1. **Delete both variables** in Render
-2. **Wait 1 minute**
-3. **Add them again** (follow Step 2 exactly)
-4. **Force redeploy** (Step 4)
-5. **Check debug endpoint** (Step 5)
-
-Sometimes Render needs a "fresh start" with environment variables.
+- [ ] Checked `/api/debug/env` endpoint
+- [ ] Verified variables exist in Render Dashboard → Environment tab
+- [ ] Variable names are EXACTLY: `UPSTASH_REDIS_REST_URL` and `UPSTASH_REDIS_REST_TOKEN`
+- [ ] Variable values have NO quotes
+- [ ] Variable values have NO leading/trailing spaces
+- [ ] Saved changes in Render (triggered redeploy)
+- [ ] Waited 2-5 minutes for redeploy
+- [ ] Checked Render Logs for errors
+- [ ] Checked `/api/debug/env` again after redeploy
 
 ---
 
-## 📞 Need More Help?
+## 🎯 Quick Test
 
-Check:
-- Render documentation: https://render.com/docs/environment-variables
-- Render support: If variables are saved but not detected, contact Render support
-- Server logs: Look for any errors during startup
+**Run this in your browser console or terminal:**
+
+```bash
+curl https://stock-mediabuzz-1.onrender.com/api/debug/env
+```
+
+**Or open in browser:**
+```
+https://stock-mediabuzz-1.onrender.com/api/debug/env
+```
+
+**Share the output** and I'll help you fix any issues!
 
 ---
 
-**Most common issue: Variables are saved but service wasn't redeployed!**
+## 📞 Still Not Working?
 
-Always manually trigger a redeploy after adding environment variables.
+If after following all steps it's still not working:
 
+1. **Share the output** of `/api/debug/env`
+2. **Share a screenshot** of your Render Environment tab (blur sensitive values)
+3. **Share Render logs** (especially around startup)
+
+I'll help you diagnose the exact issue!
