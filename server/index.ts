@@ -95,6 +95,7 @@ initializeMongoDB()
       initializeAutoSync();
     } else {
       console.log("⚠️  MongoDB not available, falling back to Redis/KV");
+      console.log("   Check logs above for MongoDB connection error details");
       // Fallback to Redis/KV
       initializeKV()
         .then(() => {
@@ -107,7 +108,9 @@ initializeMongoDB()
     }
   })
   .catch((error) => {
-    console.error("❌ Failed to initialize MongoDB:", error);
+    console.error("❌ Failed to initialize MongoDB:");
+    console.error("   Error:", error);
+    console.error("   Stack:", error.stack);
     console.log("⚠️  Falling back to Redis/KV...");
     // Fallback to Redis/KV
     initializeKV()
