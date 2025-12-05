@@ -63,6 +63,18 @@ async function performSync(): Promise<{ success: boolean; stats?: any; error?: s
  * - Sets up periodic sync (every hour by default)
  */
 export function initializeAutoSync() {
+  // Don't initialize auto-sync during build time
+  // Check if we're in a build context (Vite build process)
+  const isBuildTime = process.env.NODE_ENV === 'production' && 
+                      (process.argv.includes('build') || 
+                       process.argv.some(arg => arg.includes('vite')) ||
+                       !process.env.PORT); // No PORT means likely build time
+  
+  if (isBuildTime) {
+    console.log("🔧 Auto-sync service: Skipping initialization during build");
+    return;
+  }
+
   // Default to 5 minutes for faster recovery on Render (was 15, originally 60)
   // This helps recover data quickly when Redis connection is restored
   const syncIntervalMinutes = parseInt(process.env.AUTO_SYNC_INTERVAL_MINUTES || "5", 10);
