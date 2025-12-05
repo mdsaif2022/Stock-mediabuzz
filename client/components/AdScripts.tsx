@@ -2,9 +2,11 @@
  * Ad Scripts Component
  * Loads external ad scripts (Popunder, SocialBar, etc.)
  * These scripts are loaded asynchronously to avoid blocking page load
+ * ONLY loads on home page (/) to prevent interference with navigation
  */
 
 import { useEffect } from 'react';
+import { useLocation } from 'react-router-dom';
 
 interface AdScript {
   id: string;
@@ -71,10 +73,19 @@ function loadAdScript(script: AdScript): void {
 
 /**
  * Ad Scripts Loader Component
- * Loads all configured ad scripts
+ * Loads all configured ad scripts ONLY on home page
  */
 export default function AdScripts() {
+  const location = useLocation();
+  
   useEffect(() => {
+    // CRITICAL: Only load ads on home page (/) to prevent navigation interference
+    const isHomePage = location.pathname === '/';
+    
+    if (!isHomePage) {
+      return; // Don't load ads on other pages
+    }
+
     // Only load ads in production or if explicitly enabled
     const shouldLoadAds = 
       process.env.NODE_ENV === 'production' || 
@@ -99,7 +110,7 @@ export default function AdScripts() {
     return () => {
       clearTimeout(timer);
     };
-  }, []);
+  }, [location.pathname]); // Re-run when route changes
 
   return null; // This component doesn't render anything
 }
