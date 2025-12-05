@@ -48,6 +48,14 @@ async function getRedis() {
       const url = process.env.UPSTASH_REDIS_REST_URL?.trim();
       const token = process.env.UPSTASH_REDIS_REST_TOKEN?.trim();
       
+      // Warn if token seems too short
+      if (token && token.length < 70) {
+        console.error("⚠️  WARNING: Token length is suspiciously short!");
+        console.error(`   Token length: ${token.length} (Upstash tokens are usually ~80 characters)`);
+        console.error(`   Token preview: ${token.substring(0, 20)}...`);
+        console.error("   ⚠️  Token may be truncated or incorrect. Check in Render Dashboard.");
+      }
+      
       // Remove quotes if present (common mistake)
       const cleanUrl = url?.replace(/^["']|["']$/g, '');
       const cleanToken = token?.replace(/^["']|["']$/g, '');
@@ -98,6 +106,8 @@ async function getRedis() {
       
       // Test connection with detailed error handling
       console.log("   Testing connection (ping)...");
+      console.log(`   Using URL: ${cleanUrl.substring(0, 50)}...`);
+      console.log(`   Using Token: ${cleanToken.substring(0, 20)}... (length: ${cleanToken.length})`);
       try {
         const pingResult = await redis.ping();
         console.log("✅ Upstash Redis connected successfully!");
@@ -105,16 +115,26 @@ async function getRedis() {
         return redis;
       } catch (pingError: any) {
         console.error("❌ Redis ping failed");
-        console.error("   Error:", pingError.message || String(pingError));
+        console.error("   Error message:", pingError.message || String(pingError));
         console.error("   Error code:", pingError.code);
         console.error("   Error status:", pingError.status);
         console.error("   Error name:", pingError.name);
+        console.error("   Error type:", pingError.constructor?.name || typeof pingError);
         
         // Log full error object for debugging
         if (pingError.response) {
           console.error("   Response status:", pingError.response.status);
           console.error("   Response statusText:", pingError.response.statusText);
+          if (pingError.response.data) {
+            console.error("   Response data:", JSON.stringify(pingError.response.data).substring(0, 200));
+          }
         }
+        
+        // Log the actual values being used (truncated for security)
+        console.error("   Attempted connection with:");
+        console.error(`      URL: ${cleanUrl.substring(0, 50)}...`);
+        console.error(`      Token length: ${cleanToken.length} ${cleanToken.length < 70 ? "⚠️ (Too short!)" : ""}`);
+        console.error(`      Token preview: ${cleanToken.substring(0, 20)}...${cleanToken.substring(cleanToken.length - 10)}`);
         
         // Check for common errors
         if (pingError.message?.includes("Unauthorized") || pingError.status === 401 || pingError.response?.status === 401) {

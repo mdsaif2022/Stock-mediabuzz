@@ -34,9 +34,16 @@ if (process.env.RENDER || process.env.VERCEL) {
   }
   console.log(`      UPSTASH_REDIS_REST_TOKEN: ${redisVars.UPSTASH_REDIS_REST_TOKEN}`);
   if (process.env.UPSTASH_REDIS_REST_TOKEN) {
-    console.log(`         Value preview: ${process.env.UPSTASH_REDIS_REST_TOKEN.substring(0, 15)}...`);
-    console.log(`         Length: ${process.env.UPSTASH_REDIS_REST_TOKEN.length}`);
-    console.log(`         Has quotes: ${process.env.UPSTASH_REDIS_REST_TOKEN.startsWith('"') || process.env.UPSTASH_REDIS_REST_TOKEN.endsWith('"')}`);
+    const token = process.env.UPSTASH_REDIS_REST_TOKEN;
+    console.log(`         Value preview: ${token.substring(0, 15)}...`);
+    console.log(`         Length: ${token.length} ${token.length !== 80 ? "⚠️ (Expected ~80 characters)" : "✅"}`);
+    console.log(`         Has quotes: ${token.startsWith('"') || token.endsWith('"')}`);
+    console.log(`         First 10 chars: ${token.substring(0, 10)}`);
+    console.log(`         Last 10 chars: ${token.substring(token.length - 10)}`);
+    if (token.length < 70) {
+      console.error(`         ⚠️  WARNING: Token seems too short! Upstash tokens are usually ~80 characters.`);
+      console.error(`         ⚠️  Check if token was truncated when copying.`);
+    }
   }
   
   // List ALL environment variables (for debugging)
