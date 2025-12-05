@@ -55,21 +55,37 @@ async function getRedis() {
       const url = process.env.UPSTASH_REDIS_REST_URL?.trim();
       let token: string | undefined = undefined;
       
-      // ALTERNATIVE SOLUTION 1: Support base64 encoded token
-      // Check if token is provided as base64 encoded value in UPSTASH_REDIS_REST_TOKEN_B64
-      const tokenB64 = process.env.UPSTASH_REDIS_REST_TOKEN_B64?.trim();
-      if (tokenB64) {
-        // Token is stored as base64 in UPSTASH_REDIS_REST_TOKEN_B64
-        try {
-          console.log("   🔓 Detected base64 encoded token in UPSTASH_REDIS_REST_TOKEN_B64, decoding...");
-          token = Buffer.from(tokenB64, 'base64').toString('utf-8');
-          console.log(`   ✅ Token decoded, new length: ${token.length}`);
-        } catch (decodeError) {
-          console.error("   ❌ Failed to decode base64 token:", decodeError);
-          console.error("   ⚠️  Make sure UPSTASH_REDIS_REST_TOKEN_B64 contains a valid base64 string");
+      // Priority order: Split tokens > Base64 token > Regular token
+      // ALTERNATIVE SOLUTION 2: Support split token (HIGHEST PRIORITY - best for truncation issues)
+      const tokenPart1 = process.env.UPSTASH_REDIS_REST_TOKEN_PART1?.trim();
+      const tokenPart2 = process.env.UPSTASH_REDIS_REST_TOKEN_PART2?.trim();
+      if (tokenPart1 && tokenPart2) {
+        console.log("   🔗 Detected split token (PART1 + PART2), combining parts...");
+        token = tokenPart1 + tokenPart2;
+        console.log(`   ✅ Token combined, total length: ${token.length}`);
+        if (token.length < 70) {
+          console.error("   ⚠️  WARNING: Combined token is still too short! Check if parts are complete.");
         }
-      } else {
-        // Fall back to regular token
+      }
+      
+      // ALTERNATIVE SOLUTION 1: Support base64 encoded token (if split token not available)
+      if (!token) {
+        const tokenB64 = process.env.UPSTASH_REDIS_REST_TOKEN_B64?.trim();
+        if (tokenB64) {
+          // Token is stored as base64 in UPSTASH_REDIS_REST_TOKEN_B64
+          try {
+            console.log("   🔓 Detected base64 encoded token in UPSTASH_REDIS_REST_TOKEN_B64, decoding...");
+            token = Buffer.from(tokenB64, 'base64').toString('utf-8');
+            console.log(`   ✅ Token decoded, new length: ${token.length}`);
+          } catch (decodeError) {
+            console.error("   ❌ Failed to decode base64 token:", decodeError);
+            console.error("   ⚠️  Make sure UPSTASH_REDIS_REST_TOKEN_B64 contains a valid base64 string");
+          }
+        }
+      }
+      
+      // Fall back to regular token (if split/base64 not available)
+      if (!token) {
         token = process.env.UPSTASH_REDIS_REST_TOKEN?.trim();
         
         // Legacy: If token exists and UPSTASH_REDIS_REST_TOKEN_B64="true" flag is set, decode it
@@ -84,14 +100,11 @@ async function getRedis() {
         }
       }
       
-      // ALTERNATIVE SOLUTION 2: Support split token (if truncated)
-      // If token is split into two parts, combine them
-      const tokenPart1 = process.env.UPSTASH_REDIS_REST_TOKEN_PART1?.trim();
-      const tokenPart2 = process.env.UPSTASH_REDIS_REST_TOKEN_PART2?.trim();
-      if (tokenPart1 && tokenPart2) {
-        console.log("   🔗 Detected split token, combining parts...");
+      // If regular token is too short but split tokens exist, prefer split tokens
+      if (token && token.length < 70 && tokenPart1 && tokenPart2) {
+        console.log("   ⚠️  Regular token is too short, switching to split token method...");
         token = tokenPart1 + tokenPart2;
-        console.log(`   ✅ Token combined, total length: ${token.length}`);
+        console.log(`   ✅ Using split token, total length: ${token.length}`);
       }
       
       // Warn if token seems too short
