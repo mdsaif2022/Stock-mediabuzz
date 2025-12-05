@@ -85,44 +85,53 @@ if (process.env.RENDER || process.env.VERCEL) {
 import { initializeMongoDB } from "./utils/mongodb.js";
 import { createIndexes } from "./models/mongodb.js";
 
-initializeMongoDB()
-  .then(async (db) => {
+// Initialize MongoDB with proper error handling
+(async () => {
+  try {
+    console.log("🚀 Starting database initialization...");
+    const db = await initializeMongoDB();
+    
     if (db) {
       console.log("✅ MongoDB initialized as primary database");
       // Create indexes for better performance
-      await createIndexes();
+      try {
+        await createIndexes();
+      } catch (indexError) {
+        console.error("⚠️  Error creating indexes (non-critical):", indexError);
+      }
       // Initialize auto-sync after MongoDB is ready
       initializeAutoSync();
     } else {
       console.log("⚠️  MongoDB not available, falling back to Redis/KV");
       console.log("   Check logs above for MongoDB connection error details");
       // Fallback to Redis/KV
-      initializeKV()
-        .then(() => {
-          initializeAutoSync();
-        })
-        .catch((error) => {
-          console.error("❌ Failed to initialize KV:", error);
-          initializeAutoSync();
-        });
-    }
-  })
-  .catch((error) => {
-    console.error("❌ Failed to initialize MongoDB:");
-    console.error("   Error:", error);
-    console.error("   Stack:", error.stack);
-    console.log("⚠️  Falling back to Redis/KV...");
-    // Fallback to Redis/KV
-    initializeKV()
-      .then(() => {
+      try {
+        await initializeKV();
         initializeAutoSync();
-      })
-      .catch((kvError) => {
-        console.error("❌ Failed to initialize KV:", kvError);
+      } catch (error) {
+        console.error("❌ Failed to initialize KV:", error);
         console.log("⚠️  Initializing auto-sync anyway...");
         initializeAutoSync();
-      });
-  });
+      }
+    }
+  } catch (error: any) {
+    console.error("❌ Failed to initialize MongoDB:");
+    console.error("   Error:", error?.message || error);
+    if (error?.stack) {
+      console.error("   Stack:", error.stack);
+    }
+    console.log("⚠️  Falling back to Redis/KV...");
+    // Fallback to Redis/KV
+    try {
+      await initializeKV();
+      initializeAutoSync();
+    } catch (kvError) {
+      console.error("❌ Failed to initialize KV:", kvError);
+      console.log("⚠️  Initializing auto-sync anyway...");
+      initializeAutoSync();
+    }
+  }
+})();
 
 export function createServer() {
   const app = express();
