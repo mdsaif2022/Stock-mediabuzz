@@ -56,19 +56,29 @@ export async function initializeMongoDB(): Promise<Db | null> {
   
   try {
     console.log("🔄 Attempting to connect to MongoDB...");
+    console.log(`   URI: ${uri.replace(/mongodb\+srv:\/\/[^:]+:[^@]+@/, 'mongodb+srv://***:***@')}`);
     
-    // Create MongoClient with Stable API version
+    // Create MongoClient with Stable API version and connection timeout
     mongoClient = new MongoClient(uri, {
       serverApi: {
         version: ServerApiVersion.v1,
         strict: true,
         deprecationErrors: true,
-      }
+      },
+      connectTimeoutMS: 10000, // 10 second timeout
+      serverSelectionTimeoutMS: 10000, // 10 second timeout
     });
     
-    // Connect to MongoDB
-    await mongoClient.connect();
+    console.log("   Connecting to MongoDB Atlas...");
+    // Connect to MongoDB with timeout
+    await Promise.race([
+      mongoClient.connect(),
+      new Promise((_, reject) => 
+        setTimeout(() => reject(new Error("Connection timeout after 10 seconds")), 10000)
+      )
+    ]);
     
+    console.log("   Testing connection with ping...");
     // Test connection with ping
     await mongoClient.db("admin").command({ ping: 1 });
     console.log("✅ MongoDB Connected Successfully!");
@@ -82,9 +92,30 @@ export async function initializeMongoDB(): Promise<Db | null> {
     
     return mongoDb;
   } catch (error: any) {
-    console.error("❌ Failed to connect to MongoDB:", error.message || error);
+    console.error("❌ Failed to connect to MongoDB");
+    console.error(`   Error: ${error.message || error}`);
+    console.error(`   Error name: ${error.name || 'Unknown'}`);
+    console.error(`   Error code: ${error.code || 'Unknown'}`);
+    
+    // Provide helpful troubleshooting
+    if (error.message?.includes('timeout') || error.message?.includes('ETIMEDOUT')) {
+      console.error("   ⚠️  Connection timeout - Check:");
+      console.error("      1. MongoDB Atlas Network Access allows your IP (0.0.0.0/0 for all)");
+      console.error("      2. MongoDB cluster is running");
+      console.error("      3. Connection string is correct");
+    } else if (error.message?.includes('authentication') || error.message?.includes('auth')) {
+      console.error("   ⚠️  Authentication failed - Check:");
+      console.error("      1. Username and password are correct");
+      console.error("      2. Database user has proper permissions");
+    } else if (error.message?.includes('ENOTFOUND') || error.message?.includes('DNS')) {
+      console.error("   ⚠️  DNS/Network error - Check:");
+      console.error("      1. Cluster hostname is correct");
+      console.error("      2. Network connectivity to MongoDB Atlas");
+    }
+    
     mongoClient = null;
     mongoDb = null;
+    mongoInitialized = false; // Reset so we can retry
     return null;
   }
 }
