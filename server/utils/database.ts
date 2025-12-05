@@ -46,7 +46,29 @@ async function getRedis() {
       
       // Get environment variables (trim to remove any spaces)
       const url = process.env.UPSTASH_REDIS_REST_URL?.trim();
-      const token = process.env.UPSTASH_REDIS_REST_TOKEN?.trim();
+      let token = process.env.UPSTASH_REDIS_REST_TOKEN?.trim();
+      
+      // ALTERNATIVE SOLUTION 1: Support base64 encoded token
+      // If token is base64 encoded, decode it
+      if (token && process.env.UPSTASH_REDIS_REST_TOKEN_B64 === "true") {
+        try {
+          console.log("   🔓 Detected base64 encoded token, decoding...");
+          token = Buffer.from(token, 'base64').toString('utf-8');
+          console.log(`   ✅ Token decoded, new length: ${token.length}`);
+        } catch (decodeError) {
+          console.error("   ❌ Failed to decode base64 token:", decodeError);
+        }
+      }
+      
+      // ALTERNATIVE SOLUTION 2: Support split token (if truncated)
+      // If token is split into two parts, combine them
+      const tokenPart1 = process.env.UPSTASH_REDIS_REST_TOKEN_PART1?.trim();
+      const tokenPart2 = process.env.UPSTASH_REDIS_REST_TOKEN_PART2?.trim();
+      if (tokenPart1 && tokenPart2) {
+        console.log("   🔗 Detected split token, combining parts...");
+        token = tokenPart1 + tokenPart2;
+        console.log(`   ✅ Token combined, total length: ${token.length}`);
+      }
       
       // Warn if token seems too short
       if (token && token.length < 70) {
@@ -54,6 +76,7 @@ async function getRedis() {
         console.error(`   Token length: ${token.length} (Upstash tokens are usually ~80 characters)`);
         console.error(`   Token preview: ${token.substring(0, 20)}...`);
         console.error("   ⚠️  Token may be truncated or incorrect. Check in Render Dashboard.");
+        console.error("   💡 SOLUTION: Try using base64 encoding or split token method (see ALTERNATIVE_SOLUTIONS.md)");
       }
       
       // Remove quotes if present (common mistake)
