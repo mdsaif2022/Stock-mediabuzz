@@ -13,6 +13,9 @@ import {
   getPopupAdsCollection,
 } from '../models/mongodb.js';
 
+// Re-export collection getters for convenience
+export { getUsersCollection, getMediaCollection, getCreatorsCollection, getLogsCollection, getSettingsCollection, getPopupAdsCollection };
+
 // ==================== USERS ====================
 
 export async function createUser(userData: any) {

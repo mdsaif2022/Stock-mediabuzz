@@ -31,6 +31,7 @@ import { apiFetch } from "@/lib/api";
 import ScrollToTop from "@/components/ScrollToTop";
 import NavigationMonitor from "@/components/NavigationMonitor";
 import AdBlockerDetector from "@/components/AdBlockerDetector";
+import AdScripts from "@/components/AdScripts";
 
 const queryClient = new QueryClient({
   defaultOptions: {
@@ -108,6 +109,7 @@ export default function App() {
               <BrowserRouter>
                 <ThemeAnimationWrapper />
                 <AdBlockerDetector />
+                <AdScripts />
                 <AppRoutes />
               </BrowserRouter>
             </TooltipProvider>
