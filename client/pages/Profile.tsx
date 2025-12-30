@@ -1,5 +1,5 @@
 import Layout from "@/components/Layout";
-import { User, Mail, Phone, Camera, Save, ArrowLeft } from "lucide-react";
+import { User, Mail, Phone, Camera, Save, ArrowLeft, DollarSign } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import { useState, useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
@@ -252,6 +252,37 @@ export default function Profile() {
                 </Link>
               </div>
             </form>
+
+            {/* Quick Links */}
+            <div className="mt-6 sm:mt-8 pt-6 sm:pt-8 border-t border-border">
+              <h3 className="text-base sm:text-lg font-bold mb-3 sm:mb-4">Quick Links</h3>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+                <Link
+                  to="/earnings"
+                  className="flex items-center gap-3 p-4 border border-border rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors group"
+                >
+                  <div className="p-2 bg-primary/10 rounded-lg group-hover:bg-primary/20 transition-colors">
+                    <DollarSign className="w-5 h-5 text-primary" />
+                  </div>
+                  <div>
+                    <div className="font-semibold text-sm">Earnings & Referrals</div>
+                    <div className="text-xs text-muted-foreground">View your earnings and referrals</div>
+                  </div>
+                </Link>
+                <Link
+                  to="/dashboard"
+                  className="flex items-center gap-3 p-4 border border-border rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors group"
+                >
+                  <div className="p-2 bg-primary/10 rounded-lg group-hover:bg-primary/20 transition-colors">
+                    <User className="w-5 h-5 text-primary" />
+                  </div>
+                  <div>
+                    <div className="font-semibold text-sm">Dashboard</div>
+                    <div className="text-xs text-muted-foreground">Go back to dashboard</div>
+                  </div>
+                </Link>
+              </div>
+            </div>
 
             {/* Account Info */}
             <div className="mt-6 sm:mt-8 pt-6 sm:pt-8 border-t border-border">

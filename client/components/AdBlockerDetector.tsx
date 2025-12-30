@@ -1,7 +1,8 @@
 import { useEffect, useState, useCallback } from "react";
 import { Dialog, DialogContent, DialogDescription, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { Button } from "@/components/ui/button";
-import { AlertCircle, X } from "lucide-react";
+import { useToast } from "@/hooks/use-toast";
+import { AlertCircle, X, ShieldAlert, Ban, CheckCircle2, AlertTriangle } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 /**
@@ -25,6 +26,8 @@ import { cn } from "@/lib/utils";
  * Dismissal: Once dismissed, persists across refreshes and browser restarts via localStorage
  */
 export default function AdBlockerDetector() {
+  const { toast: showToast } = useToast();
+  
   // Initialize dismissed state from localStorage immediately
   const [isDismissed, setIsDismissed] = useState(() => {
     if (typeof window !== 'undefined') {
@@ -35,6 +38,8 @@ export default function AdBlockerDetector() {
   });
   const [isAdBlocked, setIsAdBlocked] = useState(false);
   const [isVisible, setIsVisible] = useState(false);
+  const [showRecheckMessage, setShowRecheckMessage] = useState(false);
+  const [recheckMessage, setRecheckMessage] = useState<{ type: 'error' | 'success'; message: string } | null>(null);
 
   useEffect(() => {
     console.log('[AdBlockerDetector] ========================================');
@@ -730,13 +735,13 @@ export default function AdBlockerDetector() {
       // Dismissal will only be respected if NO ad blocker is detected
       console.log('[AdBlockerDetector] Running full detection to check ACTUAL ad blocker state...');
       try {
-        const blocked = await detectAdBlocker();
+      const blocked = await detectAdBlocker();
         
         // Don't check dismissal here - we'll respect it only if NO ad blocker is detected
         // If ad blocker IS detected, show modal regardless of previous dismissal
         console.log(`[AdBlockerDetector] Final result: ${blocked ? 'AD BLOCKER DETECTED' : 'NO AD BLOCKER'}`);
-        
-        if (blocked) {
+      
+      if (blocked) {
           // Double-check before showing modal - run a quick verification
           console.log('[AdBlockerDetector] 🔍 Running verification check before showing modal...');
           const verifyBlocked = await new Promise<boolean>((resolve) => {
@@ -774,8 +779,8 @@ export default function AdBlockerDetector() {
             // This ensures detection works on every page load/refresh
             console.log('[AdBlockerDetector] ✅ Verification confirmed - Ad blocker ACTUALLY detected - Showing modal');
             console.log('[AdBlockerDetector] 📌 Showing modal even if previously dismissed (detecting actual current state)');
-            setIsAdBlocked(true);
-            setIsVisible(true);
+        setIsAdBlocked(true);
+        setIsVisible(true);
             // Clear dismissal since ad blocker is actually active
             setIsDismissed(false);
           } else {
@@ -929,41 +934,80 @@ export default function AdBlockerDetector() {
     return () => clearTimeout(timer);
   }, []);
 
-  // Add/remove blur class to body when modal is visible
+  // BLOCK all site access when modal is visible
   useEffect(() => {
-    if (isVisible) {
+    if (isVisible && isAdBlocked) {
+      // Block scrolling
       document.body.style.overflow = "hidden";
+      document.body.style.position = "fixed";
+      document.body.style.width = "100%";
+      document.body.style.height = "100%";
       document.body.classList.add("adblock-modal-open");
-    } else {
-      document.body.style.overflow = "";
-      document.body.classList.remove("adblock-modal-open");
+      
+      // Prevent all interactions with site content
+      const preventInteraction = (e: Event) => {
+        // Only prevent if clicking outside modal
+        const target = e.target as HTMLElement;
+        if (!target.closest('[role="dialog"]') && !target.closest('.z-\\[9999\\]')) {
+          e.preventDefault();
+          e.stopPropagation();
+          e.stopImmediatePropagation();
+        }
+      };
+      
+      // Block all pointer events on body
+      document.body.style.pointerEvents = "none";
+      
+      // Re-enable pointer events only for modal
+      const modal = document.querySelector('[role="dialog"]');
+      if (modal) {
+        (modal as HTMLElement).style.pointerEvents = "auto";
+      }
+      
+      // Add event listeners to prevent interactions
+      document.addEventListener('click', preventInteraction, true);
+      document.addEventListener('mousedown', preventInteraction, true);
+      document.addEventListener('touchstart', preventInteraction, true);
+      document.addEventListener('keydown', (e) => {
+        // Allow Escape key to be handled by dialog, but prevent other keys
+        if (e.key !== 'Escape') {
+          const target = e.target as HTMLElement;
+          if (!target.closest('[role="dialog"]')) {
+            e.preventDefault();
+            e.stopPropagation();
     }
+        }
+      }, true);
     
     return () => {
       document.body.style.overflow = "";
+        document.body.style.position = "";
+        document.body.style.width = "";
+        document.body.style.height = "";
+        document.body.style.pointerEvents = "";
       document.body.classList.remove("adblock-modal-open");
-    };
-  }, [isVisible]);
+        document.removeEventListener('click', preventInteraction, true);
+        document.removeEventListener('mousedown', preventInteraction, true);
+        document.removeEventListener('touchstart', preventInteraction, true);
+      };
+    } else {
+      document.body.style.overflow = "";
+      document.body.style.position = "";
+      document.body.style.width = "";
+      document.body.style.height = "";
+      document.body.style.pointerEvents = "";
+      document.body.classList.remove("adblock-modal-open");
+    }
+  }, [isVisible, isAdBlocked]);
 
   const handleAllowAds = () => {
-    console.log('[AdBlockerDetector] User clicked "Allow ads" - dismissing modal');
-    setIsVisible(false);
-    setIsDismissed(true);
-    // Store dismissal in localStorage with timestamp for tracking
-    localStorage.setItem("adblock-dismissed", "true");
-    localStorage.setItem("adblock-dismissed-timestamp", Date.now().toString());
-    console.log('[AdBlockerDetector] Dismissal saved to localStorage - will not show again until reset');
+    // This button should only work if ad blocker is actually disabled
+    // It will be disabled until re-check confirms no ad blocker
+    console.log('[AdBlockerDetector] User clicked "I have disabled my ad blocker" - running verification...');
+    handleRecheck();
   };
 
-  const handleClose = () => {
-    console.log('[AdBlockerDetector] User clicked "I understand" - dismissing modal');
-    setIsVisible(false);
-    setIsDismissed(true);
-    // Store dismissal in localStorage with timestamp
-    localStorage.setItem("adblock-dismissed", "true");
-    localStorage.setItem("adblock-dismissed-timestamp", Date.now().toString());
-    console.log('[AdBlockerDetector] Dismissal saved to localStorage - will not show again until reset');
-  };
+  // REMOVED: handleClose function - users can no longer dismiss without disabling ad blocker
 
   const handleRecheck = useCallback(async (): Promise<void> => {
     console.log('[AdBlockerDetector] User clicked "Re-check" - verifying ad blocker status...');
@@ -1033,14 +1077,29 @@ export default function AdBlockerDetector() {
     console.log('[AdBlockerDetector] Re-check result:', { stillBlocked });
     
     if (!stillBlocked) {
-      // Ad blocker is disabled - FORCE dismiss modal immediately
-      console.log('[AdBlockerDetector] ✅ Ad blocker appears to be disabled - FORCING modal to close');
+      // Ad blocker is disabled - FORCE dismiss modal and allow site access
+      console.log('[AdBlockerDetector] ✅ Ad blocker appears to be disabled - ALLOWING SITE ACCESS');
       
-      // CRITICAL: Set isAdBlocked to false FIRST, then close visibility
-      // This ensures the force-close useEffect triggers
-      setIsAdBlocked(false);
-      setIsVisible(false);
-      setIsDismissed(false); // Don't mark as dismissed, just close
+      // Show success message in modal before closing
+      setRecheckMessage({
+        type: 'success',
+        message: 'Ad blocker disabled! Granting site access...'
+      });
+      setShowRecheckMessage(true);
+      
+      // Wait a moment to show success message, then close
+      setTimeout(() => {
+        // CRITICAL: Set isAdBlocked to false FIRST, then close visibility
+        // This ensures the force-close useEffect triggers and unblocks site
+        setIsAdBlocked(false);
+    setIsVisible(false);
+        setIsDismissed(false); // Don't mark as dismissed, just close
+        setShowRecheckMessage(false);
+        setRecheckMessage(null);
+        
+        // Show success message
+        console.log('[AdBlockerDetector] ✅ Site access granted - ad blocker disabled');
+      }, 1500);
       
       // Force update multiple times to ensure React processes it
       setTimeout(() => {
@@ -1055,9 +1114,33 @@ export default function AdBlockerDetector() {
         console.log('[AdBlockerDetector] ✅ Modal state forced to closed (delay 2)');
       }, 150);
     } else {
-      // Still blocked - show message
-      console.log('[AdBlockerDetector] ⚠️ Ad blocker still detected');
-      alert('Ad blocker is still active. Please disable it completely and try again.');
+      // Still blocked - keep blocking site access
+      console.log('[AdBlockerDetector] ⚠️ Ad blocker still detected - SITE ACCESS BLOCKED');
+      
+      // Show message directly in the modal (more reliable than toast)
+      setRecheckMessage({
+        type: 'error',
+        message: 'Ad blocker is still active. Please disable it completely and try again.'
+      });
+      setShowRecheckMessage(true);
+      
+      // Auto-hide message after 5 seconds
+      setTimeout(() => {
+        setShowRecheckMessage(false);
+        setRecheckMessage(null);
+      }, 5000);
+      
+      // Also try to show toast as backup
+      try {
+        showToast({
+          title: "Ad Blocker Still Active",
+          description: "Please disable your ad blocker completely and try again. Site access will remain blocked until ad blocker is disabled.",
+          variant: "destructive",
+          duration: 6000,
+        });
+      } catch (error) {
+        console.error('[AdBlockerDetector] Error showing toast:', error);
+      }
     }
   }, []);
 
@@ -1086,7 +1169,7 @@ export default function AdBlockerDetector() {
         console.log('[AdBlockerDetector] ✅ Reset dismissal - restarting detection...');
         setIsDismissed(false);
         setIsAdBlocked(false);
-        setIsVisible(false);
+    setIsVisible(false);
         
         // Immediately restart detection after reset
         console.log('[AdBlockerDetector] 🔄 Restarting detection after reset...');
@@ -1534,14 +1617,38 @@ export default function AdBlockerDetector() {
 
   return (
     <>
-      {/* Background overlay with blur effect - dims and blurs entire site */}
+      {/* Background overlay with modern gradient and blur - BLOCKS all site access */}
       <div
         className={cn(
-          "fixed inset-0 z-[100] bg-black/70 backdrop-blur-md transition-all duration-300",
+          "fixed inset-0 z-[100] transition-all duration-500",
           dialogOpen ? "opacity-100" : "opacity-0 pointer-events-none"
         )}
+        style={{
+          pointerEvents: dialogOpen ? 'auto' : 'none',
+          userSelect: dialogOpen ? 'none' : 'auto',
+          background: dialogOpen 
+            ? 'linear-gradient(135deg, rgba(0, 0, 0, 0.95) 0%, rgba(30, 30, 50, 0.98) 100%)' 
+            : 'transparent',
+          backdropFilter: dialogOpen ? 'blur(20px) saturate(180%)' : 'none',
+          WebkitBackdropFilter: dialogOpen ? 'blur(20px) saturate(180%)' : 'none'
+        }}
+        onClick={(e) => {
+          // Prevent any clicks from going through
+          e.preventDefault();
+          e.stopPropagation();
+        }}
+        onContextMenu={(e) => {
+          // Prevent right-click menu
+          e.preventDefault();
+        }}
         aria-hidden="true"
-      />
+      >
+        {/* Animated background pattern */}
+        <div className="absolute inset-0 opacity-10">
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_50%_50%,rgba(255,0,0,0.3),transparent_50%)] animate-pulse" />
+          <div className="absolute inset-0 bg-[radial-gradient(circle_at_80%_20%,rgba(255,165,0,0.2),transparent_50%)] animate-pulse delay-1000" />
+        </div>
+      </div>
 
       {/* Modal Dialog */}
       <Dialog open={dialogOpen} onOpenChange={(open) => {
@@ -1555,10 +1662,22 @@ export default function AdBlockerDetector() {
       }}>
         <DialogContent
           className={cn(
-            "sm:max-w-md z-[9999] border-2 shadow-2xl",
-            "animate-in fade-in-0 zoom-in-95 slide-in-from-bottom-4 duration-300",
-            "[&>button]:hidden" // Hide default close button
+            "sm:max-w-lg z-[9999] border-0 shadow-2xl",
+            "animate-in fade-in-0 zoom-in-95 slide-in-from-bottom-4 duration-500",
+            "bg-gradient-to-br from-slate-950 via-slate-900 to-slate-950",
+            "dark:from-slate-950 dark:via-slate-900 dark:to-slate-950",
+            "backdrop-blur-2xl backdrop-saturate-200",
+            "ring-1 ring-red-500/30 ring-offset-0",
+            "[&>button]:hidden", // Hide default close button
+            "overflow-hidden",
+            "max-h-[85vh] max-h-[calc(100vh-3rem)]", // Ensure it fits viewport with margin
+            "flex flex-col", // Use flexbox for layout
+            "overflow-hidden" // No scrolling - content must fit
           )}
+          style={{
+            boxShadow: '0 25px 50px -12px rgba(0, 0, 0, 0.95), 0 0 0 1px rgba(239, 68, 68, 0.2), 0 0 80px rgba(239, 68, 68, 0.15), inset 0 1px 0 rgba(255, 255, 255, 0.05)',
+            background: 'linear-gradient(135deg, rgba(15, 23, 42, 0.98) 0%, rgba(30, 41, 59, 0.98) 50%, rgba(15, 23, 42, 0.98) 100%)'
+          }}
           onInteractOutside={(e) => {
             console.log('[AdBlockerDetector] onInteractOutside - preventing');
             e.preventDefault();
@@ -1572,58 +1691,169 @@ export default function AdBlockerDetector() {
             e.preventDefault();
           }} // Prevent closing
         >
-          <DialogHeader className="text-center space-y-4">
-            {/* Icon */}
-            <div className="mx-auto flex h-16 w-16 items-center justify-center rounded-full bg-orange-100 dark:bg-orange-900/20">
-              <AlertCircle className="h-8 w-8 text-orange-600 dark:text-orange-400" />
+          {/* Animated background pattern */}
+          <div className="absolute inset-0 opacity-5 pointer-events-none overflow-hidden">
+            <div className="absolute -top-1/2 -left-1/2 w-full h-full bg-gradient-to-br from-red-500/20 via-orange-500/20 to-red-500/20 rounded-full blur-3xl animate-pulse" />
+            <div className="absolute -bottom-1/2 -right-1/2 w-full h-full bg-gradient-to-tl from-orange-500/20 via-red-500/20 to-orange-500/20 rounded-full blur-3xl animate-pulse" style={{ animationDelay: '1s' }} />
             </div>
 
-            {/* Title */}
-            <DialogTitle className="text-2xl font-bold text-center">
-              Please allow ads on our site
+          <DialogHeader className="text-center space-y-3 pt-3 pb-2 px-4 relative z-10 flex-shrink-0">
+            {/* Modern Icon - Compact */}
+            <div className="mx-auto relative">
+              {/* Single outer glow ring - reduced */}
+              <div className="absolute inset-0 bg-gradient-to-br from-red-500/25 via-orange-500/25 to-red-600/25 rounded-full blur-xl animate-pulse scale-125" />
+              
+              {/* Main icon container - smaller */}
+              <div className="relative flex h-14 w-14 items-center justify-center rounded-full bg-gradient-to-br from-red-500 via-orange-500 to-red-600 shadow-lg shadow-red-500/50">
+                <div className="absolute inset-0 rounded-full bg-gradient-to-br from-white/20 to-transparent" />
+                <ShieldAlert className="h-7 w-7 text-white relative z-10 drop-shadow-md" style={{ animation: 'bounce 2s ease-in-out infinite' }} />
+              </div>
+              
+              {/* Single pulsing ring */}
+              <div className="absolute inset-0 rounded-full border border-red-500/30 animate-ping" />
+            </div>
+
+            {/* Title - Compact */}
+            <DialogTitle className="text-xl sm:text-2xl font-black text-center tracking-tight relative">
+              <span className="bg-gradient-to-r from-red-400 via-orange-400 via-red-500 to-orange-500 bg-clip-text text-transparent animate-gradient bg-[length:200%_auto]">
+                Ad Blocker Detected
+              </span>
+              <div className="absolute -bottom-0.5 left-1/2 -translate-x-1/2 w-12 h-0.5 bg-gradient-to-r from-transparent via-red-500 to-transparent rounded-full" />
             </DialogTitle>
 
-            {/* Description */}
-            <DialogDescription className="text-center text-base space-y-2 pt-2">
-              <p>
-                We've detected that you're using an ad-blocker. Ads help us keep this service free and support our content creators.
-              </p>
-              <p className="text-sm text-muted-foreground">
-                Please disable your ad-blocker for this site to continue enjoying our free content.
-              </p>
-              <p className="text-xs text-muted-foreground pt-2">
-                Already disabled your ad blocker? Click "Re-check" below to verify.
-              </p>
+            {/* Description - Compact */}
+            <DialogDescription className="text-center space-y-2.5 pt-1">
+              {/* Site Access Blocked Badge - compact */}
+              <div className="inline-flex items-center gap-2 px-3 py-1.5 rounded-full bg-gradient-to-r from-red-950/80 via-red-900/80 to-orange-950/80 border border-red-500/40 shadow-md shadow-red-500/20 backdrop-blur-sm">
+                <Ban className="h-3.5 w-3.5 text-red-400" />
+                <p className="font-bold text-red-300 text-xs tracking-wide">
+                  Site Access Blocked
+                </p>
+              </div>
+              
+              {/* Main message - compact */}
+              <div className="px-2">
+                <p className="text-sm text-slate-200 leading-snug">
+                  We've detected an ad-blocker is active. To continue using this site, please{' '}
+                  <span className="font-bold text-white bg-gradient-to-r from-red-400 to-orange-400 bg-clip-text text-transparent">
+                    disable your ad-blocker
+                  </span>{' '}
+                  for this domain.
+                </p>
+              </div>
+              
+              {/* Why ads info box - compact */}
+              <div className="mx-auto max-w-md px-4 py-2.5 rounded-lg bg-gradient-to-br from-slate-800/60 via-slate-800/40 to-slate-900/60 border border-slate-700/50 backdrop-blur-md shadow-md">
+                <p className="text-xs text-slate-300 leading-snug">
+                  <span className="text-white font-semibold">Why ads?</span>{' '}
+                  They help us keep this service free and support our content creators. Once disabled, click the button below to verify and regain access.
+                </p>
+              </div>
             </DialogDescription>
           </DialogHeader>
 
-          {/* Action Button */}
-          <div className="flex flex-col gap-3 pt-4">
+          {/* Re-check Message Display - Compact Design */}
+          {showRecheckMessage && recheckMessage && (
+            <div className={cn(
+              "mb-3 mx-4 p-3 rounded-lg border transition-all duration-500 animate-in slide-in-from-top-2 fade-in-0 flex-shrink-0",
+              "backdrop-blur-md shadow-xl",
+              recheckMessage.type === 'error' 
+                ? "bg-gradient-to-br from-red-950/95 via-red-900/95 to-orange-950/95 border-red-500/50 shadow-red-500/30 ring-1 ring-red-500/20"
+                : "bg-gradient-to-br from-green-950/95 via-emerald-900/95 to-green-950/95 border-green-500/50 shadow-green-500/30 ring-1 ring-green-500/20"
+            )}>
+              <div className="flex items-start gap-3">
+                <div className={cn(
+                  "flex-shrink-0 w-8 h-8 rounded-full flex items-center justify-center",
+                  recheckMessage.type === 'error' 
+                    ? "bg-red-500/20 ring-1 ring-red-500/30"
+                    : "bg-green-500/20 ring-1 ring-green-500/30"
+                )}>
+                  {recheckMessage.type === 'error' ? (
+                    <AlertTriangle className="h-4 w-4 text-red-400 animate-pulse" />
+                  ) : (
+                    <CheckCircle2 className="h-4 w-4 text-green-400" />
+                  )}
+                </div>
+                <div className="flex-1 space-y-1 min-w-0">
+                  <p className={cn(
+                    "text-sm font-bold",
+                    recheckMessage.type === 'error' ? "text-red-300" : "text-green-300"
+                  )}>
+                    {recheckMessage.type === 'error' ? 'Ad Blocker Still Active' : 'Success!'}
+                  </p>
+                  <p className={cn(
+                    "text-xs leading-snug",
+                    recheckMessage.type === 'error' ? "text-red-200/90" : "text-green-200/90"
+                  )}>
+                    {recheckMessage.message}
+                  </p>
+                  {recheckMessage.type === 'error' && (
+                    <p className="text-xs text-red-300/80 mt-2 font-medium bg-red-950/30 px-2 py-1.5 rounded border border-red-500/20">
+                      Site access will remain blocked until ad blocker is disabled.
+                    </p>
+                  )}
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Action Buttons - Compact and Scalable */}
+          <div className="flex flex-col gap-2.5 pt-2 px-4 pb-3 relative z-10 flex-shrink-0">
+            {/* Main button - Compact */}
             <Button
               onClick={handleAllowAds}
-              className="w-full h-12 text-base font-semibold"
+              className={cn(
+                "w-full h-12 text-sm font-bold relative overflow-hidden group",
+                "bg-gradient-to-r from-green-500 via-emerald-500 to-green-600",
+                "hover:from-green-400 hover:via-emerald-400 hover:to-green-500",
+                "text-white shadow-xl shadow-green-500/50",
+                "transition-all duration-300",
+                "hover:scale-[1.01] hover:shadow-xl hover:shadow-green-500/60",
+                "active:scale-[0.99]",
+                "border-0",
+                "before:absolute before:inset-0 before:bg-gradient-to-r before:from-transparent before:via-white/20 before:to-transparent",
+                "before:translate-x-[-100%] hover:before:translate-x-[100%] before:transition-transform before:duration-700"
+              )}
               size="lg"
             >
-              Allow ads
+              <div className="relative z-10 flex items-center justify-center gap-2">
+                <CheckCircle2 className="h-4 w-4 drop-shadow-md" />
+                <span className="drop-shadow-sm text-sm">I have disabled my ad blocker - Verify & Continue</span>
+              </div>
+              {/* Shine effect */}
+              <div className="absolute inset-0 bg-gradient-to-r from-transparent via-white/15 to-transparent -skew-x-12 translate-x-[-200%] group-hover:translate-x-[200%] transition-transform duration-1000" />
             </Button>
 
-            {/* Re-check button - verify if ad blocker is actually disabled */}
+            {/* Re-check button - Compact */}
             <Button
               variant="outline"
               onClick={handleRecheck}
-              className="w-full h-10 text-sm border-2"
+              className={cn(
+                "w-full h-10 text-xs font-semibold relative",
+                "border border-slate-600/50 dark:border-slate-500/50",
+                "bg-gradient-to-br from-slate-800/60 via-slate-800/40 to-slate-900/60",
+                "dark:from-slate-900/60 dark:via-slate-800/40 dark:to-slate-950/60",
+                "backdrop-blur-md",
+                "text-slate-200 dark:text-slate-200",
+                "hover:bg-slate-700/60 hover:border-slate-500/70",
+                "hover:text-white hover:shadow-md hover:shadow-slate-500/20",
+                "transition-all duration-300",
+                "hover:scale-[1.01] active:scale-[0.99]"
+              )}
             >
-              Re-check (I've disabled my ad blocker)
+              <div className="flex items-center justify-center gap-1.5">
+                <ShieldAlert className="h-3.5 w-3.5" />
+                <span>Re-check Ad Blocker Status</span>
+              </div>
             </Button>
 
-            {/* Optional: Close button (uncomment if you want to allow closing) */}
-            <Button
-              variant="ghost"
-              onClick={handleClose}
-              className="w-full text-sm text-muted-foreground hover:text-foreground"
-            >
-              I understand
-            </Button>
+            {/* Info message - Compact */}
+            <div className="flex items-center justify-center gap-2 pt-2 pb-1 px-3 py-1.5 rounded-md bg-slate-800/30 border border-slate-700/30 backdrop-blur-sm">
+              <AlertCircle className="h-3.5 w-3.5 text-orange-400 flex-shrink-0" />
+              <p className="text-xs text-center text-slate-400 dark:text-slate-400 font-medium">
+                Site access is blocked until ad blocker is disabled
+              </p>
+            </div>
           </div>
         </DialogContent>
       </Dialog>

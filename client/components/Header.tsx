@@ -1,16 +1,18 @@
 import { Link, useNavigate } from "react-router-dom";
 import { useState, useEffect } from "react";
-import { Menu, X, LogOut, LogIn, User } from "lucide-react";
+import { Menu, X, LogOut, LogIn, User, Smartphone, Download } from "lucide-react";
 import AdsSlider from "./AdsSlider";
 import { useAuth } from "@/contexts/AuthContext";
 import { ThemeToggle } from "./ThemeToggle";
 import { apiFetch } from "@/lib/api";
+import { AppSettings } from "@shared/api";
 
 export default function Header() {
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
   const [logoFailed, setLogoFailed] = useState(false);
   const [siteLogo, setSiteLogo] = useState<string>("");
+  const [appSettings, setAppSettings] = useState<AppSettings | null>(null);
   const { currentUser, logout, creatorProfile } = useAuth();
   const navigate = useNavigate();
   
@@ -40,6 +42,27 @@ export default function Header() {
     
     // Refresh logo every 30 seconds in case it was updated
     const interval = setInterval(loadLogo, 30000);
+    return () => clearInterval(interval);
+  }, []);
+
+  // Load app settings
+  useEffect(() => {
+    const loadAppSettings = async () => {
+      try {
+        const res = await apiFetch("/api/settings/app");
+        if (res.ok) {
+          const app = await res.json();
+          setAppSettings(app);
+        }
+      } catch (error) {
+        console.error("Failed to load app settings:", error);
+      }
+    };
+    
+    loadAppSettings();
+    
+    // Refresh app settings every 30 seconds
+    const interval = setInterval(loadAppSettings, 30000);
     return () => clearInterval(interval);
   }, []);
 
@@ -103,6 +126,17 @@ export default function Header() {
             <Link to="/contact" className="text-sm font-medium text-foreground hover:text-primary transition-colors">
               Contact
             </Link>
+            {appSettings?.downloadEnabled && (appSettings.apkUrl || appSettings.xapkUrl || appSettings.playStoreUrl || appSettings.appStoreUrl) && (
+              <a
+                href={appSettings.apkUrl || appSettings.xapkUrl || appSettings.playStoreUrl || appSettings.appStoreUrl || "#"}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-sm font-medium text-foreground hover:text-primary transition-colors flex items-center gap-2"
+              >
+                <Smartphone className="w-4 h-4" />
+                Get Our App
+              </a>
+            )}
             <Link
               to="/creator"
               className="text-sm font-medium text-foreground hover:text-primary transition-colors flex items-center gap-2"
@@ -226,6 +260,18 @@ export default function Header() {
             >
               Contact
             </Link>
+            {appSettings?.downloadEnabled && (appSettings.apkUrl || appSettings.xapkUrl || appSettings.playStoreUrl || appSettings.appStoreUrl) && (
+              <a
+                href={appSettings.apkUrl || appSettings.xapkUrl || appSettings.playStoreUrl || appSettings.appStoreUrl || "#"}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={() => setIsMenuOpen(false)}
+                className="block px-4 py-2 text-sm font-medium hover:bg-secondary/10 transition-colors flex items-center gap-2"
+              >
+                <Smartphone className="w-4 h-4" />
+                Get Our App
+              </a>
+            )}
             {!isLoggedIn && (
               <div className="flex gap-2 px-4 py-3 border-t border-border">
                 <Link

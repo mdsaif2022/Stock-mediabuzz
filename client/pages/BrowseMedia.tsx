@@ -5,6 +5,8 @@ import Layout from "@/components/Layout";
 import { Media } from "@shared/api";
 import { apiFetch } from "@/lib/api";
 import { VideoCard } from "@/components/media/VideoCard";
+import { AudioCard } from "@/components/media/AudioCard";
+import { getMediaDisplayStats } from "@/lib/mediaUtils";
 
 const CATEGORY_OPTIONS: Array<{ id: string; label: string; icon: React.ComponentType<{ className?: string }> }> = [
   { id: "all", label: "All", icon: Filter },
@@ -293,13 +295,17 @@ export default function BrowseMedia() {
             {mediaItems.map((media) => {
               const Icon = getCategoryIcon(media.category);
               const isVideo = media.category?.toLowerCase() === "video";
+              const isAudio = media.category?.toLowerCase() === "audio";
+              const categoryPath = media.category?.toLowerCase() || "all";
 
               if (isVideo) {
-                const categoryPath = media.category?.toLowerCase() || "all";
                 return <VideoCard key={media.id} media={media} to={`/browse/${categoryPath}/${media.id}`} variant="detailed" />;
               }
 
-              const categoryPath = media.category?.toLowerCase() || "all";
+              if (isAudio) {
+                return <AudioCard key={media.id} media={media} to={`/browse/${categoryPath}/${media.id}`} variant="detailed" />;
+              }
+
               return (
                 <Link
                   key={media.id}
@@ -337,10 +343,15 @@ export default function BrowseMedia() {
                       {media.title}
                     </h3>
                     <p className="text-sm text-muted-foreground line-clamp-2">{media.description}</p>
-                    <div className="flex justify-between items-center text-xs text-muted-foreground">
-                      <span>{media.downloads} downloads</span>
-                      <span>{media.views} views</span>
-                    </div>
+                    {(() => {
+                      const displayStats = getMediaDisplayStats(media);
+                      return (
+                        <div className="flex justify-between items-center text-xs text-muted-foreground">
+                          <span>{displayStats.downloadsLabel} downloads</span>
+                          <span>{displayStats.viewsLabel} views</span>
+                        </div>
+                      );
+                    })()}
                   </div>
                 </Link>
               );

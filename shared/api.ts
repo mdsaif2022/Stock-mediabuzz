@@ -11,6 +11,11 @@ export interface AuthUser {
   name: string;
   role: "user" | "admin";
   createdAt: string;
+  referralCode?: string;
+  totalCoins?: number;
+  referralCoins?: number;
+  shareCoins?: number;
+  emailVerified?: boolean;
 }
 
 export interface LoginRequest {
@@ -22,6 +27,9 @@ export interface SignupRequest {
   email: string;
   password: string;
   name: string;
+  referralCode?: string;
+  sharePostId?: string;
+  shareLink?: string;
 }
 
 export interface AuthResponse {
@@ -58,6 +66,8 @@ export interface Media {
   iconUrl?: string;
   featureScreenshots?: FeatureScreenshot[];
   showScreenshots?: boolean;
+  status?: "pending" | "approved" | "rejected";
+  rejectedReason?: string;
 }
 
 export interface MediaUploadRequest {
@@ -136,6 +146,7 @@ export interface CreatorProfile {
   storageBonusExpiresAt?: string;
   storageUsedBytes: number;
   storagePurchaseHistory?: CreatorStoragePurchase[];
+  deviceFingerprint?: string; // Device fingerprint to prevent multiple accounts from same device
 }
 
 export type CreatorStoragePaymentMethod = "auto" | "manual";
@@ -206,20 +217,132 @@ export interface AdminUsersResponse {
 export interface PaymentSettings {
   bkashPersonal: string;
   bkashMerchant: string;
+  autoPaymentEnabled: boolean;
 }
 
 export interface BrandingSettings {
   faviconDataUrl?: string;
+  logo?: string;
 }
 
 export interface SettingsStoreResponse {
   payment: PaymentSettings;
   branding: BrandingSettings;
   general: GeneralSettings;
+  app: AppSettings;
 }
 
 export interface GeneralSettings {
   maintenanceMode: boolean;
+}
+
+export interface AppSettings {
+  appName?: string;
+  appVersion?: string;
+  appDescription?: string;
+  apkUrl?: string;
+  xapkUrl?: string;
+  appIcon?: string;
+  downloadEnabled: boolean;
+  playStoreUrl?: string;
+  appStoreUrl?: string;
+}
+
+// Referral & Sharing System Types
+export interface SharePost {
+  id: string;
+  title: string;
+  url: string;
+  coinValue: number;
+  status: "active" | "inactive";
+  createdAt: string;
+  updatedAt: string;
+}
+
+export interface ReferralRecord {
+  id: string;
+  referrerId: string;
+  referredId: string;
+  coinsEarned: number;
+  createdAt: string;
+  status: "pending" | "approved" | "rejected";
+  adminNote?: string;
+}
+
+export interface ShareRecord {
+  id: string;
+  userId: string;
+  shareType: "admin_post" | "normal_link";
+  sharePostId?: string;
+  shareLink: string;
+  coinsEarned: number;
+  registrationCount: number;
+  createdAt: string;
+  status: "pending" | "approved" | "rejected";
+  adminNote?: string;
+}
+
+export interface ShareVisitor {
+  id: string;
+  shareRecordId: string;
+  visitorIp: string;
+  visitorUserAgent?: string;
+  visitedAt: string;
+  registered: boolean;
+  registeredUserId?: string;
+}
+
+export interface WithdrawRequest {
+  id: string;
+  userId: string;
+  coins: number;
+  amountBdt: number;
+  bkashNumber: string;
+  status: "pending" | "approved" | "rejected";
+  createdAt: string;
+  processedAt?: string;
+  adminNote?: string;
+}
+
+export interface UserEarnings {
+  totalCoins: number;
+  referralCoins: number;
+  shareCoins: number;
+  adminPostShareCoins: number;
+  randomShareCoins: number;
+  pendingWithdraw: number;
+  availableCoins: number;
+}
+
+export interface CreateSharePostRequest {
+  title: string;
+  url: string;
+  coinValue: number;
+  status?: "active" | "inactive";
+}
+
+export interface UpdateSharePostRequest {
+  title?: string;
+  url?: string;
+  coinValue?: number;
+  status?: "active" | "inactive";
+}
+
+export interface CreateWithdrawRequest {
+  coins: number;
+  bkashNumber: string;
+}
+
+export interface ShareLinkRequest {
+  shareType: "admin_post" | "normal_link";
+  sharePostId?: string;
+  shareLink: string;
+}
+
+export interface ShareLinkResponse {
+  shareUrl: string;
+  shareCode: string;
+  message: string;
 }
 
 

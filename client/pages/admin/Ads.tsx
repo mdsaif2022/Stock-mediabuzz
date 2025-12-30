@@ -20,53 +20,7 @@ interface Ad {
   targetUrl?: string;
 }
 
-const ads: Ad[] = [
-  {
-    id: 1,
-    title: "Adsterra Banner - Header",
-    type: "Adsterra",
-    placement: "Header",
-    status: "active",
-    clicks: 1234,
-    impressions: 24567,
-  },
-  {
-    id: 2,
-    title: "Adsterra Popunder",
-    type: "Adsterra",
-    placement: "Popunder",
-    status: "active",
-    clicks: 567,
-    impressions: 8900,
-  },
-  {
-    id: 3,
-    title: "Adsterra Interstitial",
-    type: "Adsterra",
-    placement: "Download Page",
-    status: "active",
-    clicks: 2345,
-    impressions: 34567,
-  },
-  {
-    id: 4,
-    title: "TechCorp Banner Ad",
-    type: "Custom",
-    placement: "Sidebar",
-    status: "active",
-    clicks: 456,
-    impressions: 12340,
-  },
-  {
-    id: 5,
-    title: "Creative Services Promo",
-    type: "Custom",
-    placement: "Footer",
-    status: "inactive",
-    clicks: 0,
-    impressions: 0,
-  },
-];
+const ads: Ad[] = [];
 
 export default function AdminAds() {
   const [showAddForm, setShowAddForm] = useState(false);

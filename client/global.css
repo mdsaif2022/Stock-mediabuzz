@@ -324,14 +324,137 @@
   display: none;
 }
 
-/* Ad-blocker modal blur effect */
+/* Ad-blocker modal - COMPLETE SITE BLOCK */
 body.adblock-modal-open {
-  overflow: hidden;
+  overflow: hidden !important;
+  position: fixed !important;
+  width: 100% !important;
+  height: 100% !important;
+  touch-action: none !important;
+  -webkit-user-select: none !important;
+  -moz-user-select: none !important;
+  -ms-user-select: none !important;
+  user-select: none !important;
 }
 
 body.adblock-modal-open > #root {
-  filter: blur(4px) brightness(0.7);
+  filter: blur(8px) brightness(0.5);
   transition: filter 0.3s ease-in-out;
-  pointer-events: none;
-  user-select: none;
+  pointer-events: none !important;
+  user-select: none !important;
+  -webkit-user-select: none !important;
+  -moz-user-select: none !important;
+  -ms-user-select: none !important;
+  touch-action: none !important;
+  opacity: 0.6;
+}
+
+/* Block all interactions with site content when ad blocker modal is open */
+body.adblock-modal-open *:not([role="dialog"]):not([role="dialog"] *) {
+  pointer-events: none !important;
+  cursor: not-allowed !important;
+}
+
+/* Allow interactions only with the modal */
+body.adblock-modal-open [role="dialog"],
+body.adblock-modal-open [role="dialog"] * {
+  pointer-events: auto !important;
+  cursor: auto !important;
+}
+
+/* Modern Ad Blocker Modal Animations */
+@keyframes modalSlideIn {
+  0% {
+    opacity: 0;
+    transform: translateY(20px) scale(0.95);
+  }
+  100% {
+    opacity: 1;
+    transform: translateY(0) scale(1);
+  }
+}
+
+@keyframes iconPulse {
+  0%, 100% {
+    transform: scale(1);
+    opacity: 1;
+  }
+  50% {
+    transform: scale(1.1);
+    opacity: 0.9;
+  }
+}
+
+@keyframes gradientShift {
+  0%, 100% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+}
+
+@keyframes animate-gradient {
+  0%, 100% {
+    background-position: 0% 50%;
+  }
+  50% {
+    background-position: 100% 50%;
+  }
+}
+
+.animate-gradient {
+  background-size: 200% auto;
+  animation: animate-gradient 3s ease infinite;
+}
+
+@keyframes glowPulse {
+  0%, 100% {
+    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.8), 0 0 0 1px rgba(239, 68, 68, 0.3), 0 0 60px rgba(239, 68, 68, 0.1);
+  }
+  50% {
+    box-shadow: 0 25px 50px -12px rgba(0, 0, 0, 0.8), 0 0 0 1px rgba(239, 68, 68, 0.5), 0 0 80px rgba(239, 68, 68, 0.2);
+  }
+}
+
+/* Apply animations to modal */
+[role="dialog"] {
+  animation: modalSlideIn 0.5s ease-out;
+}
+
+/* Gradient button animation */
+.bg-gradient-to-r {
+  background-size: 200% 200%;
+  animation: gradientShift 3s ease infinite;
+}
+
+/* Modern Toast Notification Styles */
+@keyframes toastSlideIn {
+  0% {
+    opacity: 0;
+    transform: translateX(100%) scale(0.9);
+  }
+  100% {
+    opacity: 1;
+    transform: translateX(0) scale(1);
+  }
+}
+
+@keyframes toastGlow {
+  0%, 100% {
+    box-shadow: 0 10px 40px -10px rgba(239, 68, 68, 0.3), 0 0 0 1px rgba(239, 68, 68, 0.3);
+  }
+  50% {
+    box-shadow: 0 10px 40px -10px rgba(239, 68, 68, 0.5), 0 0 0 1px rgba(239, 68, 68, 0.5), 0 0 30px rgba(239, 68, 68, 0.2);
+  }
+}
+
+/* Enhanced toast styling */
+[data-radix-toast-viewport] [role="status"] {
+  animation: toastSlideIn 0.4s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+/* Toast glow effect for destructive variant */
+[data-radix-toast-viewport] [role="status"].destructive {
+  animation: toastGlow 2s ease-in-out infinite;
 }

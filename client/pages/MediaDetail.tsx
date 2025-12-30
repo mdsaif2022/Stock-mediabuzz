@@ -9,6 +9,7 @@ import { VideoCard } from "@/components/media/VideoCard";
 import { AudioPlayer } from "@/components/media/AudioPlayer";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { isBackNavigationActive } from "@/utils/backNavigationDetector";
+import { getMediaDisplayStats, formatDuration } from "@/lib/mediaUtils";
 
 export default function MediaDetail() {
   const { category, id } = useParams<{ category?: string; id: string }>();
@@ -32,6 +33,9 @@ export default function MediaDetail() {
   const mountTimeRef = useRef<number>(0); // Track when component mounted
   const hasEverDetectedBackNavRef = useRef(false); // CRITICAL: Track if we've EVER detected back nav for this mount
   const lastPopStateTimeRef = useRef<number>(0); // Track when popstate was last detected
+  const [mediaDuration, setMediaDuration] = useState<string>("N/A");
+  const videoRef = useRef<HTMLVideoElement>(null);
+  const audioRef = useRef<HTMLAudioElement>(null);
 
   // Track mount time on component mount
   useEffect(() => {
@@ -433,8 +437,10 @@ export default function MediaDetail() {
       const isApk = (media.category || "").toLowerCase() === "apk";
       
       // Use API_BASE_URL to get the correct API URL in production (handles Render backend)
+      // Add cache-busting parameter to ensure browser doesn't use cached responses with wrong headers
       const proxyPath = `/api/download/proxy/${media.id}`;
-      const proxyUrl = API_BASE_URL ? `${API_BASE_URL}${proxyPath}` : proxyPath;
+      const cacheBuster = `?t=${Date.now()}`;
+      const proxyUrl = API_BASE_URL ? `${API_BASE_URL}${proxyPath}${cacheBuster}` : `${proxyPath}${cacheBuster}`;
       
       // Adsterra links - all 20 links
       const adsterraLinks = [
@@ -466,28 +472,78 @@ export default function MediaDetail() {
       const currentAttempt = downloadAttemptsRef.current;
       setDownloadAttempts(currentAttempt);
       
-      // CRITICAL: Only show ads on home page to prevent navigation interference
-      // MediaDetail is not the home page, so disable ads here
+      // Show ads on download button clicks
+      // Ads are opened in new windows, so they don't interfere with navigation
       const isFirstClick = currentAttempt === 1;
-      const shouldShowAds = false; // Disabled - ads only show on home page
+      const shouldShowAds = true; // Enable ads on download button clicks
       
       // Determine file extension for download attribute
-      let fileExtension = 'mp4';
-      const urlParts = media.fileUrl.split('.');
-      if (urlParts.length > 1) {
-        const lastPart = urlParts[urlParts.length - 1].split('?')[0].split('#')[0];
-        if (lastPart && lastPart.length <= 5) {
-          fileExtension = lastPart.toLowerCase();
+      // Check category first (most reliable), then URL, then default
+      let fileExtension: string;
+      const mediaCategory = (media.category || '').toLowerCase();
+      const urlLower = media.fileUrl.toLowerCase();
+      
+      if (isApk || mediaCategory === 'apk') {
+        // For APK category, check URL to determine if it's APK, XAPK, or ZIP
+        if (urlLower.endsWith('.xapk')) {
+          fileExtension = 'xapk';
+        } else if (urlLower.endsWith('.zip')) {
+          fileExtension = 'zip';
+        } else if (urlLower.endsWith('.apk')) {
+          fileExtension = 'apk';
+        } else {
+          // Default to apk if category is apk but extension unclear
+          fileExtension = 'apk';
+        }
+      } else if (mediaCategory === 'video') {
+        if (urlLower.endsWith('.webm')) {
+          fileExtension = 'webm';
+        } else if (urlLower.endsWith('.mov')) {
+          fileExtension = 'mov';
+        } else if (urlLower.endsWith('.avi')) {
+          fileExtension = 'avi';
+        } else {
+          fileExtension = 'mp4';
+        }
+      } else if (mediaCategory === 'image') {
+        if (urlLower.endsWith('.png')) {
+          fileExtension = 'png';
+        } else if (urlLower.endsWith('.gif')) {
+          fileExtension = 'gif';
+        } else if (urlLower.endsWith('.webp')) {
+          fileExtension = 'webp';
+        } else {
+          fileExtension = 'jpg';
+        }
+      } else if (mediaCategory === 'audio') {
+        if (urlLower.endsWith('.wav')) {
+          fileExtension = 'wav';
+        } else if (urlLower.endsWith('.ogg')) {
+          fileExtension = 'ogg';
+        } else {
+          fileExtension = 'mp3';
+        }
+      } else {
+        // Try to extract from URL
+        const urlParts = media.fileUrl.split('.');
+        if (urlParts.length > 1) {
+          const lastPart = urlParts[urlParts.length - 1].split('?')[0].split('#')[0].toLowerCase();
+          // Allow longer extensions (xapk is 4 chars)
+          if (lastPart && lastPart.length >= 2 && lastPart.length <= 10) {
+            fileExtension = lastPart;
+          } else {
+            fileExtension = 'bin'; // Generic binary fallback
+          }
+        } else {
+          fileExtension = 'bin'; // Generic binary fallback
         }
       }
-      if (isApk) {
-        fileExtension = 'apk';
-      }
       
-      // Create download link with download attribute to force download
+      // Create download link - browser will use server's Content-Disposition header for filename
+      // Note: We don't set the download attribute because browsers ignore it for cross-origin requests
+      // The server's Content-Disposition header will control the filename
       const link = document.createElement("a");
       link.href = proxyUrl;
-      link.download = `${media.title.replace(/[^a-z0-9]/gi, '_').toLowerCase()}.${fileExtension}`;
       link.style.display = 'none';
       document.body.appendChild(link);
       
@@ -496,6 +552,7 @@ export default function MediaDetail() {
         return new Promise((resolve, reject) => {
           try {
             // Click the link to trigger download
+            // The browser will use the server's Content-Disposition header for the filename
             link.click();
             
             // Track download (this happens after file starts downloading)
@@ -722,22 +779,92 @@ export default function MediaDetail() {
     return palette[0];
   };
 
-  if (isLoading) {
-    return (
-      <Layout>
+  // Calculate derived values (these are safe to compute even if media is null)
+  const safeCategory = media ? (typeof media.category === "string" ? media.category : "unknown") : "unknown";
+  const isVideo = safeCategory.toLowerCase() === "video";
+  const isAudio = safeCategory.toLowerCase() === "audio";
+
+  // Calculate duration for video/audio files
+  useEffect(() => {
+    if (!media) return;
+
+    // If duration is already set in media, use it
+    if (media.duration && media.duration !== "00:00" && media.duration !== "N/A") {
+      setMediaDuration(media.duration);
+      return;
+    }
+
+    // For video/audio, try to get duration from the media element
+    if (isVideo && videoRef.current) {
+      const video = videoRef.current;
+      const handleLoadedMetadata = () => {
+        if (video.duration && isFinite(video.duration) && video.duration > 0) {
+          setMediaDuration(formatDuration(video.duration));
+        }
+      };
+      const handleDurationChange = () => {
+        if (video.duration && isFinite(video.duration) && video.duration > 0) {
+          setMediaDuration(formatDuration(video.duration));
+        }
+      };
+
+      video.addEventListener("loadedmetadata", handleLoadedMetadata);
+      video.addEventListener("durationchange", handleDurationChange);
+      
+      // Try to load metadata
+      if (video.readyState === 0) {
+        video.load();
+      }
+
+      return () => {
+        video.removeEventListener("loadedmetadata", handleLoadedMetadata);
+        video.removeEventListener("durationchange", handleDurationChange);
+      };
+    }
+
+    if (isAudio && audioRef.current) {
+      const audio = audioRef.current;
+      const handleLoadedMetadata = () => {
+        if (audio.duration && isFinite(audio.duration) && audio.duration > 0) {
+          setMediaDuration(formatDuration(audio.duration));
+        }
+      };
+      const handleDurationChange = () => {
+        if (audio.duration && isFinite(audio.duration) && audio.duration > 0) {
+          setMediaDuration(formatDuration(audio.duration));
+        }
+      };
+
+      audio.addEventListener("loadedmetadata", handleLoadedMetadata);
+      audio.addEventListener("durationchange", handleDurationChange);
+      
+      // Try to load metadata
+      if (audio.readyState === 0) {
+        audio.load();
+      }
+
+      return () => {
+        audio.removeEventListener("loadedmetadata", handleLoadedMetadata);
+        audio.removeEventListener("durationchange", handleDurationChange);
+      };
+    }
+
+    // For non-video/audio, set N/A
+    if (!isVideo && !isAudio) {
+      setMediaDuration("N/A");
+    }
+  }, [media, isVideo, isAudio]);
+
+  return (
+    <Layout>
+      {isLoading ? (
         <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex items-center justify-center">
           <div className="text-center">
             <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
             <p className="mt-4 text-muted-foreground">Loading media...</p>
           </div>
         </div>
-      </Layout>
-    );
-  }
-
-  if (!media) {
-    return (
-      <Layout>
+      ) : !media ? (
         <div className="min-h-screen bg-slate-50 dark:bg-slate-950 flex items-center justify-center">
           <div className="text-center">
             <p className="text-lg text-muted-foreground">Media not found</p>
@@ -746,27 +873,25 @@ export default function MediaDetail() {
             </Link>
           </div>
         </div>
-      </Layout>
-    );
-  }
+      ) : (
+        <>
+          {(() => {
+            const safeCategory = typeof media.category === "string" ? media.category : "unknown";
+            const safeTags = Array.isArray(media.tags) ? media.tags : [];
+            
+            // Get display stats with fake values if needed
+            const displayStats = getMediaDisplayStats(media);
 
-  const safeCategory = typeof media.category === "string" ? media.category : "unknown";
-  const safeTags = Array.isArray(media.tags) ? media.tags : [];
-  const safeDownloads = typeof media.downloads === "number" ? media.downloads : Number(media.downloads) || 0;
-  const safeViews = typeof media.views === "number" ? media.views : Number(media.views) || 0;
+            const Icon = getIcon(safeCategory);
+            const isImage = safeCategory.toLowerCase() === "image";
+            const isApk = safeCategory.toLowerCase() === "apk";
+            const featureScreenshots = Array.isArray(media.featureScreenshots)
+              ? media.featureScreenshots.filter((shot) => shot && shot.url)
+              : [];
+            const shouldShowScreenshots = isApk && media.showScreenshots !== false && featureScreenshots.length > 0;
 
-  const Icon = getIcon(safeCategory);
-  const isVideo = safeCategory.toLowerCase() === "video";
-  const isImage = safeCategory.toLowerCase() === "image";
-  const isAudio = safeCategory.toLowerCase() === "audio";
-  const isApk = safeCategory.toLowerCase() === "apk";
-  const featureScreenshots = Array.isArray(media.featureScreenshots)
-    ? media.featureScreenshots.filter((shot) => shot && shot.url)
-    : [];
-  const shouldShowScreenshots = isApk && media.showScreenshots !== false && featureScreenshots.length > 0;
-
-  return (
-    <Layout>
+            return (
+              <>
       {/* Page Container with distinct visual separation */}
       <div className="min-h-screen bg-gradient-to-br from-slate-50 via-white to-slate-50 dark:from-slate-950 dark:via-slate-900 dark:to-slate-950">
         {/* Page Header with gradient background */}
@@ -809,9 +934,27 @@ export default function MediaDetail() {
               {/* Preview */}
               <div className="mb-6 sm:mb-8">
                 {isVideo ? (
-                  <DownloadVideoViewer media={media} />
+                  <>
+                    <DownloadVideoViewer media={media} />
+                    <video
+                      ref={videoRef}
+                      src={media.fileUrl}
+                      preload="metadata"
+                      className="hidden"
+                      crossOrigin="anonymous"
+                    />
+                  </>
                 ) : isAudio ? (
-                  <AudioPlayer src={media.fileUrl} title={media.title} />
+                  <>
+                    <AudioPlayer src={media.fileUrl} title={media.title} />
+                    <audio
+                      ref={audioRef}
+                      src={media.fileUrl}
+                      preload="metadata"
+                      className="hidden"
+                      crossOrigin="anonymous"
+                    />
+                  </>
                 ) : (
                   <div className="aspect-video rounded-lg overflow-hidden relative group shadow-lg bg-slate-900">
                     {isImage ? (
@@ -881,21 +1024,21 @@ export default function MediaDetail() {
                     <Download className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-primary flex-shrink-0" />
                     <span className="text-xs sm:text-sm text-muted-foreground">Downloads</span>
                   </div>
-                  <p className="text-xl sm:text-2xl font-bold">{(safeDownloads / 1000).toFixed(1)}K</p>
+                  <p className="text-xl sm:text-2xl font-bold">{displayStats.downloadsLabel}</p>
                 </div>
                 <div>
                   <div className="flex items-center gap-1.5 sm:gap-2 mb-1">
                     <Eye className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-secondary flex-shrink-0" />
                     <span className="text-xs sm:text-sm text-muted-foreground">Views</span>
                   </div>
-                  <p className="text-xl sm:text-2xl font-bold">{(safeViews / 1000).toFixed(1)}K</p>
+                  <p className="text-xl sm:text-2xl font-bold">{displayStats.viewsLabel}</p>
                 </div>
                 <div>
                   <div className="flex items-center gap-1.5 sm:gap-2 mb-1">
                     <Clock className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-accent flex-shrink-0" />
                     <span className="text-xs sm:text-sm text-muted-foreground">Duration</span>
                   </div>
-                  <p className="text-xl sm:text-2xl font-bold">{media.duration || "N/A"}</p>
+                  <p className="text-xl sm:text-2xl font-bold">{mediaDuration}</p>
                 </div>
                 <div>
                   <div className="flex items-center gap-1.5 sm:gap-2 mb-1">
@@ -922,10 +1065,10 @@ export default function MediaDetail() {
                     <p className="text-sm text-muted-foreground">Category</p>
                     <p className="font-semibold capitalize">{safeCategory}</p>
                   </div>
-                  {media.duration && (
+                  {mediaDuration !== "N/A" && (
                     <div>
                       <p className="text-sm text-muted-foreground">Duration</p>
-                      <p className="font-semibold">{media.duration}</p>
+                      <p className="font-semibold">{mediaDuration}</p>
                     </div>
                   )}
                 </div>
@@ -1111,7 +1254,8 @@ export default function MediaDetail() {
 
                   const Icon = getIcon(item.category);
                   const gradient = getGradientForCategory(item.category);
-                  const downloads = (Number(item.downloads) || 0).toLocaleString();
+                  const itemStats = getMediaDisplayStats(item);
+                  const downloads = itemStats.downloadsLabel;
 
                   return (
                     <Link
@@ -1186,6 +1330,11 @@ export default function MediaDetail() {
           )}
         </DialogContent>
       </Dialog>
+              </>
+            );
+          })()}
+        </>
+      )}
     </Layout>
   );
 }

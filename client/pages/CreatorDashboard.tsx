@@ -1,4 +1,4 @@
-import { useEffect, useState, useMemo, useCallback } from "react";
+import { useEffect, useState, useMemo, useCallback, useRef } from "react";
 import { useNavigate } from "react-router-dom";
 import Layout from "@/components/Layout";
 import { useAuth } from "@/contexts/AuthContext";
@@ -17,7 +17,12 @@ import {
   Smartphone,
   X,
   ShieldCheck,
+  History,
+  Calendar,
+  Clock,
+  RefreshCw,
 } from "lucide-react";
+import { Switch } from "@/components/ui/switch";
 
 const categoryOptions = [
   { label: "Video", value: "video" },
@@ -28,6 +33,14 @@ const categoryOptions = [
 ];
 
 type UploadCategory = typeof categoryOptions[number]["value"];
+
+interface FeatureScreenshotDraft {
+  id: string;
+  title: string;
+  description: string;
+  url: string;
+  uploading?: boolean;
+}
 
 export default function CreatorDashboard() {
   const { currentUser, loading, creatorProfile, creatorLoading, refreshCreatorProfile } = useAuth();
@@ -69,10 +82,24 @@ export default function CreatorDashboard() {
     totalUploads: 0,
     lastUploadDate: null,
   });
+  const iconInputRef = useRef<HTMLInputElement>(null);
+  const screenshotInputRef = useRef<HTMLInputElement>(null);
+  const [appIcon, setAppIcon] = useState<{ url: string; uploading: boolean } | null>(null);
+  const [featureScreenshots, setFeatureScreenshots] = useState<FeatureScreenshotDraft[]>([]);
+  const [showScreenshotsToggle, setShowScreenshotsToggle] = useState(true);
 
   const status = creatorProfile?.status ?? "none";
   const isApproved = status === "approved";
   const isPending = status === "pending";
+
+  // Reset APK-specific fields when category changes
+  useEffect(() => {
+    if (uploadForm.category !== "apk") {
+      setAppIcon(null);
+      setFeatureScreenshots([]);
+      setShowScreenshotsToggle(true);
+    }
+  }, [uploadForm.category]);
 
   useEffect(() => {
     if (!loading && !currentUser) {
@@ -239,7 +266,9 @@ export default function CreatorDashboard() {
   const bonusActive =
     creatorProfile?.storageBonusExpiresAt && new Date(creatorProfile.storageBonusExpiresAt) > new Date();
   const bonusGb = bonusActive ? creatorProfile?.storageBonusGb ?? 0 : 0;
-  const baseGb = creatorProfile?.storageBaseGb ?? 5;
+  // MIGRATION: Override any existing 5 GB base storage to 1 GB (new policy)
+  // This ensures the UI shows 1 GB even if database hasn't migrated yet
+  const baseGb = (creatorProfile?.storageBaseGb === 5 ? 1 : creatorProfile?.storageBaseGb) ?? 1; // Changed from 5 GB to 1 GB free storage
   const totalStorageGb = baseGb + bonusGb;
   const remainingGb = Math.max(totalStorageGb - storageUsedGb, 0);
   const storagePercent = totalStorageGb > 0 ? Math.min(100, (storageUsedGb / totalStorageGb) * 100) : 0;
@@ -329,6 +358,96 @@ export default function CreatorDashboard() {
     setSelectedFiles((prev) => prev.filter((_, i) => i !== index));
   };
 
+  const uploadAssetFile = async (file: File) => {
+    const formData = new FormData();
+    formData.append("file", file);
+    formData.append("server", "auto");
+    const response = await apiFetch("/api/upload/asset", {
+      method: "POST",
+      body: formData,
+    });
+    const data = await response.json();
+    if (!response.ok) {
+      throw new Error(data?.message || "Failed to upload asset");
+    }
+    return data.secureUrl || data.url;
+  };
+
+  const handleIconFiles = async (files: FileList | null) => {
+    if (!files || !files[0]) return;
+    const file = files[0];
+    setAppIcon({ url: "", uploading: true });
+    try {
+      const uploadedUrl = await uploadAssetFile(file);
+      setAppIcon({ url: uploadedUrl, uploading: false });
+    } catch (error: any) {
+      console.error("Icon upload failed:", error);
+      setAppIcon(null);
+      setUploadError(error.message || "Failed to upload icon");
+    } finally {
+      if (iconInputRef.current) {
+        iconInputRef.current.value = "";
+      }
+    }
+  };
+
+  const generateTempId = () => {
+    if (typeof crypto !== "undefined" && crypto.randomUUID) {
+      return crypto.randomUUID();
+    }
+    return `temp-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`;
+  };
+
+  const handleScreenshotFiles = async (files: FileList | null) => {
+    if (!files) return;
+    const fileArray = Array.from(files);
+    for (const file of fileArray) {
+      const tempId = generateTempId();
+      setFeatureScreenshots((prev) => [
+        ...prev,
+        {
+          id: tempId,
+          title: file.name.replace(/\.[^/.]+$/, ""),
+          description: "",
+          url: "",
+          uploading: true,
+        },
+      ]);
+      try {
+        const uploadedUrl = await uploadAssetFile(file);
+        setFeatureScreenshots((prev) =>
+          prev.map((shot) => (shot.id === tempId ? { ...shot, url: uploadedUrl, uploading: false } : shot))
+        );
+      } catch (error: any) {
+        console.error("Screenshot upload failed:", error);
+        setFeatureScreenshots((prev) => prev.filter((shot) => shot.id !== tempId));
+        setUploadError(error.message || "Failed to upload screenshot");
+      }
+    }
+    if (screenshotInputRef.current) {
+      screenshotInputRef.current.value = "";
+    }
+  };
+
+  const updateScreenshotField = (id: string, field: "title" | "description", value: string) => {
+    setFeatureScreenshots((prev) =>
+      prev.map((shot) => (shot.id === id ? { ...shot, [field]: value } : shot))
+    );
+  };
+
+  const removeScreenshot = (id: string) => {
+    setFeatureScreenshots((prev) => prev.filter((shot) => shot.id !== id));
+  };
+
+  const serializeScreenshots = () =>
+    featureScreenshots
+      .filter((shot) => shot.url && !shot.uploading)
+      .map((shot) => ({
+        title: shot.title?.trim() || undefined,
+        description: shot.description?.trim() || undefined,
+        url: shot.url,
+      }));
+
   const getFileIcon = (category: UploadCategory) => {
     switch (category) {
       case "video":
@@ -376,6 +495,18 @@ export default function CreatorDashboard() {
         formData.append("creatorId", creatorProfile.id);
       }
       formData.append("server", "auto");
+
+      // Add APK-specific fields
+      if (uploadForm.category === "apk") {
+        if (appIcon?.url) {
+          formData.append("iconUrl", appIcon.url);
+        }
+        formData.append("showScreenshots", showScreenshotsToggle ? "true" : "false");
+        const serializedScreens = serializeScreenshots();
+        if (serializedScreens.length > 0) {
+          formData.append("featureScreenshots", JSON.stringify(serializedScreens));
+        }
+      }
 
       // detect resource type from first file
       const firstFile = selectedFiles[0];
@@ -579,7 +710,7 @@ export default function CreatorDashboard() {
                   )}
                 </div>
                 <div className="text-sm text-muted-foreground">
-                  <p>Includes complimentary 5GB tier.</p>
+                  <p>Includes complimentary 1GB tier.</p>
                   <p>Upgrade to unlock more uploads each month.</p>
                 </div>
               </div>
@@ -592,7 +723,7 @@ export default function CreatorDashboard() {
                 ></div>
               </div>
 
-              <div className="bg-slate-50 dark:bg-slate-900/40 border border-dashed border-border rounded-xl p-4 space-y-4">
+              <div className="bg-slate-50 dark:bg-slate-900/40 border border-dashed border-border rounded-xl p-4 space-y-4" data-storage-upgrade>
                 <div className="flex items-center justify-between gap-2 flex-wrap">
                   <div>
                     <p className="text-sm font-semibold">Upgrade storage</p>
@@ -601,7 +732,7 @@ export default function CreatorDashboard() {
                     </p>
                   </div>
                   <span className="text-xs font-semibold px-2 py-1 rounded-full bg-primary/10 text-primary">
-                    5GB free tier included
+                    1GB free tier included
                   </span>
                 </div>
 
@@ -677,7 +808,7 @@ export default function CreatorDashboard() {
                 {paymentMethod === "auto" ? (
                   <div className="rounded-lg border border-primary/20 bg-primary/5 p-3 text-xs text-primary">
                     Pay with bKash merchant number <span className="font-semibold">{paymentSettings.bkashMerchant}</span>. This
-                    option is processed immediately (simulated in this demo).
+                    option is processed immediately.
                   </div>
                 ) : (
                   <div className="rounded-lg border border-amber-300 bg-amber-50/60 dark:bg-amber-900/20 p-3 text-xs text-amber-800 dark:text-amber-100 space-y-2">
@@ -745,6 +876,155 @@ export default function CreatorDashboard() {
                   )}
                 </button>
               </div>
+            </div>
+          )}
+
+          {/* Storage Purchase History */}
+          {creatorProfile && (
+            <div className="bg-white dark:bg-slate-900 rounded-2xl border border-border p-6 shadow-sm space-y-4">
+              <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+                <div>
+                  <div className="flex items-center gap-2 text-sm text-muted-foreground mb-1">
+                    <History className="w-4 h-4 text-primary" />
+                    Storage Purchase History
+                  </div>
+                  <h3 className="text-xl font-semibold">Complete Purchase History</h3>
+                  <p className="text-xs text-muted-foreground mt-1">
+                    View all your storage purchases, expiry dates, and renewal options
+                  </p>
+                </div>
+              </div>
+
+              {!creatorProfile.storagePurchaseHistory || creatorProfile.storagePurchaseHistory.length === 0 ? (
+                <div className="text-center py-8 text-muted-foreground">
+                  <History className="w-12 h-12 mx-auto mb-3 opacity-50" />
+                  <p className="text-sm">No storage purchases yet</p>
+                  <p className="text-xs mt-1">Your purchases will appear here</p>
+                </div>
+              ) : (
+                <div className="space-y-3">
+                  {creatorProfile.storagePurchaseHistory
+                    .sort((a, b) => new Date(b.purchasedAt).getTime() - new Date(a.purchasedAt).getTime())
+                    .map((purchase) => {
+                      const purchaseDate = new Date(purchase.purchasedAt);
+                      const expiryDate = purchase.expiresAt ? new Date(purchase.expiresAt) : null;
+                      const now = new Date();
+                      const isExpired = expiryDate ? expiryDate < now : false;
+                      const isActive = purchase.status === "completed" && !isExpired;
+                      const daysUntilExpiry = expiryDate
+                        ? Math.ceil((expiryDate.getTime() - now.getTime()) / (1000 * 60 * 60 * 24))
+                        : null;
+                      const showRenewButton = expiryDate && daysUntilExpiry !== null && daysUntilExpiry <= 3 && isActive;
+
+                      // Calculate duration in days
+                      const durationDays = purchase.months * 30;
+
+                      return (
+                        <div
+                          key={purchase.id}
+                          className={`rounded-lg border p-4 ${
+                            isExpired
+                              ? "opacity-60 border-muted bg-slate-50 dark:bg-slate-900/40"
+                              : isActive
+                              ? "border-green-200 dark:border-green-800 bg-green-50/50 dark:bg-green-900/10"
+                              : "border-border"
+                          }`}
+                        >
+                          <div className="flex flex-col md:flex-row md:items-center md:justify-between gap-3">
+                            <div className="flex-1 grid grid-cols-1 sm:grid-cols-2 md:grid-cols-4 gap-3">
+                              <div>
+                                <p className="text-xs text-muted-foreground mb-1">Storage Amount</p>
+                                <p className="font-semibold text-sm">{purchase.gb} GB</p>
+                              </div>
+                              <div>
+                                <p className="text-xs text-muted-foreground mb-1">Duration</p>
+                                <p className="font-semibold text-sm">
+                                  {durationDays} days / {purchase.months} month{purchase.months !== 1 ? "s" : ""}
+                                </p>
+                              </div>
+                              <div>
+                                <p className="text-xs text-muted-foreground mb-1">Purchase Date</p>
+                                <p className="font-semibold text-sm flex items-center gap-1">
+                                  <Calendar className="w-3 h-3" />
+                                  {purchaseDate.toLocaleDateString("en-GB", {
+                                    day: "numeric",
+                                    month: "short",
+                                    year: "numeric",
+                                  })}
+                                </p>
+                              </div>
+                              <div>
+                                <p className="text-xs text-muted-foreground mb-1">Expiry Date</p>
+                                <p
+                                  className={`font-semibold text-sm flex items-center gap-1 ${
+                                    isExpired ? "text-destructive" : ""
+                                  }`}
+                                >
+                                  <Clock className="w-3 h-3" />
+                                  {expiryDate
+                                    ? expiryDate.toLocaleDateString("en-GB", {
+                                        day: "numeric",
+                                        month: "short",
+                                        year: "numeric",
+                                      })
+                                    : "N/A"}
+                                </p>
+                              </div>
+                            </div>
+                            <div className="flex flex-col items-end gap-2">
+                              <span
+                                className={`px-3 py-1 text-xs rounded-full font-semibold ${
+                                  isActive
+                                    ? "bg-green-100 text-green-700 dark:bg-green-900/30 dark:text-green-400"
+                                    : isExpired
+                                    ? "bg-gray-100 text-gray-600 dark:bg-gray-800 dark:text-gray-400"
+                                    : purchase.status === "pending"
+                                    ? "bg-amber-100 text-amber-700 dark:bg-amber-900/30 dark:text-amber-400"
+                                    : "bg-red-100 text-red-700 dark:bg-red-900/30 dark:text-red-400"
+                                }`}
+                              >
+                                {isActive ? "Active" : isExpired ? "Expired" : purchase.status}
+                              </span>
+                              {showRenewButton && (
+                                <button
+                                  onClick={() => {
+                                    // Scroll to upgrade section
+                                    const upgradeSection = document.querySelector('[data-storage-upgrade]');
+                                    if (upgradeSection) {
+                                      upgradeSection.scrollIntoView({ behavior: "smooth", block: "start" });
+                                    }
+                                  }}
+                                  className="px-3 py-1.5 text-xs rounded-lg border border-primary text-primary hover:bg-primary/10 transition-colors flex items-center gap-1"
+                                >
+                                  <RefreshCw className="w-3 h-3" />
+                                  Renew Storage
+                                </button>
+                              )}
+                              {daysUntilExpiry !== null && daysUntilExpiry > 0 && daysUntilExpiry <= 3 && isActive && (
+                                <p className="text-xs text-amber-600 dark:text-amber-400">
+                                  Expires in {daysUntilExpiry} day{daysUntilExpiry !== 1 ? "s" : ""}
+                                </p>
+                              )}
+                            </div>
+                          </div>
+                          {purchase.paymentMethod === "manual" && (
+                            <div className="mt-3 pt-3 border-t border-border">
+                              <p className="text-xs text-muted-foreground">
+                                Payment Method: <span className="font-semibold">Manual (bKash)</span>
+                                {purchase.reference && (
+                                  <>
+                                    {" "}
+                                    • Transaction ID: <span className="font-mono">{purchase.reference}</span>
+                                  </>
+                                )}
+                              </p>
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })}
+                </div>
+              )}
             </div>
           )}
 
@@ -983,6 +1263,157 @@ export default function CreatorDashboard() {
                     placeholder="What makes this upload special?"
                   />
                 </div>
+                {uploadForm.category === "apk" && (
+                  <div className="space-y-4 rounded-lg border border-dashed border-border p-4">
+                    <div className="flex flex-col lg:flex-row gap-4">
+                      <div className="flex-1 space-y-3">
+                        <label className="block text-sm font-medium">App Icon</label>
+                        <p className="text-xs text-muted-foreground">
+                          Upload a square icon (PNG/JPG). Recommended size 512x512.
+                        </p>
+                        <div
+                          onClick={() => iconInputRef.current?.click()}
+                          onDragOver={(e) => e.preventDefault()}
+                          onDrop={(e) => {
+                            e.preventDefault();
+                            handleIconFiles(e.dataTransfer.files);
+                          }}
+                          className="border-2 border-dashed border-border rounded-xl p-4 flex flex-col items-center justify-center gap-3 cursor-pointer hover:border-primary transition-colors"
+                        >
+                          {appIcon?.url ? (
+                            <div className="relative">
+                              <img
+                                src={appIcon.url}
+                                alt="App icon preview"
+                                className="w-20 h-20 rounded-2xl object-cover border border-border"
+                              />
+                              <button
+                                type="button"
+                                onClick={(e) => {
+                                  e.stopPropagation();
+                                  setAppIcon(null);
+                                }}
+                                className="absolute -top-2 -right-2 bg-white text-destructive rounded-full p-1 shadow"
+                              >
+                                <X className="w-4 h-4" />
+                              </button>
+                            </div>
+                          ) : (
+                            <>
+                              <ImageIcon className="w-8 h-8 text-muted-foreground" />
+                              <p className="text-sm font-semibold">Drag & drop or click to upload</p>
+                            </>
+                          )}
+                          {appIcon?.uploading && <p className="text-xs text-muted-foreground">Uploading icon...</p>}
+                          <input
+                            ref={iconInputRef}
+                            type="file"
+                            accept="image/*"
+                            className="hidden"
+                            onChange={(e) => handleIconFiles(e.target.files)}
+                          />
+                        </div>
+                      </div>
+                      <div className="flex-1 space-y-3">
+                        <label className="block text-sm font-medium">Display Screenshots</label>
+                        <p className="text-xs text-muted-foreground">
+                          Toggle to control whether screenshots appear on the user download page.
+                        </p>
+                        <div className="flex items-center justify-between rounded-xl border border-border px-4 py-3">
+                          <div>
+                            <p className="text-sm font-semibold">Show screenshots</p>
+                            <p className="text-xs text-muted-foreground">
+                              Users will see these screenshots below the download button.
+                            </p>
+                          </div>
+                          <Switch checked={showScreenshotsToggle} onCheckedChange={setShowScreenshotsToggle} />
+                        </div>
+                      </div>
+                    </div>
+                    <div className="space-y-4">
+                      <div className="flex items-center justify-between">
+                        <div>
+                          <h4 className="text-sm font-medium">Feature Screenshots</h4>
+                          <p className="text-xs text-muted-foreground">
+                            Upload multiple screenshots to showcase app features.
+                          </p>
+                        </div>
+                        <button
+                          type="button"
+                          onClick={() => screenshotInputRef.current?.click()}
+                          className="inline-flex items-center gap-2 rounded-lg border border-border px-3 py-1.5 text-sm hover:bg-slate-50 dark:hover:bg-slate-800"
+                        >
+                          <Upload className="w-4 h-4" />
+                          Upload Images
+                        </button>
+                        <input
+                          ref={screenshotInputRef}
+                          type="file"
+                          accept="image/*"
+                          multiple
+                          className="hidden"
+                          onChange={(e) => handleScreenshotFiles(e.target.files)}
+                        />
+                      </div>
+                      <div
+                        onDragOver={(e) => e.preventDefault()}
+                        onDrop={(e) => {
+                          e.preventDefault();
+                          handleScreenshotFiles(e.dataTransfer.files);
+                        }}
+                        className="border-2 border-dashed border-border rounded-xl p-4 min-h-[100px] flex flex-col items-center justify-center gap-2"
+                      >
+                        {featureScreenshots.length === 0 ? (
+                          <>
+                            <ImageIcon className="w-8 h-8 text-muted-foreground" />
+                            <p className="text-sm text-muted-foreground">Drag & drop screenshots here or click Upload Images</p>
+                          </>
+                        ) : (
+                          <div className="w-full space-y-3">
+                            {featureScreenshots.map((shot) => (
+                              <div key={shot.id} className="flex gap-3 p-3 border border-border rounded-lg">
+                                {shot.url ? (
+                                  <img src={shot.url} alt={shot.title} className="w-20 h-20 object-cover rounded-lg" />
+                                ) : (
+                                  <div className="w-20 h-20 bg-slate-200 dark:bg-slate-700 rounded-lg flex items-center justify-center">
+                                    {shot.uploading ? (
+                                      <Loader2 className="w-6 h-6 animate-spin text-muted-foreground" />
+                                    ) : (
+                                      <ImageIcon className="w-6 h-6 text-muted-foreground" />
+                                    )}
+                                  </div>
+                                )}
+                                <div className="flex-1 space-y-2">
+                                  <input
+                                    type="text"
+                                    value={shot.title}
+                                    onChange={(e) => updateScreenshotField(shot.id, "title", e.target.value)}
+                                    placeholder="Screenshot title (optional)"
+                                    className="w-full px-2 py-1 text-sm rounded border border-border bg-white dark:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-primary"
+                                  />
+                                  <textarea
+                                    value={shot.description}
+                                    onChange={(e) => updateScreenshotField(shot.id, "description", e.target.value)}
+                                    placeholder="Description (optional)"
+                                    rows={2}
+                                    className="w-full px-2 py-1 text-sm rounded border border-border bg-white dark:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-primary resize-none"
+                                  />
+                                </div>
+                                <button
+                                  type="button"
+                                  onClick={() => removeScreenshot(shot.id)}
+                                  className="text-muted-foreground hover:text-destructive transition-colors"
+                                >
+                                  <X className="w-5 h-5" />
+                                </button>
+                              </div>
+                            ))}
+                          </div>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                )}
                 <label className="flex items-center gap-2 text-sm">
                   <input
                     type="checkbox"

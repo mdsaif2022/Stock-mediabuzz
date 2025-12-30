@@ -14,8 +14,8 @@ const userDatabase: AuthUser[] = [
 ];
 
 // Signup handler
-export const signup: RequestHandler = (req, res) => {
-  const { email, password, name }: SignupRequest = req.body;
+export const signup: RequestHandler = async (req, res) => {
+  const { email, password, name, referralCode, sharePostId, shareLink }: SignupRequest = req.body;
 
   if (!email || !password || !name) {
     res.status(400).json({ error: "Missing required fields" });
@@ -28,15 +28,37 @@ export const signup: RequestHandler = (req, res) => {
     return;
   }
 
+  // Get referral code and share code from query params if not in body
+  const refCode = referralCode || req.query.ref as string;
+  const shareCode = req.query.share as string;
+
+  const newUserId = Date.now().toString();
   const newUser: AuthUser = {
-    id: Date.now().toString(),
+    id: newUserId,
     email,
     name,
     role: "user",
     createdAt: new Date().toISOString().split("T")[0],
+    referralCode: undefined, // Will be generated
+    totalCoins: 0,
+    referralCoins: 0,
+    shareCoins: 0,
+    emailVerified: false, // Gmail verification required
   };
 
   userDatabase.push(newUser);
+
+  // Process referral and share (async, don't block signup)
+  if (refCode || shareCode) {
+    try {
+      const { processReferralSignup } = await import("./referral.js");
+      const userIp = req.ip || req.headers['x-forwarded-for']?.toString().split(',')[0] || req.headers['x-real-ip']?.toString() || 'unknown';
+      await processReferralSignup(newUserId, email, refCode, shareCode, userIp);
+    } catch (error) {
+      console.error("Error processing referral/share:", error);
+      // Don't fail signup if referral processing fails
+    }
+  }
 
   const response: AuthResponse = {
     user: newUser,

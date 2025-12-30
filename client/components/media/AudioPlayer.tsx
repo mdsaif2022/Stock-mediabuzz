@@ -38,16 +38,25 @@ export function AudioPlayer({ src, title, preload = "metadata", className }: Aud
     const handleTimeUpdate = () => setCurrentTime(audio.currentTime);
     const handleLoadedMetadata = () => setDuration(audio.duration || 0);
 
+    // Disable context menu to prevent download option
+    const preventContextMenu = (e: Event) => {
+      e.preventDefault();
+      e.stopPropagation();
+      return false;
+    };
+
     audio.addEventListener("play", handlePlay);
     audio.addEventListener("pause", handlePause);
     audio.addEventListener("timeupdate", handleTimeUpdate);
     audio.addEventListener("loadedmetadata", handleLoadedMetadata);
+    audio.addEventListener("contextmenu", preventContextMenu);
 
     return () => {
       audio.removeEventListener("play", handlePlay);
       audio.removeEventListener("pause", handlePause);
       audio.removeEventListener("timeupdate", handleTimeUpdate);
       audio.removeEventListener("loadedmetadata", handleLoadedMetadata);
+      audio.removeEventListener("contextmenu", preventContextMenu);
     };
   }, [sourceReady]);
 
@@ -103,13 +112,40 @@ export function AudioPlayer({ src, title, preload = "metadata", className }: Aud
           </div>
         </div>
 
-        <audio
-          ref={audioRef}
-          src={sourceReady}
-          preload={preload}
-          controls
-          className="w-full accent-primary"
-        />
+        <div className="relative">
+          <audio
+            ref={audioRef}
+            src={sourceReady}
+            preload={preload}
+            controls
+            controlsList="nodownload noplaybackrate nofullscreen"
+            crossOrigin="anonymous"
+            onError={(e) => {
+              console.error("Audio playback error:", e);
+              const audio = e.currentTarget;
+              console.error("Audio error details:", {
+                error: audio.error,
+                networkState: audio.networkState,
+                readyState: audio.readyState,
+                src: audio.src,
+              });
+            }}
+            className="w-full accent-primary"
+            onContextMenu={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+              return false;
+            }}
+          />
+          <style>{`
+            audio::-webkit-media-controls-download-button {
+              display: none !important;
+            }
+            audio::-webkit-media-controls-enclosure {
+              overflow: hidden;
+            }
+          `}</style>
+        </div>
 
         <div className="flex items-center justify-between text-xs text-muted-foreground">
           <span>{formatMediaTimestamp(currentTime)}</span>

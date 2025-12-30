@@ -64,7 +64,7 @@ async function seedUsers(): Promise<PlatformUser[]> {
   return DEFAULT_USERS;
 }
 
-async function loadUsersDatabase(): Promise<PlatformUser[]> {
+export async function getUsersDatabase(): Promise<PlatformUser[]> {
   const useMongo = await isMongoDBAvailable();
   
   if (useMongo) {
@@ -112,7 +112,7 @@ async function loadUsersDatabase(): Promise<PlatformUser[]> {
 import { isBuildTime } from "../utils/buildCheck.js";
 
 if (!isBuildTime()) {
-  loadUsersDatabase()
+  getUsersDatabase()
     .then((loaded) => {
       usersDatabase = loaded;
       console.log(`Loaded ${loaded.length} platform users`);
@@ -128,10 +128,19 @@ type RegisterUserPayload = {
   accountType?: PlatformUser["accountType"];
   emailVerified?: boolean;
   firebaseUid?: string;
+  referralCode?: string;
+  shareCode?: string;
 };
 
+// Helper: Generate unique referral code
+function generateReferralCode(userId: string, email: string): string {
+  const hash = `${userId}-${email}`.split('').reduce((acc, char) => acc + char.charCodeAt(0), 0);
+  const code = `REF${hash.toString(36).toUpperCase().slice(0, 8)}`;
+  return code;
+}
+
 export const registerUser: RequestHandler = async (req, res) => {
-  const { email, name, accountType, emailVerified = false, firebaseUid }: RegisterUserPayload = req.body;
+  const { email, name, accountType, emailVerified = false, firebaseUid, referralCode, shareCode }: RegisterUserPayload = req.body;
 
   if (!email || !name) {
     res.status(400).json({ error: "Name and email are required" });
@@ -141,25 +150,39 @@ export const registerUser: RequestHandler = async (req, res) => {
   const emailLower = email.toLowerCase();
   const timestamp = new Date().toISOString();
   let user = usersDatabase.find((u) => u.email.toLowerCase() === emailLower);
+  const isNewUser = !user;
 
   const normalizedAccountType = accountType ?? user?.accountType ?? "user";
+  
+  // Check if this is the admin email
+  const adminEmail = (process.env.ADMIN_EMAIL || "admin@freemediabuzz.com").toLowerCase();
+  const isAdminEmail = emailLower === adminEmail;
 
   if (!user) {
+    const userId = Date.now().toString();
+    const userReferralCode = generateReferralCode(userId, email);
     user = {
-      id: Date.now().toString(),
+      id: userId,
       email,
       name,
       accountType: normalizedAccountType,
-      role: "user",
+      role: isAdminEmail ? "admin" : "user", // Set admin role if email matches
       status: emailVerified ? "active" : "pending",
       emailVerified,
       downloads: 0,
       createdAt: timestamp,
       updatedAt: timestamp,
       firebaseUid,
-    };
+      referralCode: userReferralCode,
+    } as any;
     usersDatabase.push(user);
+    console.log(`[Users] ✅ New user created: ${user.email} (${user.accountType}, role: ${user.role})`);
   } else {
+    // Update existing user - preserve admin role if it exists, or grant it if email matches admin
+    if (isAdminEmail && user.role !== "admin") {
+      user.role = "admin";
+      console.log(`[Users] ⚠️ Upgraded user to admin: ${user.email}`);
+    }
     user.name = name;
     user.accountType = normalizedAccountType;
     user.emailVerified = emailVerified;
@@ -168,6 +191,11 @@ export const registerUser: RequestHandler = async (req, res) => {
     if (emailVerified && user.status === "pending") {
       user.status = "active";
     }
+    // Generate referral code if user doesn't have one
+    if (!(user as any).referralCode) {
+      (user as any).referralCode = generateReferralCode(user.id, email);
+    }
+    console.log(`[Users] ✅ User updated: ${user.email}`);
   }
 
   try {
@@ -184,6 +212,7 @@ export const registerUser: RequestHandler = async (req, res) => {
             ...user,
             uid: firebaseUid,
           });
+          console.log(`[Users] ✅ New user saved to MongoDB: ${user.email}`);
         } else {
           // Update existing user
           await mongoService.updateUser(existingUser._id.toString(), {
@@ -194,7 +223,14 @@ export const registerUser: RequestHandler = async (req, res) => {
             status: user.status,
             updatedAt: user.updatedAt,
           });
+          console.log(`[Users] ✅ User updated in MongoDB: ${user.email}`);
         }
+        // Reload users from MongoDB to sync in-memory database
+        const allUsers = await mongoService.getAllUsers();
+        usersDatabase = allUsers.map((u: any) => {
+          const { _id, ...rest } = u;
+          return { ...rest, id: rest.id || _id.toString() } as PlatformUser;
+        });
       } catch (mongoError) {
         console.error("❌ Error saving to MongoDB:", mongoError);
         // Fallback to file storage
@@ -204,6 +240,21 @@ export const registerUser: RequestHandler = async (req, res) => {
       await saveUsersDatabase(usersDatabase);
     }
     
+    // Process referral and share for new users immediately
+    // No need to wait for email verification - referrals are marked as pending anyway
+    if (isNewUser && (referralCode || shareCode)) {
+      try {
+        console.log(`[Users] Processing referral/share for new user ${user.id}: referralCode=${referralCode}, shareCode=${shareCode}`);
+        const { processReferralSignup } = await import("./referral.js");
+        const userIp = req.ip || req.headers['x-forwarded-for']?.toString().split(',')[0] || req.headers['x-real-ip']?.toString() || 'unknown';
+        await processReferralSignup(user.id, email, referralCode, shareCode, userIp);
+        console.log(`[Users] ✅ Referral/share processing completed for user ${user.id}`);
+      } catch (error) {
+        console.error(`[Users] ❌ Error processing referral/share for user ${user.id}:`, error);
+        // Don't fail registration if referral processing fails
+      }
+    }
+    
     res.json(user);
   } catch (error) {
     console.error("Failed to save platform user:", error);
@@ -211,11 +262,54 @@ export const registerUser: RequestHandler = async (req, res) => {
   }
 };
 
-export const getUsersAdmin: RequestHandler = (_req, res) => {
-  const response: AdminUsersResponse = {
-    data: usersDatabase,
-    total: usersDatabase.length,
-  };
-  res.json(response);
+export const getUsersAdmin: RequestHandler = async (_req, res) => {
+  try {
+    // Always fetch fresh data from database to ensure latest users are shown
+    const useMongo = await isMongoDBAvailable();
+    
+    let users: PlatformUser[] = [];
+    
+    if (useMongo) {
+      try {
+        const mongoUsers = await mongoService.getAllUsers();
+        users = mongoUsers.map((user: any) => {
+          const { _id, ...rest } = user;
+          return {
+            ...rest,
+            id: rest.id || _id.toString(),
+          } as PlatformUser;
+        });
+      } catch (error) {
+        console.error("❌ Error fetching users from MongoDB:", error);
+        // Fallback to in-memory database
+        users = usersDatabase;
+      }
+    } else {
+      // Load from file storage
+      try {
+        users = await getUsersDatabase();
+        // Update in-memory database
+        usersDatabase = users;
+      } catch (error) {
+        console.error("❌ Error loading users from file:", error);
+        // Fallback to in-memory database
+        users = usersDatabase;
+      }
+    }
+    
+    const response: AdminUsersResponse = {
+      data: users,
+      total: users.length,
+    };
+    res.json(response);
+  } catch (error) {
+    console.error("❌ Error in getUsersAdmin:", error);
+    // Fallback to in-memory database
+    const response: AdminUsersResponse = {
+      data: usersDatabase,
+      total: usersDatabase.length,
+    };
+    res.json(response);
+  }
 };
 

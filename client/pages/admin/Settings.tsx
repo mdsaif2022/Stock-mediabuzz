@@ -1,7 +1,9 @@
 import AdminLayout from "@/components/AdminLayout";
-import { Save, Upload, X, Loader2 } from "lucide-react";
+import { Save, Upload, X, Loader2, Smartphone, Download } from "lucide-react";
 import { useEffect, useState, useRef } from "react";
 import { apiFetch } from "@/lib/api";
+import { Switch } from "@/components/ui/switch";
+import { AppSettings } from "@shared/api";
 
 async function resizeImageToPng(dataUrl: string, size = 64): Promise<string> {
   return new Promise((resolve, reject) => {
@@ -37,6 +39,7 @@ export default function AdminSettings() {
   const [paymentSettings, setPaymentSettings] = useState({
     bkashPersonal: "",
     bkashMerchant: "",
+    autoPaymentEnabled: true,
   });
   const [paymentStatus, setPaymentStatus] = useState<"idle" | "saving" | "success" | "error">("idle");
   const [paymentMessage, setPaymentMessage] = useState("");
@@ -54,14 +57,40 @@ export default function AdminSettings() {
   const [generalStatus, setGeneralStatus] = useState<"idle" | "saving" | "success" | "error">("idle");
   const [generalMessage, setGeneralMessage] = useState("");
 
+  const [appSettings, setAppSettings] = useState<AppSettings>({
+    appName: "",
+    appVersion: "",
+    appDescription: "",
+    apkUrl: "",
+    xapkUrl: "",
+    appIcon: "",
+    downloadEnabled: false,
+    playStoreUrl: "",
+    appStoreUrl: "",
+  });
+  const [appStatus, setAppStatus] = useState<"idle" | "saving" | "success" | "error">("idle");
+  const [appMessage, setAppMessage] = useState("");
+  const [apkUploading, setApkUploading] = useState(false);
+  const [xapkUploading, setXapkUploading] = useState(false);
+  const [iconUploading, setIconUploading] = useState(false);
+  const apkInputRef = useRef<HTMLInputElement>(null);
+  const xapkInputRef = useRef<HTMLInputElement>(null);
+  const iconInputRef = useRef<HTMLInputElement>(null);
+
   useEffect(() => {
-    Promise.all([apiFetch("/api/settings/payment"), apiFetch("/api/settings/branding"), apiFetch("/api/settings/general")])
-      .then(async ([paymentRes, brandingRes, generalRes]) => {
+    Promise.all([
+      apiFetch("/api/settings/payment"),
+      apiFetch("/api/settings/branding"),
+      apiFetch("/api/settings/general"),
+      apiFetch("/api/settings/app"),
+    ])
+      .then(async ([paymentRes, brandingRes, generalRes, appRes]) => {
         if (paymentRes.ok) {
           const data = await paymentRes.json();
           setPaymentSettings({
             bkashPersonal: data?.bkashPersonal || "",
             bkashMerchant: data?.bkashMerchant || "",
+            autoPaymentEnabled: typeof data?.autoPaymentEnabled === "boolean" ? data.autoPaymentEnabled : true,
           });
         } else {
           setPaymentMessage("Unable to load payment settings.");
@@ -90,6 +119,24 @@ export default function AdminSettings() {
           setGeneralMessage("Unable to load general settings.");
           setGeneralStatus("error");
         }
+
+        if (appRes.ok) {
+          const app = await appRes.json();
+          setAppSettings({
+            appName: app?.appName || "",
+            appVersion: app?.appVersion || "",
+            appDescription: app?.appDescription || "",
+            apkUrl: app?.apkUrl || "",
+            xapkUrl: app?.xapkUrl || "",
+            appIcon: app?.appIcon || "",
+            downloadEnabled: typeof app?.downloadEnabled === "boolean" ? app.downloadEnabled : false,
+            playStoreUrl: app?.playStoreUrl || "",
+            appStoreUrl: app?.appStoreUrl || "",
+          });
+        } else {
+          setAppMessage("Unable to load app settings.");
+          setAppStatus("error");
+        }
       })
       .catch(() => {
         setPaymentMessage("Unable to load payment settings.");
@@ -98,6 +145,8 @@ export default function AdminSettings() {
         setBrandingStatus("error");
         setGeneralMessage("Unable to load general settings.");
         setGeneralStatus("error");
+        setAppMessage("Unable to load app settings.");
+        setAppStatus("error");
       });
   }, []);
 
@@ -280,6 +329,207 @@ export default function AdminSettings() {
     }
   };
 
+  const handleApkUpload = async (file: File) => {
+    if (!file) return;
+    
+    // Validate file type
+    const validTypes = [".apk", "application/vnd.android.package-archive"];
+    const fileName = file.name.toLowerCase();
+    if (!fileName.endsWith(".apk") && !validTypes.includes(file.type)) {
+      setAppStatus("error");
+      setAppMessage("Invalid file type. Please upload an APK file.");
+      return;
+    }
+
+    // Validate file size (max 200MB)
+    if (file.size > 200 * 1024 * 1024) {
+      setAppStatus("error");
+      setAppMessage("File size must be less than 200MB.");
+      return;
+    }
+
+    setApkUploading(true);
+    setAppMessage("");
+
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("folder", "app-files");
+      formData.append("resource_type", "raw");
+      formData.append("server", "auto");
+
+      const uploadResponse = await apiFetch("/api/upload/file", {
+        method: "POST",
+        body: formData,
+      });
+
+      if (!uploadResponse.ok) {
+        throw new Error("Failed to upload APK");
+      }
+
+      const uploadData = await uploadResponse.json();
+      const apkUrl = uploadData.secureUrl || uploadData.secure_url || uploadData.url;
+      
+      if (apkUrl) {
+        setAppSettings((prev) => ({ ...prev, apkUrl }));
+        setAppStatus("success");
+        setAppMessage("APK uploaded successfully. Click 'Save App Settings' to save changes.");
+      } else {
+        throw new Error("No URL returned from upload");
+      }
+    } catch (error: any) {
+      console.error("APK upload error:", error);
+      setAppStatus("error");
+      setAppMessage(error.message || "Failed to upload APK.");
+    } finally {
+      setApkUploading(false);
+      if (apkInputRef.current) {
+        apkInputRef.current.value = "";
+      }
+    }
+  };
+
+  const handleXapkUpload = async (file: File) => {
+    if (!file) return;
+    
+    // Validate file type
+    const fileName = file.name.toLowerCase();
+    if (!fileName.endsWith(".xapk")) {
+      setAppStatus("error");
+      setAppMessage("Invalid file type. Please upload an XAPK file.");
+      return;
+    }
+
+    // Validate file size (max 500MB)
+    if (file.size > 500 * 1024 * 1024) {
+      setAppStatus("error");
+      setAppMessage("File size must be less than 500MB.");
+      return;
+    }
+
+    setXapkUploading(true);
+    setAppMessage("");
+
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("folder", "app-files");
+      formData.append("resource_type", "raw");
+      formData.append("server", "auto");
+
+      const uploadResponse = await apiFetch("/api/upload/file", {
+        method: "POST",
+        body: formData,
+      });
+
+      if (!uploadResponse.ok) {
+        throw new Error("Failed to upload XAPK");
+      }
+
+      const uploadData = await uploadResponse.json();
+      const xapkUrl = uploadData.secureUrl || uploadData.secure_url || uploadData.url;
+      
+      if (xapkUrl) {
+        setAppSettings((prev) => ({ ...prev, xapkUrl }));
+        setAppStatus("success");
+        setAppMessage("XAPK uploaded successfully. Click 'Save App Settings' to save changes.");
+      } else {
+        throw new Error("No URL returned from upload");
+      }
+    } catch (error: any) {
+      console.error("XAPK upload error:", error);
+      setAppStatus("error");
+      setAppMessage(error.message || "Failed to upload XAPK.");
+    } finally {
+      setXapkUploading(false);
+      if (xapkInputRef.current) {
+        xapkInputRef.current.value = "";
+      }
+    }
+  };
+
+  const handleAppIconUpload = async (file: File) => {
+    if (!file) return;
+    
+    // Validate file type
+    const validTypes = ["image/png", "image/jpeg", "image/jpg"];
+    if (!validTypes.includes(file.type)) {
+      setAppStatus("error");
+      setAppMessage("Invalid file type. Please upload PNG or JPG.");
+      return;
+    }
+
+    // Validate file size (max 5MB)
+    if (file.size > 5 * 1024 * 1024) {
+      setAppStatus("error");
+      setAppMessage("File size must be less than 5MB.");
+      return;
+    }
+
+    setIconUploading(true);
+    setAppMessage("");
+
+    try {
+      const formData = new FormData();
+      formData.append("file", file);
+      formData.append("folder", "app-assets");
+      formData.append("resource_type", "image");
+      formData.append("public_id", "app-icon");
+      formData.append("server", "auto");
+
+      const uploadResponse = await apiFetch("/api/upload/asset", {
+        method: "POST",
+        body: formData,
+      });
+
+      if (!uploadResponse.ok) {
+        throw new Error("Failed to upload app icon");
+      }
+
+      const uploadData = await uploadResponse.json();
+      const iconUrl = uploadData.secureUrl || uploadData.secure_url || uploadData.url;
+      
+      if (iconUrl) {
+        setAppSettings((prev) => ({ ...prev, appIcon: iconUrl }));
+        setAppStatus("success");
+        setAppMessage("App icon uploaded successfully. Click 'Save App Settings' to save changes.");
+      } else {
+        throw new Error("No URL returned from upload");
+      }
+    } catch (error: any) {
+      console.error("App icon upload error:", error);
+      setAppStatus("error");
+      setAppMessage(error.message || "Failed to upload app icon.");
+    } finally {
+      setIconUploading(false);
+      if (iconInputRef.current) {
+        iconInputRef.current.value = "";
+      }
+    }
+  };
+
+  const handleAppSave = async () => {
+    setAppStatus("saving");
+    setAppMessage("");
+    try {
+      const response = await apiFetch("/api/settings/app", {
+        method: "PUT",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify(appSettings),
+      });
+      if (!response.ok) {
+        throw new Error("Failed to update app settings");
+      }
+      setAppStatus("success");
+      setAppMessage("App settings updated successfully.");
+    } catch (error: any) {
+      setAppStatus("error");
+      setAppMessage(error.message || "Failed to save app settings.");
+    }
+  };
+
   return (
     <AdminLayout>
       <div className="space-y-8 max-w-4xl">
@@ -306,26 +556,41 @@ export default function AdminSettings() {
               {paymentStatus === "saving" ? "Saving..." : "Save Payment Info"}
             </button>
           </div>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div>
-              <label className="block text-sm font-medium mb-2">bKash Personal (Send Money)</label>
-              <input
-                type="tel"
-                value={paymentSettings.bkashPersonal}
-                onChange={(e) => setPaymentSettings((prev) => ({ ...prev, bkashPersonal: e.target.value }))}
-                className="w-full px-4 py-2 border border-border rounded-lg bg-slate-50 dark:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-primary"
-                placeholder="01XXXXXXXXX"
+          <div className="space-y-4">
+            <div className="flex items-center justify-between p-4 rounded-lg border border-border bg-slate-50 dark:bg-slate-800/50">
+              <div className="flex-1">
+                <label className="block text-sm font-medium mb-1">Enable Auto Payment</label>
+                <p className="text-xs text-muted-foreground">
+                  When enabled, creators can use the bKash merchant number for automatic payment processing.
+                </p>
+              </div>
+              <Switch
+                checked={paymentSettings.autoPaymentEnabled}
+                onCheckedChange={(checked) => setPaymentSettings((prev) => ({ ...prev, autoPaymentEnabled: checked }))}
               />
             </div>
-            <div>
-              <label className="block text-sm font-medium mb-2">bKash Merchant (Auto Payment)</label>
-              <input
-                type="tel"
-                value={paymentSettings.bkashMerchant}
-                onChange={(e) => setPaymentSettings((prev) => ({ ...prev, bkashMerchant: e.target.value }))}
-                className="w-full px-4 py-2 border border-border rounded-lg bg-slate-50 dark:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-primary"
-                placeholder="01XXXXXXXXX"
-              />
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+              <div>
+                <label className="block text-sm font-medium mb-2">bKash Personal (Send Money)</label>
+                <input
+                  type="tel"
+                  value={paymentSettings.bkashPersonal}
+                  onChange={(e) => setPaymentSettings((prev) => ({ ...prev, bkashPersonal: e.target.value }))}
+                  className="w-full px-4 py-2 border border-border rounded-lg bg-slate-50 dark:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-primary"
+                  placeholder="01XXXXXXXXX"
+                />
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-2">bKash Merchant (Auto Payment)</label>
+                <input
+                  type="tel"
+                  value={paymentSettings.bkashMerchant}
+                  onChange={(e) => setPaymentSettings((prev) => ({ ...prev, bkashMerchant: e.target.value }))}
+                  className="w-full px-4 py-2 border border-border rounded-lg bg-slate-50 dark:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-primary disabled:opacity-50 disabled:cursor-not-allowed"
+                  placeholder="01XXXXXXXXX"
+                  disabled={!paymentSettings.autoPaymentEnabled}
+                />
+              </div>
             </div>
           </div>
           {paymentMessage && (
@@ -586,6 +851,281 @@ export default function AdminSettings() {
               </div>
             </div>
           </div>
+        </div>
+
+        {/* App Settings */}
+        <div className="bg-white dark:bg-slate-900 rounded-lg border border-border p-6 space-y-4">
+          <div className="flex items-center justify-between gap-4 flex-wrap">
+            <div>
+              <h3 className="text-lg font-bold flex items-center gap-2">
+                <Smartphone className="w-5 h-5" />
+                Official App Management
+              </h3>
+              <p className="text-sm text-muted-foreground">
+                Upload and manage your official app files (APK/XAPK) and configure download links.
+              </p>
+            </div>
+            <button
+              onClick={handleAppSave}
+              disabled={appStatus === "saving"}
+              className="inline-flex items-center gap-2 px-4 py-2 rounded-lg bg-gradient-to-r from-primary to-accent text-white text-sm font-semibold disabled:opacity-50"
+            >
+              {appStatus === "saving" ? "Saving..." : "Save App Settings"}
+            </button>
+          </div>
+
+          <div className="space-y-6">
+            {/* Enable/Disable Download */}
+            <div className="flex items-center justify-between gap-4 p-4 bg-slate-50 dark:bg-slate-800 rounded-lg">
+              <div>
+                <label className="text-sm font-medium">Enable App Download</label>
+                <p className="text-xs text-muted-foreground">
+                  Show "Get Our App" button in the header when enabled
+                </p>
+              </div>
+              <Switch
+                checked={appSettings.downloadEnabled}
+                onCheckedChange={(checked) =>
+                  setAppSettings((prev) => ({ ...prev, downloadEnabled: checked }))
+                }
+              />
+            </div>
+
+            {/* App Information */}
+            <div className="space-y-4">
+              <h4 className="text-sm font-semibold">App Information</h4>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium mb-2">App Name</label>
+                  <input
+                    type="text"
+                    value={appSettings.appName}
+                    onChange={(e) => setAppSettings((prev) => ({ ...prev, appName: e.target.value }))}
+                    placeholder="My App"
+                    className="w-full px-4 py-2 border border-border rounded-lg bg-slate-50 dark:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-primary"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-2">App Version</label>
+                  <input
+                    type="text"
+                    value={appSettings.appVersion}
+                    onChange={(e) => setAppSettings((prev) => ({ ...prev, appVersion: e.target.value }))}
+                    placeholder="1.0.0"
+                    className="w-full px-4 py-2 border border-border rounded-lg bg-slate-50 dark:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-primary"
+                  />
+                </div>
+              </div>
+              <div>
+                <label className="block text-sm font-medium mb-2">App Description</label>
+                <textarea
+                  value={appSettings.appDescription}
+                  onChange={(e) => setAppSettings((prev) => ({ ...prev, appDescription: e.target.value }))}
+                  placeholder="Brief description of your app"
+                  rows={3}
+                  className="w-full px-4 py-2 border border-border rounded-lg bg-slate-50 dark:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-primary"
+                />
+              </div>
+            </div>
+
+            {/* App Icon */}
+            <div className="space-y-4">
+              <h4 className="text-sm font-semibold">App Icon</h4>
+              <div className="flex flex-col sm:flex-row gap-4">
+                <div className="flex-1">
+                  <input
+                    ref={iconInputRef}
+                    type="file"
+                    accept="image/png,image/jpeg,image/jpg"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) handleAppIconUpload(file);
+                    }}
+                    className="hidden"
+                    id="app-icon-upload"
+                    disabled={iconUploading}
+                  />
+                  <label
+                    htmlFor="app-icon-upload"
+                    className={`flex items-center justify-center gap-2 px-4 py-3 border-2 border-dashed border-border rounded-lg cursor-pointer transition-colors ${
+                      iconUploading
+                        ? "opacity-50 cursor-not-allowed bg-slate-50 dark:bg-slate-800"
+                        : "hover:border-primary hover:bg-slate-50 dark:hover:bg-slate-800"
+                    }`}
+                  >
+                    {iconUploading ? (
+                      <>
+                        <Loader2 className="w-5 h-5 animate-spin text-primary" />
+                        <span className="text-sm font-medium">Uploading...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Upload className="w-5 h-5 text-muted-foreground" />
+                        <span className="text-sm font-medium">Upload App Icon</span>
+                      </>
+                    )}
+                  </label>
+                </div>
+                {appSettings.appIcon && (
+                  <div className="flex flex-col items-center justify-center gap-2 text-sm text-muted-foreground min-w-[120px]">
+                    <span>Preview</span>
+                    <div className="relative w-24 h-24 rounded-lg border border-dashed border-border flex items-center justify-center bg-slate-50 dark:bg-slate-900 overflow-hidden">
+                      <img
+                        src={appSettings.appIcon}
+                        alt="App icon preview"
+                        className="max-w-full max-h-full object-contain"
+                      />
+                    </div>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* APK Upload */}
+            <div className="space-y-4">
+              <h4 className="text-sm font-semibold">APK File</h4>
+              <div className="flex flex-col gap-4">
+                <div>
+                  <input
+                    ref={apkInputRef}
+                    type="file"
+                    accept=".apk,application/vnd.android.package-archive"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) handleApkUpload(file);
+                    }}
+                    className="hidden"
+                    id="apk-upload"
+                    disabled={apkUploading}
+                  />
+                  <label
+                    htmlFor="apk-upload"
+                    className={`flex items-center justify-center gap-2 px-4 py-3 border-2 border-dashed border-border rounded-lg cursor-pointer transition-colors ${
+                      apkUploading
+                        ? "opacity-50 cursor-not-allowed bg-slate-50 dark:bg-slate-800"
+                        : "hover:border-primary hover:bg-slate-50 dark:hover:bg-slate-800"
+                    }`}
+                  >
+                    {apkUploading ? (
+                      <>
+                        <Loader2 className="w-5 h-5 animate-spin text-primary" />
+                        <span className="text-sm font-medium">Uploading APK...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Download className="w-5 h-5 text-muted-foreground" />
+                        <span className="text-sm font-medium">Upload APK File (max 200MB)</span>
+                      </>
+                    )}
+                  </label>
+                </div>
+                {appSettings.apkUrl && (
+                  <div className="p-3 bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-900 rounded-lg">
+                    <p className="text-xs text-green-900 dark:text-green-200 mb-1">APK uploaded successfully</p>
+                    <a
+                      href={appSettings.apkUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-xs text-green-700 dark:text-green-300 hover:underline break-all"
+                    >
+                      {appSettings.apkUrl}
+                    </a>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* XAPK Upload */}
+            <div className="space-y-4">
+              <h4 className="text-sm font-semibold">XAPK File</h4>
+              <div className="flex flex-col gap-4">
+                <div>
+                  <input
+                    ref={xapkInputRef}
+                    type="file"
+                    accept=".xapk"
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) handleXapkUpload(file);
+                    }}
+                    className="hidden"
+                    id="xapk-upload"
+                    disabled={xapkUploading}
+                  />
+                  <label
+                    htmlFor="xapk-upload"
+                    className={`flex items-center justify-center gap-2 px-4 py-3 border-2 border-dashed border-border rounded-lg cursor-pointer transition-colors ${
+                      xapkUploading
+                        ? "opacity-50 cursor-not-allowed bg-slate-50 dark:bg-slate-800"
+                        : "hover:border-primary hover:bg-slate-50 dark:hover:bg-slate-800"
+                    }`}
+                  >
+                    {xapkUploading ? (
+                      <>
+                        <Loader2 className="w-5 h-5 animate-spin text-primary" />
+                        <span className="text-sm font-medium">Uploading XAPK...</span>
+                      </>
+                    ) : (
+                      <>
+                        <Download className="w-5 h-5 text-muted-foreground" />
+                        <span className="text-sm font-medium">Upload XAPK File (max 500MB)</span>
+                      </>
+                    )}
+                  </label>
+                </div>
+                {appSettings.xapkUrl && (
+                  <div className="p-3 bg-green-50 dark:bg-green-950/30 border border-green-200 dark:border-green-900 rounded-lg">
+                    <p className="text-xs text-green-900 dark:text-green-200 mb-1">XAPK uploaded successfully</p>
+                    <a
+                      href={appSettings.xapkUrl}
+                      target="_blank"
+                      rel="noopener noreferrer"
+                      className="text-xs text-green-700 dark:text-green-300 hover:underline break-all"
+                    >
+                      {appSettings.xapkUrl}
+                    </a>
+                  </div>
+                )}
+              </div>
+            </div>
+
+            {/* Store Links */}
+            <div className="space-y-4">
+              <h4 className="text-sm font-semibold">Store Links (Optional)</h4>
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                <div>
+                  <label className="block text-sm font-medium mb-2">Google Play Store URL</label>
+                  <input
+                    type="url"
+                    value={appSettings.playStoreUrl}
+                    onChange={(e) => setAppSettings((prev) => ({ ...prev, playStoreUrl: e.target.value }))}
+                    placeholder="https://play.google.com/store/apps/..."
+                    className="w-full px-4 py-2 border border-border rounded-lg bg-slate-50 dark:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-primary"
+                  />
+                </div>
+                <div>
+                  <label className="block text-sm font-medium mb-2">Apple App Store URL</label>
+                  <input
+                    type="url"
+                    value={appSettings.appStoreUrl}
+                    onChange={(e) => setAppSettings((prev) => ({ ...prev, appStoreUrl: e.target.value }))}
+                    placeholder="https://apps.apple.com/app/..."
+                    className="w-full px-4 py-2 border border-border rounded-lg bg-slate-50 dark:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-primary"
+                  />
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {appMessage && (
+            <p
+              className={`text-sm ${
+                appStatus === "error" ? "text-destructive" : appStatus === "success" ? "text-green-600" : "text-muted-foreground"
+              }`}
+            >
+              {appMessage}
+            </p>
+          )}
         </div>
 
         {/* General Settings */}

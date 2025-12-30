@@ -1,14 +1,18 @@
-import { Link } from "react-router-dom";
+import { Link, useNavigate } from "react-router-dom";
 import { ArrowRight, Search, Download, Play, Music, Image as ImageIcon, Zap, Shield, Smile, Smartphone } from "lucide-react";
 import Layout from "@/components/Layout";
 import { useEffect, useState } from "react";
 import { Media } from "@shared/api";
 import { apiFetch } from "@/lib/api";
 import { VideoCard } from "@/components/media/VideoCard";
+import { AudioCard } from "@/components/media/AudioCard";
+import { getMediaDisplayStats } from "@/lib/mediaUtils";
 
 export default function Index() {
+  const navigate = useNavigate();
   const [trendingMedia, setTrendingMedia] = useState<Media[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [searchQuery, setSearchQuery] = useState("");
 
   // Handle hash navigation on page load
   useEffect(() => {
@@ -103,69 +107,7 @@ export default function Index() {
     },
   ];
 
-  // Fallback demo media if API returns empty
-  const fallbackTrendingMedia = [
-    {
-      id: "1",
-      title: "Cinematic Urban Sunset",
-      category: "Video",
-      type: "4K",
-      downloads: "12.5K",
-      thumbnail: "bg-gradient-to-br from-orange-400 to-red-500",
-      isPremium: false,
-      previewUrl: "",
-    },
-    {
-      id: "2",
-      title: "Professional Business Background",
-      category: "Image",
-      type: "4K",
-      downloads: "8.3K",
-      thumbnail: "bg-gradient-to-br from-blue-400 to-blue-600",
-      isPremium: true,
-      previewUrl: "",
-    },
-    {
-      id: "3",
-      title: "Upbeat Electronic Music",
-      category: "Audio",
-      type: "320kbps",
-      downloads: "5.2K",
-      thumbnail: "bg-gradient-to-br from-purple-400 to-pink-600",
-      isPremium: false,
-      previewUrl: "",
-    },
-    {
-      id: "4",
-      title: "Modern Landing Page Template",
-      category: "Template",
-      type: "React",
-      downloads: "3.1K",
-      thumbnail: "bg-gradient-to-br from-green-400 to-blue-600",
-      isPremium: false,
-      previewUrl: "",
-    },
-    {
-      id: "5",
-      title: "Forest Walking Path",
-      category: "Video",
-      type: "1080p",
-      downloads: "9.7K",
-      thumbnail: "bg-gradient-to-br from-green-500 to-emerald-600",
-      isPremium: false,
-      previewUrl: "",
-    },
-    {
-      id: "6",
-      title: "Modern Tech Workspace",
-      category: "Image",
-      type: "5K",
-      downloads: "11.2K",
-      thumbnail: "bg-gradient-to-br from-slate-500 to-slate-700",
-      isPremium: false,
-      previewUrl: "",
-    },
-  ];
+  // No fallback demo media - only show real data
 
   const hasLiveTrending = displayTrendingMedia.length > 0;
 
@@ -223,21 +165,39 @@ export default function Index() {
 
             {/* Search Bar */}
             <div className="flex flex-col sm:flex-row gap-3 max-w-2xl mx-auto mb-8 sm:mb-12 animate-slide-up px-2">
-              <div className="flex-1 relative">
+              <form
+                className="flex-1 relative"
+                onSubmit={(e) => {
+                  e.preventDefault();
+                  if (searchQuery.trim()) {
+                    navigate(`/browse?q=${encodeURIComponent(searchQuery.trim())}`);
+                  } else {
+                    navigate("/browse");
+                  }
+                }}
+              >
                 <Search className="absolute left-3 sm:left-4 top-1/2 -translate-y-1/2 w-4 h-4 sm:w-5 sm:h-5 text-muted-foreground" />
                 <input
                   type="text"
                   placeholder="Search videos, images, audio..."
+                  value={searchQuery}
+                  onChange={(e) => setSearchQuery(e.target.value)}
                   className="w-full pl-10 sm:pl-12 pr-4 py-2.5 sm:py-3 rounded-lg border border-border bg-white dark:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-primary text-sm sm:text-base"
                 />
-              </div>
-              <Link
-                to="/browse"
+              </form>
+              <button
+                onClick={() => {
+                  if (searchQuery.trim()) {
+                    navigate(`/browse?q=${encodeURIComponent(searchQuery.trim())}`);
+                  } else {
+                    navigate("/browse");
+                  }
+                }}
                 className="px-5 sm:px-6 py-2.5 sm:py-3 bg-gradient-to-r from-primary to-accent text-white rounded-lg font-semibold hover:shadow-lg transition-all inline-flex items-center justify-center gap-2 text-sm sm:text-base touch-manipulation"
               >
                 Explore
                 <ArrowRight className="w-4 h-4 flex-shrink-0" />
-              </Link>
+              </button>
             </div>
 
             {/* Stats */}
@@ -322,17 +282,22 @@ export default function Index() {
           ) : hasLiveTrending ? (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
               {displayTrendingMedia.map(({ media, gradient }) => {
-                const downloadsLabel =
-                  media.downloads > 1000
-                    ? `${(media.downloads / 1000).toFixed(1)}K`
-                    : media.downloads.toString();
+                const displayStats = getMediaDisplayStats(media);
+                const downloadsLabel = displayStats.downloadsLabel;
                 const isVideoCard = media.category?.toLowerCase() === "video" && Boolean(media.fileUrl);
+                const isAudioCard = media.category?.toLowerCase() === "audio";
 
                 const categoryPath = media.category?.toLowerCase() || "all";
                 
                 if (isVideoCard) {
                   return (
                     <VideoCard key={media.id} media={media} to={`/browse/${categoryPath}/${media.id}`} variant="compact" className="h-full" />
+                  );
+                }
+
+                if (isAudioCard) {
+                  return (
+                    <AudioCard key={media.id} media={media} to={`/browse/${categoryPath}/${media.id}`} variant="compact" className="h-full" />
                   );
                 }
 
@@ -412,51 +377,8 @@ export default function Index() {
               })}
             </div>
           ) : (
-            <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
-              {fallbackTrendingMedia.map((media) => {
-                const categoryPath = media.category?.toLowerCase() || "all";
-                const getIcon = (category: string) => {
-                  const categoryLower = category.toLowerCase();
-                  if (categoryLower === "video") return Play;
-                  if (categoryLower === "image") return ImageIcon;
-                  if (categoryLower === "audio") return Music;
-                  return Zap;
-                };
-                const Icon = getIcon(media.category);
-                return (
-                  <Link
-                    key={media.id}
-                    to={`/browse/${categoryPath}/${media.id}`}
-                    className="group cursor-pointer touch-manipulation active:scale-[0.98] transition-transform"
-                  >
-                    <div className="relative overflow-hidden rounded-lg shadow-sm group-hover:shadow-md transition-shadow">
-                      <div className={`aspect-video flex items-center justify-center relative group-hover:scale-105 transition-transform duration-300 ${media.thumbnail}`}>
-                        <Icon className="w-12 h-12 text-white/80" />
-                        <div className="absolute inset-0 bg-gradient-to-t from-black/30 to-transparent opacity-0 group-hover:opacity-100 transition-opacity flex items-end p-3 sm:p-4">
-                          <Download className="w-4 h-4 sm:w-5 sm:h-5 text-white" />
-                        </div>
-                      </div>
-                    </div>
-
-                    <div className="mt-3 sm:mt-4">
-                      <h3 className="font-semibold text-sm sm:text-base text-foreground group-hover:text-primary transition-colors line-clamp-2">
-                        {media.title}
-                      </h3>
-                      <div className="flex justify-between items-center mt-2">
-                        <div className="flex gap-1.5 sm:gap-2 flex-wrap">
-                          <span className="text-xs bg-secondary/10 text-secondary px-1.5 sm:px-2 py-0.5 sm:py-1 rounded">
-                            {media.category}
-                          </span>
-                          <span className="text-xs bg-slate-100 dark:bg-slate-800 text-muted-foreground px-1.5 sm:px-2 py-0.5 sm:py-1 rounded">
-                            {media.type}
-                          </span>
-                        </div>
-                        <span className="text-xs sm:text-sm text-muted-foreground font-medium">{media.downloads}</span>
-                      </div>
-                    </div>
-                  </Link>
-                );
-              })}
+            <div className="text-center py-12">
+              <p className="text-muted-foreground">No trending media available</p>
             </div>
           )}
 

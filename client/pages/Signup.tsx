@@ -1,12 +1,13 @@
-import { Link, useNavigate } from "react-router-dom";
+import { Link, useNavigate, useSearchParams } from "react-router-dom";
 import Layout from "@/components/Layout";
 import { Mail, Lock, User, ArrowRight, Sparkles } from "lucide-react";
-import { useState } from "react";
+import { useState, useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { auth } from "@/lib/firebase";
 import { apiFetch } from "@/lib/api";
 
 export default function Signup() {
+  const [searchParams] = useSearchParams();
   const [accountType, setAccountType] = useState<"user" | "creator">("user");
   const [formData, setFormData] = useState({
     name: "",
@@ -20,6 +21,10 @@ export default function Signup() {
   const { signup, loginWithGoogle } = useAuth();
   const navigate = useNavigate();
   const isCreatorAccount = accountType === "creator";
+  
+  // Get referral code and share code from URL
+  const referralCode = searchParams.get("ref");
+  const shareCode = searchParams.get("share");
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value, type, checked } = e.target;
@@ -73,6 +78,9 @@ export default function Signup() {
       if (isCreatorAccount) {
         await registerCreatorProfile(formData.name, formData.email);
       }
+      // Store referral/share codes in sessionStorage to pass to registration
+      if (referralCode) sessionStorage.setItem("pendingReferralCode", referralCode);
+      if (shareCode) sessionStorage.setItem("pendingShareCode", shareCode);
       navigate("/login?verifyEmail=1", { replace: true });
     } catch (err: any) {
       setError(err.message || "Failed to create account. Please try again.");

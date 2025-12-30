@@ -145,6 +145,10 @@ export const getMedia: RequestHandler = async (req, res) => {
   const mediaDatabase = await getMediaDatabase();
   let filtered = [...mediaDatabase];
 
+  // Filter by status: only show approved items to regular users (admin panel will show all)
+  // Items without status are considered approved for backward compatibility
+  filtered = filtered.filter((m) => !m.status || m.status === "approved");
+
   if (category) {
     const normalizedCategory = normalizeCategoryValue(category as string);
     filtered = normalizedCategory
@@ -199,6 +203,13 @@ export const getMediaById: RequestHandler = async (req, res) => {
   const media = mediaDatabase.find((m) => m.id === id);
 
   if (!media) {
+    res.status(404).json({ error: "Media not found" });
+    return;
+  }
+
+  // Only return approved items to regular users (admin panel can access all)
+  // Items without status are considered approved for backward compatibility
+  if (media.status && media.status !== "approved") {
     res.status(404).json({ error: "Media not found" });
     return;
   }
@@ -280,6 +291,29 @@ export const updateMedia: RequestHandler = async (req, res) => {
     updates.showScreenshots = parseShowScreenshots(req.body.showScreenshots);
   }
 
+  // Allow updating status, title, description, tags, type, isPremium
+  if ("status" in req.body) {
+    updates.status = req.body.status;
+  }
+  if ("rejectedReason" in req.body) {
+    updates.rejectedReason = req.body.rejectedReason;
+  }
+  if ("title" in req.body) {
+    updates.title = req.body.title;
+  }
+  if ("description" in req.body) {
+    updates.description = req.body.description;
+  }
+  if ("tags" in req.body) {
+    updates.tags = Array.isArray(req.body.tags) ? req.body.tags : typeof req.body.tags === 'string' ? req.body.tags.split(',').map(t => t.trim()) : [];
+  }
+  if ("type" in req.body) {
+    updates.type = req.body.type;
+  }
+  if ("isPremium" in req.body) {
+    updates.isPremium = req.body.isPremium === true || req.body.isPremium === "true";
+  }
+
   Object.assign(media, bodyCopy, updates);
 
   try {
@@ -291,12 +325,161 @@ export const updateMedia: RequestHandler = async (req, res) => {
   }
 };
 
-// Delete media - DISABLED: Media deletion is not allowed to ensure all uploaded content remains forever
+// Helper function to extract public_id and server from Cloudinary URL
+function extractCloudinaryInfo(url: string): { publicId: string; server: CloudinaryServer; resourceType: "image" | "video" | "raw" } | null {
+  try {
+    // Cloudinary URL format: 
+    // https://res.cloudinary.com/{cloud_name}/{resource_type}/upload/{transformations}/{public_id}.{ext}
+    // or: https://res.cloudinary.com/{cloud_name}/{resource_type}/upload/{public_id}.{ext}
+    const urlObj = new URL(url);
+    const pathParts = urlObj.pathname.split('/').filter(p => p);
+    
+    // Find the resource type index (image, video, or raw)
+    const resourceTypeIndex = pathParts.findIndex(p => ['image', 'video', 'raw'].includes(p));
+    if (resourceTypeIndex === -1) return null;
+    
+    const resourceType = pathParts[resourceTypeIndex] as "image" | "video" | "raw";
+    const uploadIndex = pathParts.findIndex((p, i) => i > resourceTypeIndex && p === 'upload');
+    if (uploadIndex === -1) return null;
+    
+    // Extract public_id (everything after 'upload', but skip transformations)
+    // Transformations are typically single segments like "w_500", "q_auto", etc.
+    // The public_id starts after transformations or immediately after 'upload'
+    const afterUpload = pathParts.slice(uploadIndex + 1);
+    
+    // Find where public_id starts (after transformations)
+    // Transformations are usually short segments with underscores or specific patterns
+    // Public ID typically contains slashes (for folders) or is a longer segment
+    let publicIdStartIndex = 0;
+    for (let i = 0; i < afterUpload.length; i++) {
+      const segment = afterUpload[i];
+      // If segment looks like a transformation (short, has underscore, no slashes expected)
+      // or if it's a common transformation pattern, skip it
+      if (segment.includes('_') && segment.length < 20 && !segment.includes('/')) {
+        continue;
+      }
+      // Otherwise, this is likely the start of the public_id
+      publicIdStartIndex = i;
+      break;
+    }
+    
+    // Extract public_id from the remaining segments
+    const publicIdParts = afterUpload.slice(publicIdStartIndex);
+    let publicId = publicIdParts.join('/');
+    
+    // Remove file extension
+    publicId = publicId.replace(/\.(jpg|jpeg|png|gif|webp|mp4|webm|mov|avi|apk|xapk|zip|pdf|psd|raw|mp3|wav|ogg)$/i, '');
+    
+    // Determine server from cloud_name
+    const cloudName = pathParts[0]; // First part after res.cloudinary.com
+    let server: CloudinaryServer = "server1";
+    if (cloudName === "dxijk3ivo") server = "server2";
+    else if (cloudName === "dvdtbffva") server = "server3";
+    else if (cloudName === "dk81tgmae") server = "server1";
+    else server = "auto";
+    
+    return { publicId, server, resourceType };
+  } catch (error) {
+    console.error("Error extracting Cloudinary info:", error);
+    return null;
+  }
+}
+
+// Delete media - Admin only, deletes from both database and Cloudinary
 export const deleteMedia: RequestHandler = async (req, res) => {
-  res.status(403).json({ 
-    error: "Media deletion is not allowed",
-    message: "All uploaded content must remain permanently. Media cannot be deleted by creators or admins."
-  });
+  console.log(`🗑️ Delete request received for media ID: ${req.params.id}`);
+  const { id } = req.params;
+  const mediaDatabase = await getMediaDatabase();
+  const media = mediaDatabase.find((m) => m.id === id);
+
+  if (!media) {
+    console.log(`❌ Media not found: ${id}`);
+    res.status(404).json({ error: "Media not found" });
+    return;
+  }
+
+  console.log(`📦 Found media to delete: ${media.title} (${media.fileUrl})`);
+
+  try {
+    // Delete from Cloudinary if fileUrl exists
+    if (media.fileUrl) {
+      const cloudinaryInfo = extractCloudinaryInfo(media.fileUrl);
+      if (cloudinaryInfo) {
+        try {
+          const { deleteFromCloudinary } = await import("../config/cloudinary.js");
+          await deleteFromCloudinary(
+            cloudinaryInfo.publicId,
+            cloudinaryInfo.server,
+            cloudinaryInfo.resourceType
+          );
+          console.log(`✅ Deleted file from Cloudinary: ${cloudinaryInfo.publicId} (${cloudinaryInfo.server})`);
+        } catch (cloudinaryError: any) {
+          console.error("⚠️ Failed to delete from Cloudinary:", cloudinaryError);
+          // Continue with database deletion even if Cloudinary deletion fails
+          // (file might already be deleted or URL might be invalid)
+        }
+      } else {
+        console.warn(`⚠️ Could not extract Cloudinary info from URL: ${media.fileUrl}`);
+      }
+    }
+
+    // Also delete preview/icon/screenshots if they exist
+    if (media.previewUrl && media.previewUrl !== media.fileUrl) {
+      const previewInfo = extractCloudinaryInfo(media.previewUrl);
+      if (previewInfo) {
+        try {
+          const { deleteFromCloudinary } = await import("../config/cloudinary.js");
+          await deleteFromCloudinary(previewInfo.publicId, previewInfo.server, "image");
+        } catch (error) {
+          console.warn("⚠️ Failed to delete preview from Cloudinary:", error);
+        }
+      }
+    }
+
+    if (media.iconUrl) {
+      const iconInfo = extractCloudinaryInfo(media.iconUrl);
+      if (iconInfo) {
+        try {
+          const { deleteFromCloudinary } = await import("../config/cloudinary.js");
+          await deleteFromCloudinary(iconInfo.publicId, iconInfo.server, "image");
+        } catch (error) {
+          console.warn("⚠️ Failed to delete icon from Cloudinary:", error);
+        }
+      }
+    }
+
+    if (media.featureScreenshots && Array.isArray(media.featureScreenshots)) {
+      for (const screenshot of media.featureScreenshots) {
+        if (screenshot.url) {
+          const screenshotInfo = extractCloudinaryInfo(screenshot.url);
+          if (screenshotInfo) {
+            try {
+              const { deleteFromCloudinary } = await import("../config/cloudinary.js");
+              await deleteFromCloudinary(screenshotInfo.publicId, screenshotInfo.server, "image");
+            } catch (error) {
+              console.warn("⚠️ Failed to delete screenshot from Cloudinary:", error);
+            }
+          }
+        }
+      }
+    }
+
+    // Delete from database
+    const updatedDatabase = mediaDatabase.filter((m) => m.id !== id);
+    await saveMediaDatabase(updatedDatabase);
+
+    res.json({ 
+      success: true,
+      message: "Media deleted successfully from database and Cloudinary",
+      deletedId: id
+    });
+  } catch (error: any) {
+    console.error("Failed to delete media:", error);
+    res.status(500).json({ 
+      error: "Failed to delete media",
+      message: error.message 
+    });
+  }
 };
 
 // Get trending media

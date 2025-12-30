@@ -65,6 +65,10 @@ export function AuthProvider({ children }: AuthProviderProps) {
     }) => {
       if (!email) return;
       try {
+        // Get referral and share codes from sessionStorage
+        const referralCode = sessionStorage.getItem("pendingReferralCode");
+        const shareCode = sessionStorage.getItem("pendingShareCode");
+        
         await apiFetch("/api/users/register", {
           method: "POST",
           headers: {
@@ -76,8 +80,14 @@ export function AuthProvider({ children }: AuthProviderProps) {
             firebaseUid,
             emailVerified: emailVerified ?? false,
             ...(accountType ? { accountType } : {}),
+            ...(referralCode ? { referralCode } : {}),
+            ...(shareCode ? { shareCode } : {}),
           }),
         });
+        
+        // Clear stored codes after use
+        if (referralCode) sessionStorage.removeItem("pendingReferralCode");
+        if (shareCode) sessionStorage.removeItem("pendingShareCode");
       } catch (error) {
         console.error("Failed to sync platform user:", error);
       }

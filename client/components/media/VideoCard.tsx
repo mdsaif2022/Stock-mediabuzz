@@ -9,6 +9,7 @@ import { useMobileAutoplay } from "@/hooks/useMobileAutoplay";
 import { activateVideo, deactivateVideo, registerVideo, unregisterVideo } from "@/utils/videoManager";
 import { hasUserInteractedWithPage, markUserInteraction } from "@/utils/userInteractionTracker";
 import { cn } from "@/lib/utils";
+import { getMediaDisplayStats } from "@/lib/mediaUtils";
 
 interface VideoCardProps {
   media: Media;
@@ -309,15 +310,15 @@ export function VideoCard({ media, to, variant = "detailed", className }: VideoC
     }
   }, [shouldShowVideo, videoUrl, isVideo, media.id, supportsHover, isHovering, isMobile, shouldMobileAutoplay]);
 
+  const displayStats = useMemo(() => getMediaDisplayStats(media), [media]);
+  
   const meta = useMemo(() => {
-    const downloads = Number(media.downloads) || 0;
-    const views = Number(media.views) || 0;
     return {
-      downloads: downloads.toLocaleString(),
-      views: views.toLocaleString(),
+      downloads: displayStats.downloadsLabel,
+      views: displayStats.viewsLabel,
       date: media.uploadedDate ? new Date(media.uploadedDate).toLocaleDateString() : "",
     };
-  }, [media.downloads, media.views, media.uploadedDate]);
+  }, [displayStats, media.uploadedDate]);
 
   return (
     <Link

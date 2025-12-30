@@ -55,56 +55,165 @@ export const proxyDownload: RequestHandler = async (req, res) => {
     // Get content type
     const contentType = fileResponse.headers.get('content-type') || 'application/octet-stream';
     
-    // Determine filename
-    let fileExtension = 'mp4';
-    const urlParts = media.fileUrl.split('.');
-    if (urlParts.length > 1) {
-      const lastPart = urlParts[urlParts.length - 1].split('?')[0].split('#')[0];
-      if (lastPart && lastPart.length <= 5) {
-        fileExtension = lastPart.toLowerCase();
+    // Determine file extension - check category first (most reliable), then URL, then content type
+    let fileExtension: string | undefined;
+    const mediaCategory = (media.category || '').toLowerCase();
+    const urlLower = media.fileUrl.toLowerCase();
+    
+    // Priority 1: Check media category first (most reliable)
+    if (mediaCategory === 'apk') {
+      // For APK category, check URL to determine if it's APK or XAPK
+      if (urlLower.endsWith('.xapk')) {
+        fileExtension = 'xapk';
+      } else if (urlLower.endsWith('.apk')) {
+        fileExtension = 'apk';
+      } else if (urlLower.endsWith('.zip')) {
+        fileExtension = 'zip';
+      } else {
+        // Default to apk if category is apk but extension unclear
+        fileExtension = 'apk';
+      }
+    } else if (mediaCategory === 'video') {
+      if (urlLower.endsWith('.webm')) {
+        fileExtension = 'webm';
+      } else if (urlLower.endsWith('.mov')) {
+        fileExtension = 'mov';
+      } else if (urlLower.endsWith('.avi')) {
+        fileExtension = 'avi';
+      } else {
+        fileExtension = 'mp4';
+      }
+    } else if (mediaCategory === 'image') {
+      if (urlLower.endsWith('.png')) {
+        fileExtension = 'png';
+      } else if (urlLower.endsWith('.gif')) {
+        fileExtension = 'gif';
+      } else if (urlLower.endsWith('.webp')) {
+        fileExtension = 'webp';
+      } else {
+        fileExtension = 'jpg';
+      }
+    } else if (mediaCategory === 'audio') {
+      if (urlLower.endsWith('.wav')) {
+        fileExtension = 'wav';
+      } else if (urlLower.endsWith('.ogg')) {
+        fileExtension = 'ogg';
+      } else {
+        fileExtension = 'mp3';
       }
     }
     
-    // Try to get extension from content type or URL
-    const urlLower = media.fileUrl.toLowerCase();
-    if (urlLower.endsWith('.apk')) {
-      fileExtension = 'apk';
-    } else if (urlLower.endsWith('.xapk')) {
-      fileExtension = 'xapk';
-    } else if (contentType.includes('image/jpeg') || contentType.includes('image/jpg')) {
-      fileExtension = 'jpg';
-    } else if (contentType.includes('image/png')) {
-      fileExtension = 'png';
-    } else if (contentType.includes('image/gif')) {
-      fileExtension = 'gif';
-    } else if (contentType.includes('image/webp')) {
-      fileExtension = 'webp';
-    } else if (contentType.includes('video/mp4')) {
-      fileExtension = 'mp4';
-    } else if (contentType.includes('video/webm')) {
-      fileExtension = 'webm';
-    } else if (contentType.includes('audio/mpeg') || contentType.includes('audio/mp3')) {
-      fileExtension = 'mp3';
-    } else if (contentType.includes('audio/wav')) {
-      fileExtension = 'wav';
-    } else if (contentType.includes('audio/ogg')) {
-      fileExtension = 'ogg';
-    } else if (contentType.includes('application/vnd.android.package-archive')) {
-      fileExtension = 'apk';
+    // Priority 2: If not determined by category, check URL extension
+    if (!fileExtension) {
+      const urlParts = media.fileUrl.split('.');
+      if (urlParts.length > 1) {
+        const lastPart = urlParts[urlParts.length - 1].split('?')[0].split('#')[0].toLowerCase();
+        // Allow longer extensions (xapk is 4 chars, apk is 3, zip is 3)
+        if (lastPart && lastPart.length >= 2 && lastPart.length <= 10) {
+          fileExtension = lastPart;
+        }
+      }
+    }
+    
+    // Priority 3: If still not determined, check content type
+    if (!fileExtension) {
+      if (contentType.includes('application/vnd.android.package-archive')) {
+        // Check URL to distinguish APK vs XAPK
+        if (urlLower.endsWith('.xapk')) {
+          fileExtension = 'xapk';
+        } else {
+          fileExtension = 'apk';
+        }
+      } else if (contentType.includes('application/zip')) {
+        fileExtension = 'zip';
+      } else if (contentType.includes('image/jpeg') || contentType.includes('image/jpg')) {
+        fileExtension = 'jpg';
+      } else if (contentType.includes('image/png')) {
+        fileExtension = 'png';
+      } else if (contentType.includes('image/gif')) {
+        fileExtension = 'gif';
+      } else if (contentType.includes('image/webp')) {
+        fileExtension = 'webp';
+      } else if (contentType.includes('video/mp4')) {
+        fileExtension = 'mp4';
+      } else if (contentType.includes('video/webm')) {
+        fileExtension = 'webm';
+      } else if (contentType.includes('audio/mpeg') || contentType.includes('audio/mp3')) {
+        fileExtension = 'mp3';
+      } else if (contentType.includes('audio/wav')) {
+        fileExtension = 'wav';
+      } else if (contentType.includes('audio/ogg')) {
+        fileExtension = 'ogg';
+      }
+    }
+    
+    // Priority 4: Default fallback based on category or generic binary
+    if (!fileExtension) {
+      if (mediaCategory === 'apk') {
+        fileExtension = 'apk';
+      } else if (mediaCategory === 'video') {
+        fileExtension = 'mp4';
+      } else if (mediaCategory === 'image') {
+        fileExtension = 'jpg';
+      } else if (mediaCategory === 'audio') {
+        fileExtension = 'mp3';
+      } else {
+        fileExtension = 'bin'; // Generic binary fallback
+      }
     }
 
     const filename = `${media.title.replace(/[^a-z0-9]/gi, '_').toLowerCase()}.${fileExtension}`;
 
+    // Set the correct Content-Type based on the file extension we determined
+    // CRITICAL: Browsers use Content-Type to determine file extension, which can override the filename
+    // So we MUST set the correct Content-Type based on our determined extension, not the server response
+    let correctContentType: string;
+    if (fileExtension === 'apk') {
+      correctContentType = 'application/vnd.android.package-archive';
+    } else if (fileExtension === 'xapk') {
+      correctContentType = 'application/zip'; // XAPK is a ZIP file
+    } else if (fileExtension === 'zip') {
+      correctContentType = 'application/zip';
+    } else if (fileExtension === 'mp4') {
+      correctContentType = 'video/mp4';
+    } else if (fileExtension === 'webm') {
+      correctContentType = 'video/webm';
+    } else if (fileExtension === 'jpg' || fileExtension === 'jpeg') {
+      correctContentType = 'image/jpeg';
+    } else if (fileExtension === 'png') {
+      correctContentType = 'image/png';
+    } else if (fileExtension === 'gif') {
+      correctContentType = 'image/gif';
+    } else if (fileExtension === 'webp') {
+      correctContentType = 'image/webp';
+    } else if (fileExtension === 'mp3') {
+      correctContentType = 'audio/mpeg';
+    } else if (fileExtension === 'wav') {
+      correctContentType = 'audio/wav';
+    } else if (fileExtension === 'ogg') {
+      correctContentType = 'audio/ogg';
+    } else {
+      // Fallback to binary if unknown
+      correctContentType = 'application/octet-stream';
+    }
+
+    // Log for debugging
+    console.log(`[Download] Media ID: ${mediaId}, Category: ${mediaCategory}, Determined extension: ${fileExtension}, Content-Type: ${correctContentType}, Filename: ${filename}`);
+
     // Set headers for transfer behavior
-    res.setHeader('Content-Type', contentType);
+    res.setHeader('Content-Type', correctContentType);
     // Always force download (attachment) to ensure files download instead of opening in browser
-    // This works better with the download attribute on the client side
+    // CRITICAL: Use simple filename format for maximum browser compatibility
+    // The browser will use this filename when Content-Type matches the extension
     res.setHeader('Content-Disposition', `attachment; filename="${filename}"`);
     const contentLength = fileResponse.headers.get('content-length') || undefined;
     if (contentLength) {
       res.setHeader('Content-Length', contentLength);
     }
-    res.setHeader('Cache-Control', 'no-cache');
+    // Prevent caching to ensure fresh headers
+    res.setHeader('Cache-Control', 'no-cache, no-store, must-revalidate');
+    res.setHeader('Pragma', 'no-cache');
+    res.setHeader('Expires', '0');
 
     // Stream the file to the response
     const buffer = await fileResponse.arrayBuffer();

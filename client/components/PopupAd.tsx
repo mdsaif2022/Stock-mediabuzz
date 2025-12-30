@@ -1,4 +1,4 @@
-import { useEffect, useState, useRef } from "react";
+import { useEffect, useState, useRef, useCallback } from "react";
 import { useLocation } from "react-router-dom";
 import { PopupAd as PopupAdType } from "@shared/api";
 import { apiFetch } from "@/lib/api";
@@ -112,13 +112,6 @@ export default function PopupAd() {
       impressionTracked.current = false;
     }, delay);
 
-    // Set auto-close timer if configured
-    if (availableAd.closeAfter) {
-      autoCloseTimer.current = setTimeout(() => {
-        handleClose();
-      }, delay + availableAd.closeAfter);
-    }
-
     return () => {
       if (showTimer.current) {
         clearTimeout(showTimer.current);
@@ -128,6 +121,53 @@ export default function PopupAd() {
       }
     };
   }, [ads, isLoading, location.pathname, isHomePage]);
+
+  // Define handleClose before it's used in useEffect
+  const handleClose = useCallback(() => {
+    setIsOpen(false);
+    if (autoCloseTimer.current) {
+      clearTimeout(autoCloseTimer.current);
+      autoCloseTimer.current = null;
+    }
+    // Clear current ad after animation
+    setTimeout(() => {
+      setCurrentAd(null);
+    }, 200);
+  }, []);
+
+  // Set auto-close timer AFTER ad is actually shown (when isOpen becomes true)
+  useEffect(() => {
+    // Only set auto-close timer when ad is actually open
+    if (!isOpen || !currentAd) {
+      // Clear timer if ad is closed
+      if (autoCloseTimer.current) {
+        clearTimeout(autoCloseTimer.current);
+        autoCloseTimer.current = null;
+      }
+      return;
+    }
+
+    // Clear any existing auto-close timer before setting a new one
+    if (autoCloseTimer.current) {
+      clearTimeout(autoCloseTimer.current);
+      autoCloseTimer.current = null;
+    }
+
+    // Set auto-close timer if configured - start counting from when ad opens
+    // closeAfter is in milliseconds and should be the time AFTER the ad is shown
+    if (currentAd.closeAfter && currentAd.closeAfter > 0) {
+      autoCloseTimer.current = setTimeout(() => {
+        handleClose();
+      }, currentAd.closeAfter);
+    }
+
+    return () => {
+      if (autoCloseTimer.current) {
+        clearTimeout(autoCloseTimer.current);
+        autoCloseTimer.current = null;
+      }
+    };
+  }, [isOpen, currentAd?.id, currentAd?.closeAfter, handleClose]);
 
   // Track impression when ad opens
   useEffect(() => {
@@ -166,18 +206,6 @@ export default function PopupAd() {
     } catch (error) {
       console.error("Error tracking click:", error);
     }
-  };
-
-  const handleClose = () => {
-    setIsOpen(false);
-    if (autoCloseTimer.current) {
-      clearTimeout(autoCloseTimer.current);
-      autoCloseTimer.current = null;
-    }
-    // Clear current ad after animation
-    setTimeout(() => {
-      setCurrentAd(null);
-    }, 200);
   };
 
   const handleButtonClick = () => {

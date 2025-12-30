@@ -14,6 +14,11 @@ export const COLLECTIONS = {
   LOGS: 'logs',
   SETTINGS: 'settings',
   POPUP_ADS: 'popup_ads',
+  REFERRALS: 'referrals',
+  SHARE_POSTS: 'share_posts',
+  SHARE_RECORDS: 'share_records',
+  SHARE_VISITORS: 'share_visitors',
+  WITHDRAW_REQUESTS: 'withdraw_requests',
 } as const;
 
 /**
@@ -67,6 +72,41 @@ export async function getSettingsCollection() {
  */
 export async function getPopupAdsCollection() {
   return getCollection(COLLECTIONS.POPUP_ADS);
+}
+
+/**
+ * Get Referrals collection
+ */
+export async function getReferralsCollection() {
+  return getCollection(COLLECTIONS.REFERRALS);
+}
+
+/**
+ * Get Share Posts collection
+ */
+export async function getSharePostsCollection() {
+  return getCollection(COLLECTIONS.SHARE_POSTS);
+}
+
+/**
+ * Get Share Records collection
+ */
+export async function getShareRecordsCollection() {
+  return getCollection(COLLECTIONS.SHARE_RECORDS);
+}
+
+/**
+ * Get Share Visitors collection
+ */
+export async function getShareVisitorsCollection() {
+  return getCollection(COLLECTIONS.SHARE_VISITORS);
+}
+
+/**
+ * Get Withdraw Requests collection
+ */
+export async function getWithdrawRequestsCollection() {
+  return getCollection(COLLECTIONS.WITHDRAW_REQUESTS);
 }
 
 /**

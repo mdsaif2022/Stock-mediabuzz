@@ -70,7 +70,7 @@ const normalizeIconUrl = (value: any): string | undefined => {
 export const handleFileUpload: RequestHandler = async (req, res) => {
   try {
     const files = (req as any).files as Express.Multer.File[];
-    const { server = "auto", folder, resource_type = "auto", public_id } = req.body;
+    let { server = "auto", folder, resource_type = "auto", public_id } = req.body;
 
     // Check if files are provided
     if (!files || files.length === 0) {
@@ -79,6 +79,13 @@ export const handleFileUpload: RequestHandler = async (req, res) => {
 
     const totalUploadBytes = files.reduce((sum, file) => sum + file.size, 0);
     const creatorId = req.body.creatorId;
+    
+    // CRITICAL: Server 3 is dedicated to creator accounts only
+    // Force all creator uploads to use server3, regardless of client request
+    if (creatorId) {
+      server = "server3";
+      console.log(`[Upload] Creator upload detected - forcing Server 3 for creatorId: ${creatorId}`);
+    }
 
     if (creatorId) {
       const storageCheck = canCreatorConsumeStorage(creatorId, totalUploadBytes);
@@ -153,8 +160,29 @@ export const handleFileUpload: RequestHandler = async (req, res) => {
       return normalized; // Return as-is if unknown
     };
 
-    // Save media metadata to database for each uploaded file
-    const savedMedia = uploadResults.map((file, index) => {
+    // Normalize category for filtering
+    const normalizedCategory = formCategory ? normalizeCategory(formCategory) : null;
+    const isApkUpload = normalizedCategory === "apk";
+    
+    // Filter out image files when uploading APK apps - they should only be stored as feature screenshots, not as separate media items
+    const filesToSaveAsMedia = uploadResults.filter((file) => {
+      if (isApkUpload) {
+        // When uploading an APK, only save APK files as media items
+        // Filter out image files - they should only be used as feature screenshots
+        const fileName = file.originalName.toLowerCase();
+        const isApkFile = fileName.endsWith(".apk") || fileName.endsWith(".xapk") || file.mimetype === "application/vnd.android.package-archive";
+        const isImageFile = file.resource_type === "image" || file.mimetype.startsWith("image/");
+        
+        // Only save APK files, not image files (images should only be in featureScreenshots)
+        if (isImageFile && !isApkFile) {
+          return false; // Skip image files when uploading APK
+        }
+      }
+      return true; // Save all files for non-APK uploads, or APK files for APK uploads
+    });
+
+    // Save media metadata to database for each file that should be saved as media
+    const savedMedia = filesToSaveAsMedia.map((file, index) => {
       const title = formTitle || file.originalName.replace(/\.[^/.]+$/, ""); // Use form title or filename
       
       // Detect APK files from filename or mimetype
@@ -174,7 +202,7 @@ export const handleFileUpload: RequestHandler = async (req, res) => {
 
       const newMedia: Media = {
         id: Date.now().toString() + index,
-        title: uploadResults.length > 1 ? `${title} (${index + 1})` : title,
+        title: filesToSaveAsMedia.length > 1 ? `${title} (${index + 1})` : title,
         description: formDescription || `Uploaded ${file.originalName}`,
         category: category,
         type: type,
@@ -194,10 +222,27 @@ export const handleFileUpload: RequestHandler = async (req, res) => {
         iconUrl,
         featureScreenshots,
         showScreenshots,
+        status: creatorId ? "pending" : "approved", // Creator uploads are pending, admin uploads are auto-approved
       };
 
       return newMedia;
     });
+
+    // Validate that at least one file was saved as media
+    if (savedMedia.length === 0) {
+      return res.status(400).json({
+        error: "No valid media files to save",
+        message: isApkUpload 
+          ? "When uploading an APK, please include at least one APK file. Image files should be uploaded as feature screenshots separately."
+          : "No files were processed for saving.",
+      });
+    }
+
+    // Log warning if image files were filtered out for APK uploads
+    if (isApkUpload && uploadResults.length > filesToSaveAsMedia.length) {
+      const filteredCount = uploadResults.length - filesToSaveAsMedia.length;
+      console.log(`⚠️ Filtered out ${filteredCount} image file(s) from APK upload - these should be uploaded as feature screenshots separately, not as separate media items.`);
+    }
 
     // Get current database and add new items
     const currentDatabase = await getMediaDatabase();
@@ -237,7 +282,7 @@ export const handleFileUpload: RequestHandler = async (req, res) => {
 
     res.json({
       success: true,
-      files: uploadResults,
+      files: filesToSaveAsMedia, // Return only files that were saved as media items
       media: savedMedia,
     });
   } catch (error: any) {
@@ -251,16 +296,59 @@ export const handleFileUpload: RequestHandler = async (req, res) => {
 
 export const handleUrlUpload: RequestHandler = async (req, res) => {
   try {
-    const { url, server = "auto", folder, resource_type = "auto", public_id, title, category, type, description, tags, isPremium, previewUrl, creatorName, creatorEmail, creatorId } = req.body;
+    let { url, server = "auto", folder, resource_type = "auto", public_id, title, category, type, description, tags, isPremium, previewUrl, creatorName, creatorEmail, creatorId } = req.body;
 
     if (!url) {
       return res.status(400).json({ error: "URL is required" });
     }
 
+    // CRITICAL: Server 3 is dedicated to creator accounts only
+    // Force all creator uploads to use server3, regardless of client request
+    if (creatorId) {
+      server = "server3";
+      console.log(`[Upload] Creator URL upload detected - forcing Server 3 for creatorId: ${creatorId}`);
+    }
+
+    // CRITICAL: Detect resource type from URL to ensure videos are uploaded as "video" type
+    // This is essential for videos to be playable - "raw" type videos won't play in browsers
+    const urlLower = url.toLowerCase();
+    let finalResourceType: "image" | "video" | "raw" = "raw"; // Default to raw
+    
+    // Detect from URL extension first (most reliable)
+    if (urlLower.match(/\.(jpg|jpeg|png|gif|webp|svg|bmp|ico)$/)) {
+      finalResourceType = "image";
+    } else if (urlLower.match(/\.(mp4|webm|mov|avi|mkv|m4v|flv|wmv|3gp|ogv)$/)) {
+      finalResourceType = "video"; // CRITICAL: Videos must be "video" type, not "raw"
+    } else if (urlLower.match(/\.(mp3|wav|ogg|m4a|aac|flac|wma)$/)) {
+      finalResourceType = "raw"; // Audio files as raw
+    } else if (urlLower.match(/\.(apk|xapk)$/)) {
+      finalResourceType = "raw"; // APK files as raw
+    }
+    
+    // Override with explicit resource_type if provided and not "auto"
+    if (resource_type && resource_type !== "auto") {
+      finalResourceType = resource_type as "image" | "video" | "raw";
+    }
+    
+    // Also check category to help determine type
+    const categoryLower = (req.body.category || "").toLowerCase();
+    if (categoryLower === "video" && finalResourceType !== "video") {
+      // If category is video but we detected something else, force video type
+      finalResourceType = "video";
+    } else if (categoryLower === "image" && finalResourceType !== "image") {
+      finalResourceType = "image";
+    } else if (categoryLower === "audio" && finalResourceType === "video") {
+      // If category is audio but we detected video, it's likely audio
+      finalResourceType = "raw";
+    }
+    
+    // Set default folder if not provided
+    const uploadFolder = folder || "media-uploads";
+    
     const result = await uploadToCloudinary(url, {
       server: server as CloudinaryServer,
-      folder,
-      resource_type,
+      folder: uploadFolder,
+      resource_type: finalResourceType,
       public_id,
     });
 
@@ -276,8 +364,7 @@ export const handleUrlUpload: RequestHandler = async (req, res) => {
       return normalized; // Return as-is if unknown
     };
 
-    // Detect APK files from URL
-    const urlLower = url.toLowerCase();
+    // Detect APK files from URL (urlLower already defined above)
     const isApkFile = urlLower.endsWith(".apk") || urlLower.endsWith(".xapk");
     
     // Save media metadata to database
@@ -286,13 +373,38 @@ export const handleUrlUpload: RequestHandler = async (req, res) => {
       ? normalizeCategory(category)
       : isApkFile 
         ? "apk" 
-        : (resource_type === "image" ? "image" : resource_type === "video" ? "video" : resource_type === "raw" ? "audio" : "template");
-    const mediaType = type || (isApkFile ? "Android APK" : resource_type.toUpperCase());
+        : (finalResourceType === "image" ? "image" : finalResourceType === "video" ? "video" : finalResourceType === "raw" ? "audio" : "template");
+    const mediaType = type || (isApkFile ? "Android APK" : finalResourceType.toUpperCase());
     const mediaTags = tags ? (typeof tags === "string" ? tags.split(",").map((tag: string) => tag.trim()) : tags) : [];
     const mediaIsPremium = isPremium === "true" || isPremium === true;
     const iconUrl = normalizeIconUrl(req.body.iconUrl);
     const featureScreenshots = parseFeatureScreenshots(req.body.featureScreenshots);
     const showScreenshots = parseShowScreenshots(req.body.showScreenshots);
+    const isCreatorUpload = !!creatorId;
+
+    // CRITICAL: For videos uploaded to Cloudinary, ensure the URL is playable
+    // Cloudinary videos uploaded as "video" type are directly playable
+    // For videos, use the secure_url directly - it's already in the correct format
+    let finalFileUrl = result.secure_url;
+    let finalPreviewUrl = previewUrl || result.secure_url;
+    
+    // For video category with video resource type, the URL is already playable
+    // For images, both preview and file are the same
+    // For audio, use the uploaded file URL
+    if (mediaCategory === "video" && finalResourceType === "video") {
+      // Video uploaded as "video" type is directly playable from Cloudinary
+      finalFileUrl = result.secure_url;
+      // Use custom preview URL if provided, otherwise use video URL (browsers can show first frame)
+      finalPreviewUrl = previewUrl || result.secure_url;
+    } else if (mediaCategory === "image" && finalResourceType === "image") {
+      // Images work the same for both preview and file
+      finalFileUrl = result.secure_url;
+      finalPreviewUrl = previewUrl || result.secure_url;
+    } else {
+      // For audio and other types
+      finalFileUrl = result.secure_url;
+      finalPreviewUrl = previewUrl || result.secure_url;
+    }
 
     const newMedia: Media = {
       id: Date.now().toString(),
@@ -302,8 +414,8 @@ export const handleUrlUpload: RequestHandler = async (req, res) => {
       type: mediaType,
       fileSize: "Unknown",
       duration: undefined, // Duration will be detected client-side from video metadata
-      previewUrl: previewUrl || result.secure_url,
-      fileUrl: result.secure_url,
+      previewUrl: finalPreviewUrl,
+      fileUrl: finalFileUrl,
       tags: mediaTags,
       downloads: 0,
       views: 0,
@@ -316,6 +428,7 @@ export const handleUrlUpload: RequestHandler = async (req, res) => {
       iconUrl,
       featureScreenshots,
       showScreenshots,
+      status: isCreatorUpload ? "pending" : "approved", // Creator uploads are pending, admin uploads are auto-approved
     };
 
     // Get current database and add new item

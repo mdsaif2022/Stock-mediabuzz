@@ -1,5 +1,5 @@
 import { Link, useLocation, useNavigate } from "react-router-dom";
-import { LogOut, Menu, X, BarChart3, FileText, Radio, Users, Settings, Home } from "lucide-react";
+import { LogOut, Menu, X, BarChart3, FileText, Radio, Users, Settings, Home, Share2 } from "lucide-react";
 import { useState, useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { ADMIN_BASE_PATH } from "@/constants/routes";
@@ -60,6 +60,7 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
     { label: "Ads Manager", href: `${ADMIN_BASE_PATH}/ads`, icon: Radio },
     { label: "Analytics", href: `${ADMIN_BASE_PATH}/analytics`, icon: BarChart3 },
     { label: "Users", href: `${ADMIN_BASE_PATH}/users`, icon: Users },
+    { label: "Referral System", href: `${ADMIN_BASE_PATH}/referral-system`, icon: Share2 },
     { label: "Settings", href: `${ADMIN_BASE_PATH}/settings`, icon: Settings },
   ];
 

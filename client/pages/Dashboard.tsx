@@ -1,5 +1,5 @@
 import Layout from "@/components/Layout";
-import { User, Download, Star, Settings, LogOut, Sparkles, Loader2 } from "lucide-react";
+import { User, Download, Star, Settings, LogOut, Sparkles, Loader2, DollarSign } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
 
@@ -41,6 +41,13 @@ export default function Dashboard() {
                 >
                   <User className="w-4 h-4 flex-shrink-0" />
                   Profile
+                </Link>
+                <Link
+                  to="/earnings"
+                  className="flex items-center gap-2 px-3 sm:px-4 py-2 border border-primary/40 rounded-lg text-sm sm:text-base touch-manipulation justify-center flex-1 md:flex-none text-primary bg-primary/5 hover:bg-primary/10 transition-colors"
+                >
+                  <DollarSign className="w-4 h-4 flex-shrink-0" />
+                  Earnings
                 </Link>
                 <Link
                   to="/creator"
@@ -99,22 +106,20 @@ export default function Dashboard() {
               <div className="flex justify-between items-start mb-3 sm:mb-4">
                 <div className="flex-1 min-w-0">
                   <p className="text-muted-foreground text-xs sm:text-sm">Total Downloads</p>
-                  <p className="text-2xl sm:text-3xl font-bold mt-1 sm:mt-2">245</p>
+                  <p className="text-2xl sm:text-3xl font-bold mt-1 sm:mt-2">0</p>
                 </div>
                 <Download className="w-6 h-6 sm:w-8 sm:h-8 text-primary flex-shrink-0 ml-2" />
               </div>
-              <p className="text-xs text-muted-foreground">+15 this month</p>
             </div>
 
             <div className="bg-white dark:bg-slate-900 rounded-lg border border-border p-4 sm:p-6 shadow-sm hover:shadow-md transition-shadow">
               <div className="flex justify-between items-start mb-3 sm:mb-4">
                 <div className="flex-1 min-w-0">
                   <p className="text-muted-foreground text-xs sm:text-sm">Favorites</p>
-                  <p className="text-2xl sm:text-3xl font-bold mt-1 sm:mt-2">23</p>
+                  <p className="text-2xl sm:text-3xl font-bold mt-1 sm:mt-2">0</p>
                 </div>
                 <Star className="w-6 h-6 sm:w-8 sm:h-8 text-accent flex-shrink-0 ml-2" />
               </div>
-              <p className="text-xs text-muted-foreground">Bookmarked items</p>
             </div>
 
             <div className="bg-white dark:bg-slate-900 rounded-lg border border-border p-4 sm:p-6 shadow-sm hover:shadow-md transition-shadow">
@@ -125,7 +130,6 @@ export default function Dashboard() {
                 </div>
                 <User className="w-6 h-6 sm:w-8 sm:h-8 text-secondary flex-shrink-0 ml-2" />
               </div>
-              <p className="text-xs text-muted-foreground">Member since 2024</p>
             </div>
           </div>
 
@@ -139,25 +143,9 @@ export default function Dashboard() {
                   <h2 className="text-lg sm:text-xl font-bold">Recent Downloads</h2>
                 </div>
                 <div className="divide-y divide-border">
-                  {[
-                    { id: 1, title: "Cinematic Urban Sunset Video", category: "Video", type: "4K", date: "Dec 15, 2024" },
-                    { id: 2, title: "Professional Business Background", category: "Image", type: "4K", date: "Dec 14, 2024" },
-                    { id: 3, title: "Upbeat Electronic Music", category: "Audio", type: "320kbps", date: "Dec 13, 2024" },
-                    { id: 4, title: "Modern Landing Page Template", category: "Template", type: "React", date: "Dec 12, 2024" },
-                    { id: 5, title: "Forest Walking Path", category: "Video", type: "1080p", date: "Dec 11, 2024" },
-                  ].map((item) => (
-                    <div key={item.id} className="p-4 sm:p-6 hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors">
-                      <div className="flex justify-between items-start gap-4">
-                        <div className="flex-1 min-w-0">
-                          <h3 className="font-semibold text-sm sm:text-base truncate">{item.title}</h3>
-                          <p className="text-xs sm:text-sm text-muted-foreground mt-1">{item.category} • {item.type} • Downloaded on {item.date}</p>
-                        </div>
-                        <button className="text-primary hover:text-accent transition-colors text-sm sm:text-base flex-shrink-0 touch-manipulation">
-                          View
-                        </button>
-                      </div>
-                    </div>
-                  ))}
+                  <div className="p-4 sm:p-6 text-center text-muted-foreground">
+                    <p className="text-sm">No recent downloads</p>
+                  </div>
                 </div>
               </div>
             </div>

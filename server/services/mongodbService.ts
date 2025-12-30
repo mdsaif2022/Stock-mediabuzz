@@ -11,10 +11,27 @@ import {
   getLogsCollection,
   getSettingsCollection,
   getPopupAdsCollection,
+  getReferralsCollection,
+  getSharePostsCollection,
+  getShareRecordsCollection,
+  getShareVisitorsCollection,
+  getWithdrawRequestsCollection,
 } from '../models/mongodb.js';
 
 // Re-export collection getters for convenience
-export { getUsersCollection, getMediaCollection, getCreatorsCollection, getLogsCollection, getSettingsCollection, getPopupAdsCollection };
+export { 
+  getUsersCollection, 
+  getMediaCollection, 
+  getCreatorsCollection, 
+  getLogsCollection, 
+  getSettingsCollection, 
+  getPopupAdsCollection,
+  getReferralsCollection,
+  getSharePostsCollection,
+  getShareRecordsCollection,
+  getShareVisitorsCollection,
+  getWithdrawRequestsCollection,
+};
 
 // ==================== USERS ====================
 
@@ -316,6 +333,162 @@ export async function updatePopupAd(id: string, updates: any) {
 
 export async function deletePopupAd(id: string) {
   const collection = await getPopupAdsCollection();
+  if (!collection) throw new Error('MongoDB not connected');
+  
+  const filter = ObjectId.isValid(id) 
+    ? { _id: new ObjectId(id) }
+    : { id };
+  
+  return collection.deleteOne(filter);
+}
+
+// ==================== REFERRALS ====================
+
+export async function createReferral(referralData: any) {
+  const collection = await getReferralsCollection();
+  if (!collection) throw new Error('MongoDB not connected');
+  
+  const result = await collection.insertOne({
+    ...referralData,
+    createdAt: new Date(),
+  });
+  return result.insertedId;
+}
+
+export async function getAllReferrals() {
+  const collection = await getReferralsCollection();
+  if (!collection) throw new Error('MongoDB not connected');
+  
+  return collection.find({}).toArray();
+}
+
+export async function deleteReferral(id: string) {
+  const collection = await getReferralsCollection();
+  if (!collection) throw new Error('MongoDB not connected');
+  
+  const filter = ObjectId.isValid(id) 
+    ? { _id: new ObjectId(id) }
+    : { id };
+  
+  return collection.deleteOne(filter);
+}
+
+// ==================== SHARE POSTS ====================
+
+export async function createSharePost(postData: any) {
+  const collection = await getSharePostsCollection();
+  if (!collection) throw new Error('MongoDB not connected');
+  
+  const result = await collection.insertOne({
+    ...postData,
+    createdAt: new Date(),
+    updatedAt: new Date(),
+  });
+  return result.insertedId;
+}
+
+export async function getAllSharePosts() {
+  const collection = await getSharePostsCollection();
+  if (!collection) throw new Error('MongoDB not connected');
+  
+  return collection.find({}).toArray();
+}
+
+export async function deleteSharePost(id: string) {
+  const collection = await getSharePostsCollection();
+  if (!collection) throw new Error('MongoDB not connected');
+  
+  const filter = ObjectId.isValid(id) 
+    ? { _id: new ObjectId(id) }
+    : { id };
+  
+  return collection.deleteOne(filter);
+}
+
+// ==================== SHARE RECORDS ====================
+
+export async function createShareRecord(recordData: any) {
+  const collection = await getShareRecordsCollection();
+  if (!collection) throw new Error('MongoDB not connected');
+  
+  const result = await collection.insertOne({
+    ...recordData,
+    createdAt: new Date(),
+  });
+  return result.insertedId;
+}
+
+export async function getAllShareRecords() {
+  const collection = await getShareRecordsCollection();
+  if (!collection) throw new Error('MongoDB not connected');
+  
+  return collection.find({}).toArray();
+}
+
+export async function deleteShareRecord(id: string) {
+  const collection = await getShareRecordsCollection();
+  if (!collection) throw new Error('MongoDB not connected');
+  
+  const filter = ObjectId.isValid(id) 
+    ? { _id: new ObjectId(id) }
+    : { id };
+  
+  return collection.deleteOne(filter);
+}
+
+// ==================== SHARE VISITORS ====================
+
+export async function createShareVisitor(visitorData: any) {
+  const collection = await getShareVisitorsCollection();
+  if (!collection) throw new Error('MongoDB not connected');
+  
+  const result = await collection.insertOne({
+    ...visitorData,
+    visitedAt: new Date(),
+  });
+  return result.insertedId;
+}
+
+export async function getAllShareVisitors() {
+  const collection = await getShareVisitorsCollection();
+  if (!collection) throw new Error('MongoDB not connected');
+  
+  return collection.find({}).toArray();
+}
+
+export async function deleteShareVisitor(id: string) {
+  const collection = await getShareVisitorsCollection();
+  if (!collection) throw new Error('MongoDB not connected');
+  
+  const filter = ObjectId.isValid(id) 
+    ? { _id: new ObjectId(id) }
+    : { id };
+  
+  return collection.deleteOne(filter);
+}
+
+// ==================== WITHDRAW REQUESTS ====================
+
+export async function createWithdrawRequest(requestData: any) {
+  const collection = await getWithdrawRequestsCollection();
+  if (!collection) throw new Error('MongoDB not connected');
+  
+  const result = await collection.insertOne({
+    ...requestData,
+    createdAt: new Date(),
+  });
+  return result.insertedId;
+}
+
+export async function getAllWithdrawRequests() {
+  const collection = await getWithdrawRequestsCollection();
+  if (!collection) throw new Error('MongoDB not connected');
+  
+  return collection.find({}).toArray();
+}
+
+export async function deleteWithdrawRequest(id: string) {
+  const collection = await getWithdrawRequestsCollection();
   if (!collection) throw new Error('MongoDB not connected');
   
   const filter = ObjectId.isValid(id) 

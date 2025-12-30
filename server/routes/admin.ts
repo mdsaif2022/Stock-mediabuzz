@@ -1,53 +1,77 @@
 import { RequestHandler } from "express";
 import { AdminStats } from "@shared/api";
 
-// Mock analytics data
-const analyticsData = {
-  totalUsers: 5234,
-  totalMedia: 2456,
-  totalDownloads: 168200,
-  activeUsers: 892,
-  topDownloads: [
-    { id: "1", title: "Cinematic Urban Sunset", downloads: 12500 },
-    { id: "2", title: "Professional Business Background", downloads: 8300 },
-    { id: "3", title: "Upbeat Electronic Music", downloads: 5200 },
-  ],
-  topUsers: [
-    { id: "1", name: "John Doe", downloads: 245 },
-    { id: "2", name: "Jane Smith", downloads: 189 },
-    { id: "3", name: "Mike Johnson", downloads: 156 },
-  ],
-};
-
 // Get admin dashboard stats
-export const getDashboardStats: RequestHandler = (req, res) => {
+export const getDashboardStats: RequestHandler = async (req, res) => {
   if (req.user?.role !== "admin") {
     res.status(403).json({ error: "Admin access required" });
     return;
   }
 
-  const stats: AdminStats = analyticsData;
-  res.json(stats);
+  try {
+    // Fetch real data from databases
+    const { getMediaDatabase } = await import("./media.js");
+    const { getUsersDatabase } = await import("./users.js");
+    const { loadCreatorsDatabase } = await import("./creators.js");
+    
+    const media = await getMediaDatabase();
+    const users = await getUsersDatabase();
+    const creators = await loadCreatorsDatabase();
+    
+    // Calculate real stats
+    const totalUsers = users.length;
+    const totalMedia = media.length;
+    const totalDownloads = 0; // TODO: Implement download tracking
+    const activeUsers = 0; // TODO: Implement active user tracking
+    
+    // Get top downloads (if download tracking exists)
+    const topDownloads: any[] = [];
+    
+    // Get top users (if download tracking exists)
+    const topUsers: any[] = [];
+    
+    const stats: AdminStats = {
+      totalUsers,
+      totalMedia,
+      totalDownloads,
+      activeUsers,
+      topDownloads,
+      topUsers,
+    };
+    
+    res.json(stats);
+  } catch (error) {
+    console.error("Error fetching admin stats:", error);
+    // Return empty stats on error
+    const stats: AdminStats = {
+      totalUsers: 0,
+      totalMedia: 0,
+      totalDownloads: 0,
+      activeUsers: 0,
+      topDownloads: [],
+      topUsers: [],
+    };
+    res.json(stats);
+  }
 };
 
 // Get Cloudinary storage status
-export const getCloudinaryStatus: RequestHandler = (req, res) => {
+export const getCloudinaryStatus: RequestHandler = async (req, res) => {
   if (req.user?.role !== "admin") {
     res.status(403).json({ error: "Admin access required" });
     return;
   }
 
-  // Mock Cloudinary API response
-  const cloudinaryStatus = {
-    accounts: [
-      { id: 1, used: 75, total: 100, percentage: 75 },
-      { id: 2, used: 45, total: 100, percentage: 45 },
-      { id: 3, used: 92, total: 100, percentage: 92 },
-      { id: 4, used: 28, total: 100, percentage: 28 },
-    ],
-  };
-
-  res.json(cloudinaryStatus);
+  try {
+    // Fetch real Cloudinary status if available
+    const { getCloudinaryAccounts } = await import("../config/cloudinary.js");
+    const accounts = await getCloudinaryAccounts();
+    
+    res.json({ accounts: accounts || [] });
+  } catch (error) {
+    console.error("Error fetching Cloudinary status:", error);
+    res.json({ accounts: [] });
+  }
 };
 
 // Get analytics data
@@ -124,35 +148,18 @@ export const promoteUserToAdmin: RequestHandler = (req, res) => {
   });
 };
 
-// Helper functions to generate mock data
+// Helper functions to generate real data
 function generateDownloadTrend(period: string) {
-  if (period === "week") {
-    return [
-      { date: "Mon", downloads: 400 },
-      { date: "Tue", downloads: 600 },
-      { date: "Wed", downloads: 800 },
-      { date: "Thu", downloads: 1000 },
-      { date: "Fri", downloads: 1200 },
-      { date: "Sat", downloads: 900 },
-      { date: "Sun", downloads: 1100 },
-    ];
-  }
-  // Add more period logic as needed
+  // TODO: Implement real download trend tracking
   return [];
 }
 
 function generateAdMetrics(period: string) {
-  return [
-    { date: "Day 1", impressions: 4200, clicks: 324 },
-    { date: "Day 2", impressions: 5100, clicks: 412 },
-    { date: "Day 3", impressions: 4800, clicks: 388 },
-  ];
+  // TODO: Implement real ad metrics tracking
+  return [];
 }
 
 function generateUserMetrics(period: string) {
-  return [
-    { date: "Day 1", newUsers: 45, activeUsers: 523 },
-    { date: "Day 2", newUsers: 38, activeUsers: 541 },
-    { date: "Day 3", newUsers: 52, activeUsers: 567 },
-  ];
+  // TODO: Implement real user metrics tracking
+  return [];
 }

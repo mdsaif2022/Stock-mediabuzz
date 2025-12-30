@@ -280,6 +280,7 @@ export function VideoPlayer({ src, poster, preload = "metadata", className }: Vi
         controls={duration > 0}
         controlsList="nodownload noplaybackrate nopictureinpicture"
         disablePictureInPicture
+        crossOrigin="anonymous"
         className="w-full h-full bg-black select-none"
         style={{
           userSelect: "none",
@@ -289,6 +290,16 @@ export function VideoPlayer({ src, poster, preload = "metadata", className }: Vi
         onContextMenu={handleContextMenu}
         onClick={duration === 0 ? handleVideoClick : undefined}
         onDoubleClick={handleVideoDoubleClick}
+        onError={(e) => {
+          console.error("Video playback error:", e);
+          const video = e.currentTarget;
+          console.error("Video error details:", {
+            error: video.error,
+            networkState: video.networkState,
+            readyState: video.readyState,
+            src: video.src,
+          });
+        }}
         onLoadedMetadata={(e) => {
           const video = e.currentTarget;
           if (video.duration && isFinite(video.duration) && video.duration > 0) {

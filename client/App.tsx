@@ -15,6 +15,7 @@ import Contact from "./pages/Contact";
 import Login from "./pages/Login";
 import Signup from "./pages/Signup";
 import Dashboard from "./pages/Dashboard";
+import Earnings from "./pages/Earnings";
 import CreatorDashboard from "./pages/CreatorDashboard";
 import Profile from "./pages/Profile";
 import MediaDetail from "./pages/MediaDetail";
@@ -25,6 +26,7 @@ import AdminAds from "./pages/admin/Ads";
 import AdminAnalytics from "./pages/admin/Analytics";
 import AdminUsers from "./pages/admin/Users";
 import AdminSettings from "./pages/admin/Settings";
+import AdminReferralSystem from "./pages/admin/ReferralSystem";
 import React, { useEffect } from "react";
 import { ADMIN_BASE_PATH } from "./constants/routes";
 import { apiFetch } from "@/lib/api";
@@ -57,6 +59,7 @@ function AppRoutes() {
         <Route path="/login" element={<Login />} />
         <Route path="/signup" element={<Signup />} />
         <Route path="/dashboard" element={<Dashboard />} />
+        <Route path="/earnings" element={<Earnings />} />
         <Route path="/creator" element={<CreatorDashboard />} />
         <Route path="/profile" element={<Profile />} />
         <Route path="/navigation-demo" element={<NavigationDemo />} />
@@ -70,6 +73,7 @@ function AppRoutes() {
         <Route path={`${ADMIN_BASE_PATH}/analytics`} element={<AdminAnalytics />} />
         <Route path={`${ADMIN_BASE_PATH}/users`} element={<AdminUsers />} />
         <Route path={`${ADMIN_BASE_PATH}/settings`} element={<AdminSettings />} />
+        <Route path={`${ADMIN_BASE_PATH}/referral-system`} element={<AdminReferralSystem />} />
 
         {/* ADD ALL CUSTOM ROUTES ABOVE THE CATCH-ALL "*" ROUTE */}
         <Route path="*" element={<NotFound />} />

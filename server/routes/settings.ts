@@ -8,6 +8,7 @@ const SETTINGS_FILE = join(DATA_DIR, "settings.json");
 interface PaymentSettings {
   bkashPersonal: string;
   bkashMerchant: string;
+  autoPaymentEnabled: boolean;
 }
 
 interface BrandingSettings {
@@ -19,16 +20,30 @@ interface GeneralSettings {
   maintenanceMode: boolean;
 }
 
+interface AppSettings {
+  appName?: string;
+  appVersion?: string;
+  appDescription?: string;
+  apkUrl?: string;
+  xapkUrl?: string;
+  appIcon?: string;
+  downloadEnabled: boolean;
+  playStoreUrl?: string;
+  appStoreUrl?: string;
+}
+
 interface SettingsStore {
   payment: PaymentSettings;
   branding: BrandingSettings;
   general: GeneralSettings;
+  app: AppSettings;
 }
 
 const DEFAULT_SETTINGS: SettingsStore = {
   payment: {
     bkashPersonal: "01783083659",
     bkashMerchant: "01918998687",
+    autoPaymentEnabled: true,
   },
   branding: {
     faviconDataUrl: "",
@@ -36,6 +51,17 @@ const DEFAULT_SETTINGS: SettingsStore = {
   },
   general: {
     maintenanceMode: false,
+  },
+  app: {
+    appName: "",
+    appVersion: "",
+    appDescription: "",
+    apkUrl: "",
+    xapkUrl: "",
+    appIcon: "",
+    downloadEnabled: false,
+    playStoreUrl: "",
+    appStoreUrl: "",
   },
 };
 
@@ -48,6 +74,9 @@ async function loadSettings(): Promise<SettingsStore> {
       payment: {
         bkashPersonal: parsed?.payment?.bkashPersonal || DEFAULT_SETTINGS.payment.bkashPersonal,
         bkashMerchant: parsed?.payment?.bkashMerchant || DEFAULT_SETTINGS.payment.bkashMerchant,
+        autoPaymentEnabled: typeof parsed?.payment?.autoPaymentEnabled === "boolean" 
+          ? parsed.payment.autoPaymentEnabled 
+          : DEFAULT_SETTINGS.payment.autoPaymentEnabled,
       },
       branding: {
         faviconDataUrl: parsed?.branding?.faviconDataUrl || "",
@@ -58,6 +87,17 @@ async function loadSettings(): Promise<SettingsStore> {
           typeof parsed?.general?.maintenanceMode === "boolean"
             ? parsed.general.maintenanceMode
             : DEFAULT_SETTINGS.general.maintenanceMode,
+      },
+      app: {
+        appName: parsed?.app?.appName || "",
+        appVersion: parsed?.app?.appVersion || "",
+        appDescription: parsed?.app?.appDescription || "",
+        apkUrl: parsed?.app?.apkUrl || "",
+        xapkUrl: parsed?.app?.xapkUrl || "",
+        appIcon: parsed?.app?.appIcon || "",
+        downloadEnabled: typeof parsed?.app?.downloadEnabled === "boolean" ? parsed.app.downloadEnabled : false,
+        playStoreUrl: parsed?.app?.playStoreUrl || "",
+        appStoreUrl: parsed?.app?.appStoreUrl || "",
       },
     };
   } catch (error: any) {
@@ -81,7 +121,7 @@ export const getPaymentSettings: RequestHandler = async (_req, res) => {
 };
 
 export const updatePaymentSettings: RequestHandler = async (req, res) => {
-  const { bkashPersonal, bkashMerchant } = req.body as Partial<PaymentSettings>;
+  const { bkashPersonal, bkashMerchant, autoPaymentEnabled } = req.body as Partial<PaymentSettings>;
 
   if (!bkashPersonal || !bkashMerchant) {
     res.status(400).json({ error: "Both bkashPersonal and bkashMerchant are required" });
@@ -92,6 +132,7 @@ export const updatePaymentSettings: RequestHandler = async (req, res) => {
   store.payment = {
     bkashPersonal,
     bkashMerchant,
+    autoPaymentEnabled: typeof autoPaymentEnabled === "boolean" ? autoPaymentEnabled : store.payment.autoPaymentEnabled,
   };
 
   await saveSettings(store);
@@ -136,5 +177,40 @@ export const updateGeneralSettings: RequestHandler = async (req, res) => {
 
   await saveSettings(store);
   res.json(store.general);
+};
+
+export const getAppSettings: RequestHandler = async (_req, res) => {
+  const settings = await loadSettings();
+  res.json(settings.app);
+};
+
+export const updateAppSettings: RequestHandler = async (req, res) => {
+  const {
+    appName,
+    appVersion,
+    appDescription,
+    apkUrl,
+    xapkUrl,
+    appIcon,
+    downloadEnabled,
+    playStoreUrl,
+    appStoreUrl,
+  } = req.body as Partial<AppSettings>;
+
+  const store = await loadSettings();
+  store.app = {
+    appName: appName !== undefined ? appName : store.app.appName,
+    appVersion: appVersion !== undefined ? appVersion : store.app.appVersion,
+    appDescription: appDescription !== undefined ? appDescription : store.app.appDescription,
+    apkUrl: apkUrl !== undefined ? apkUrl : store.app.apkUrl,
+    xapkUrl: xapkUrl !== undefined ? xapkUrl : store.app.xapkUrl,
+    appIcon: appIcon !== undefined ? appIcon : store.app.appIcon,
+    downloadEnabled: typeof downloadEnabled === "boolean" ? downloadEnabled : store.app.downloadEnabled,
+    playStoreUrl: playStoreUrl !== undefined ? playStoreUrl : store.app.playStoreUrl,
+    appStoreUrl: appStoreUrl !== undefined ? appStoreUrl : store.app.appStoreUrl,
+  };
+
+  await saveSettings(store);
+  res.json(store.app);
 };
 

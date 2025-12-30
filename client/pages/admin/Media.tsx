@@ -1,8 +1,11 @@
 import AdminLayout from "@/components/AdminLayout";
-import { Plus, Edit, Search, Filter, Upload, X, File, Image as ImageIcon, Video, Music, FileText, CheckCircle2, Link as LinkIcon } from "lucide-react";
+import { Plus, Edit, Search, Filter, Upload, X, File, Image as ImageIcon, Video, Music, FileText, CheckCircle2, Link as LinkIcon, Check, XCircle, AlertCircle, Trash2, Loader2, ExternalLink } from "lucide-react";
 import { useState, useRef, useEffect } from "react";
+import { Link } from "react-router-dom";
 import { apiFetch } from "@/lib/api";
 import { Switch } from "@/components/ui/switch";
+import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogDescription } from "@/components/ui/dialog";
+import { Button } from "@/components/ui/button";
 
 interface MediaItem {
   id: string;
@@ -14,6 +17,12 @@ interface MediaItem {
   isPremium: boolean;
   fileUrl?: string;
   previewUrl?: string;
+  status?: "pending" | "approved" | "rejected";
+  rejectedReason?: string;
+  description?: string;
+  tags?: string[];
+  uploadedBy?: string;
+  creatorId?: string;
 }
 
 interface FeatureScreenshotDraft {
@@ -35,6 +44,12 @@ export default function AdminMedia() {
   const [urlLinks, setUrlLinks] = useState<{ previewUrl: string; fileUrl: string }>({ previewUrl: '', fileUrl: '' });
   const [mediaItems, setMediaItems] = useState<MediaItem[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [statusFilter, setStatusFilter] = useState<"all" | "pending" | "approved" | "rejected">("all");
+  const [editingMedia, setEditingMedia] = useState<MediaItem | null>(null);
+  const [rejectingMedia, setRejectingMedia] = useState<MediaItem | null>(null);
+  const [rejectReason, setRejectReason] = useState("");
+  const [deletingMedia, setDeletingMedia] = useState<MediaItem | null>(null);
+  const [isDeleting, setIsDeleting] = useState(false);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const iconInputRef = useRef<HTMLInputElement>(null);
   const screenshotInputRef = useRef<HTMLInputElement>(null);
@@ -73,6 +88,12 @@ export default function AdminMedia() {
           isPremium: item.isPremium || false,
           fileUrl: item.fileUrl,
           previewUrl: item.previewUrl,
+          status: item.status || "approved", // Default to approved for existing items
+          rejectedReason: item.rejectedReason,
+          description: item.description,
+          tags: item.tags || [],
+          uploadedBy: item.uploadedBy,
+          creatorId: item.creatorId,
         }));
         setMediaItems(transformed);
       }
@@ -83,9 +104,120 @@ export default function AdminMedia() {
     }
   };
 
-  const filtered = mediaItems.filter((item) =>
-    item.title.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const filtered = mediaItems.filter((item) => {
+    const matchesSearch = item.title.toLowerCase().includes(searchQuery.toLowerCase());
+    const matchesStatus = statusFilter === "all" || item.status === statusFilter;
+    return matchesSearch && matchesStatus;
+  });
+
+  // Sort: pending items first, then by date
+  const sortedFiltered = [...filtered].sort((a, b) => {
+    if (a.status === "pending" && b.status !== "pending") return -1;
+    if (a.status !== "pending" && b.status === "pending") return 1;
+    return new Date(b.uploadedDate).getTime() - new Date(a.uploadedDate).getTime();
+  });
+
+  const pendingCount = mediaItems.filter(item => item.status === "pending").length;
+
+  const handleApprove = async (item: MediaItem) => {
+    try {
+      const response = await apiFetch(`/api/media/${item.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: "approved" }),
+      });
+      if (response.ok) {
+        await fetchMedia();
+      } else {
+        alert("Failed to approve media");
+      }
+    } catch (error) {
+      console.error("Approve error:", error);
+      alert("Failed to approve media");
+    }
+  };
+
+  const handleReject = async (item: MediaItem, reason: string) => {
+    try {
+      const response = await apiFetch(`/api/media/${item.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ status: "rejected", rejectedReason: reason }),
+      });
+      if (response.ok) {
+        setRejectingMedia(null);
+        setRejectReason("");
+        await fetchMedia();
+      } else {
+        alert("Failed to reject media");
+      }
+    } catch (error) {
+      console.error("Reject error:", error);
+      alert("Failed to reject media");
+    }
+  };
+
+  const handleEdit = async (item: MediaItem, updates: Partial<MediaItem>) => {
+    try {
+      const response = await apiFetch(`/api/media/${item.id}`, {
+        method: "PUT",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({
+          title: updates.title,
+          description: updates.description,
+          tags: updates.tags,
+          type: updates.type,
+          isPremium: updates.isPremium,
+        }),
+      });
+      if (response.ok) {
+        setEditingMedia(null);
+        await fetchMedia();
+      } else {
+        alert("Failed to update media");
+      }
+    } catch (error) {
+      console.error("Edit error:", error);
+      alert("Failed to update media");
+    }
+  };
+
+  const handleDelete = async (item: MediaItem) => {
+    setIsDeleting(true);
+    try {
+      const response = await apiFetch(`/api/media/${item.id}`, {
+        method: "DELETE",
+      });
+      
+      if (response.ok) {
+        const result = await response.json();
+        setDeletingMedia(null);
+        await fetchMedia();
+        // Show success message
+        alert(result.message || "Media deleted successfully from database and Cloudinary");
+      } else {
+        // Get error message from response
+        let errorMessage = "Failed to delete media";
+        try {
+          const errorData = await response.json();
+          errorMessage = errorData.message || errorData.error || errorMessage;
+        } catch {
+          errorMessage = `Server error: ${response.status} ${response.statusText}`;
+        }
+        
+        // Close modal and show error
+        setDeletingMedia(null);
+        alert(errorMessage);
+      }
+    } catch (error: any) {
+      console.error("Delete error:", error);
+      // Close modal even on error
+      setDeletingMedia(null);
+      alert(error.message || "Failed to delete media. Please check the console for details.");
+    } finally {
+      setIsDeleting(false);
+    }
+  };
 
   const getCategoryIcon = (category: string) => {
     const lower = category.toLowerCase();
@@ -577,7 +709,31 @@ export default function AdminMedia() {
 
                   if (uploadMethod === 'file' && selectedFiles.length > 0) {
                     await handleUpload(title, category, type, description, tags, isPremium);
-                  } else if (uploadMethod === 'url' && urlLinks.fileUrl) {
+                  } else if (uploadMethod === 'url') {
+                    // Validate URL upload
+                    if (!urlLinks.fileUrl || !urlLinks.fileUrl.trim()) {
+                      alert("Please provide a File URL to upload.");
+                      return;
+                    }
+                    
+                    // Validate URL format
+                    try {
+                      new URL(urlLinks.fileUrl);
+                    } catch {
+                      alert("Please provide a valid URL for the file.");
+                      return;
+                    }
+                    
+                    if (!title || !title.trim()) {
+                      alert("Please provide a title for the media.");
+                      return;
+                    }
+                    
+                    if (!category || !category.trim()) {
+                      alert("Please select a category.");
+                      return;
+                    }
+                    
                     // Handle URL upload
                     setIsUploading(true);
                     try {
@@ -586,38 +742,44 @@ export default function AdminMedia() {
                       
                       // Determine resource type from URL
                       const url = urlLinks.fileUrl.toLowerCase();
-                      let resourceType = "auto";
+                      let resourceType: "image" | "video" | "raw" | "auto" = "auto";
                       if (url.match(/\.(jpg|jpeg|png|gif|webp|svg)$/i)) {
                         resourceType = "image";
-                      } else if (url.match(/\.(mp4|webm|mov|avi|mkv)$/i)) {
+                      } else if (url.match(/\.(mp4|webm|mov|avi|mkv|m4v)$/i)) {
                         resourceType = "video";
                       } else if (url.match(/\.(apk|xapk)$/i)) {
                         resourceType = "raw"; // Cloudinary treats APK as raw
-                      } else if (url.match(/\.(mp3|wav|ogg)$/i)) {
+                      } else if (url.match(/\.(mp3|wav|ogg|m4a|aac|flac)$/i)) {
                         resourceType = "raw"; // Cloudinary treats audio as raw
                       } else {
                         resourceType = "raw"; // Default for other file types
                       }
 
-                    const isApkCategory = (category || "").toLowerCase() === "apk";
-                    const payload: Record<string, unknown> = {
-                      url: urlLinks.fileUrl,
-                      server,
-                      resource_type: resourceType,
-                      title,
-                      category,
-                      type,
-                      description,
-                      tags,
-                      isPremium,
-                      previewUrl: urlLinks.previewUrl || urlLinks.fileUrl,
-                    };
-                    if (isApkCategory) {
-                      payload.iconUrl = appIcon?.url;
-                      payload.showScreenshots = showScreenshotsToggle;
-                      payload.featureScreenshots = serializeScreenshots();
-                    }
-                    const response = await apiFetch("/api/upload/url", {
+                      const isApkCategory = (category || "").toLowerCase() === "apk";
+                      const payload: Record<string, unknown> = {
+                        url: urlLinks.fileUrl.trim(),
+                        server,
+                        resource_type: resourceType,
+                        title: title.trim(),
+                        category: category.trim(),
+                        type: type?.trim() || "",
+                        description: description?.trim() || "",
+                        tags: tags?.trim() || "",
+                        isPremium: isPremium || false,
+                        previewUrl: urlLinks.previewUrl?.trim() || urlLinks.fileUrl.trim(),
+                      };
+                      
+                      if (isApkCategory) {
+                        if (appIcon?.url) {
+                          payload.iconUrl = appIcon.url;
+                        }
+                        payload.showScreenshots = showScreenshotsToggle;
+                        payload.featureScreenshots = serializeScreenshots();
+                      }
+                      
+                      console.log("Uploading via URL with payload:", payload);
+                      
+                      const response = await apiFetch("/api/upload/url", {
                         method: "POST",
                         headers: {
                           "Content-Type": "application/json",
@@ -626,11 +788,13 @@ export default function AdminMedia() {
                       });
 
                       if (!response.ok) {
-                        const error = await response.json();
-                        throw new Error(error.message || "URL upload failed");
+                        const errorData = await response.json().catch(() => ({ error: "Unknown error", message: "Failed to upload" }));
+                        console.error("Upload error response:", errorData);
+                        throw new Error(errorData.message || errorData.error || "URL upload failed");
                       }
 
                       const result = await response.json();
+                      console.log("Upload success:", result);
                       
                       // Refresh media list
                       await fetchMedia();
@@ -638,12 +802,19 @@ export default function AdminMedia() {
                       setIsUploading(false);
                       setUrlLinks({ previewUrl: '', fileUrl: '' });
                       setShowAddForm(false);
-                      alert(`Media uploaded successfully from URL to ${result.file.server}!`);
+                      setCategoryValue("");
+                      setAppIcon(null);
+                      setFeatureScreenshots([]);
+                      setShowScreenshotsToggle(true);
+                      alert(`Media uploaded successfully from URL to ${result.file?.server || "cloud storage"}!`);
                     } catch (error: any) {
                       console.error("URL upload error:", error);
                       setIsUploading(false);
-                      alert(`Upload failed: ${error.message || "Please try again"}`);
+                      const errorMessage = error.message || error.toString() || "Please try again";
+                      alert(`Upload failed: ${errorMessage}`);
                     }
+                  } else {
+                    alert("Please select files to upload or provide a URL.");
                   }
                 }}
                 className="grid grid-cols-1 md:grid-cols-2 gap-4 sm:gap-6"
@@ -944,10 +1115,16 @@ export default function AdminMedia() {
                 <Search className="w-4 h-4 flex-shrink-0" />
                 Refresh
               </button>
-              <button className="flex items-center gap-2 px-3 sm:px-4 py-2 border border-border rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors text-sm sm:text-base touch-manipulation">
-                <Filter className="w-4 h-4 flex-shrink-0" />
-                Filter
-              </button>
+              <select
+                value={statusFilter}
+                onChange={(e) => setStatusFilter(e.target.value as any)}
+                className="px-3 sm:px-4 py-2 border border-border rounded-lg bg-white dark:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-primary text-sm sm:text-base"
+              >
+                <option value="all">All ({mediaItems.length})</option>
+                <option value="pending">Pending ({pendingCount})</option>
+                <option value="approved">Approved ({mediaItems.filter(i => i.status === "approved").length})</option>
+                <option value="rejected">Rejected ({mediaItems.filter(i => i.status === "rejected").length})</option>
+              </select>
             </div>
           </div>
 
@@ -955,25 +1132,26 @@ export default function AdminMedia() {
             <div className="p-8 text-center text-muted-foreground">
               Loading media...
             </div>
-          ) : filtered.length === 0 ? (
+          ) : sortedFiltered.length === 0 ? (
             <div className="p-8 text-center text-muted-foreground">
-              {searchQuery ? "No media found matching your search." : "No media uploaded yet. Click 'Add Media' to get started."}
+              {searchQuery || statusFilter !== "all" ? "No media found matching your filters." : "No media uploaded yet. Click 'Add Media' to get started."}
             </div>
           ) : (
             <div className="overflow-x-auto">
-              <table className="w-full">
+              <table className="w-full table-fixed">
                 <thead className="bg-slate-50 dark:bg-slate-800">
                   <tr>
-                    <th className="px-4 sm:px-6 py-3 text-left text-xs sm:text-sm font-semibold text-muted-foreground">Title</th>
-                    <th className="px-4 sm:px-6 py-3 text-left text-xs sm:text-sm font-semibold text-muted-foreground">Category</th>
-                    <th className="px-4 sm:px-6 py-3 text-left text-xs sm:text-sm font-semibold text-muted-foreground">Type</th>
-                    <th className="px-4 sm:px-6 py-3 text-left text-xs sm:text-sm font-semibold text-muted-foreground">Downloads</th>
-                    <th className="px-4 sm:px-6 py-3 text-left text-xs sm:text-sm font-semibold text-muted-foreground">Date</th>
-                    <th className="px-4 sm:px-6 py-3 text-right text-xs sm:text-sm font-semibold text-muted-foreground">Actions</th>
+                    <th className="px-4 sm:px-6 py-3 text-left text-xs sm:text-sm font-semibold text-muted-foreground whitespace-nowrap" style={{ width: '30%' }}>Title</th>
+                    <th className="px-4 sm:px-6 py-3 text-left text-xs sm:text-sm font-semibold text-muted-foreground whitespace-nowrap" style={{ width: '10%' }}>Category</th>
+                    <th className="px-4 sm:px-6 py-3 text-left text-xs sm:text-sm font-semibold text-muted-foreground whitespace-nowrap" style={{ width: '10%' }}>Type</th>
+                    <th className="px-4 sm:px-6 py-3 text-left text-xs sm:text-sm font-semibold text-muted-foreground whitespace-nowrap" style={{ width: '10%' }}>Status</th>
+                    <th className="px-4 sm:px-6 py-3 text-left text-xs sm:text-sm font-semibold text-muted-foreground whitespace-nowrap" style={{ width: '10%' }}>Downloads</th>
+                    <th className="px-4 sm:px-6 py-3 text-left text-xs sm:text-sm font-semibold text-muted-foreground whitespace-nowrap" style={{ width: '12%' }}>Date</th>
+                    <th className="px-4 sm:px-6 py-3 text-right text-xs sm:text-sm font-semibold text-muted-foreground whitespace-nowrap" style={{ width: '18%' }}>Actions</th>
                   </tr>
                 </thead>
                 <tbody className="divide-y divide-border">
-                  {filtered.map((item) => (
+                  {sortedFiltered.map((item) => (
                     <tr key={item.id} className="hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors">
                       <td className="px-4 sm:px-6 py-4">
                         <div className="flex items-center gap-3">
@@ -994,21 +1172,73 @@ export default function AdminMedia() {
                             )}
                           </div>
                           <div className="min-w-0">
-                            <p className="font-semibold text-sm sm:text-base truncate">{item.title}</p>
-                            {item.isPremium && (
-                              <span className="text-xs text-yellow-600 dark:text-yellow-400">Premium</span>
-                            )}
+                            <Link
+                              to={`/browse/${item.category.toLowerCase()}/${item.id}`}
+                              target="_blank"
+                              rel="noopener noreferrer"
+                              className="font-semibold text-sm sm:text-base truncate hover:text-primary transition-colors flex items-center gap-1.5 group inline-flex"
+                              title={`View ${item.title} on user site`}
+                            >
+                              <span className="truncate">{item.title}</span>
+                              <ExternalLink className="w-3 h-3 sm:w-4 sm:h-4 opacity-60 group-hover:opacity-100 transition-opacity flex-shrink-0" />
+                            </Link>
+                            <div className="flex items-center gap-2 mt-1">
+                              {item.isPremium && (
+                                <span className="text-xs text-yellow-600 dark:text-yellow-400">Premium</span>
+                              )}
+                              {item.creatorId && (
+                                <span className="text-xs text-muted-foreground">Creator Upload</span>
+                              )}
+                            </div>
                           </div>
                         </div>
                       </td>
-                      <td className="px-4 sm:px-6 py-4 text-sm sm:text-base">{item.category}</td>
-                      <td className="px-4 sm:px-6 py-4 text-sm sm:text-base">{item.type}</td>
-                      <td className="px-4 sm:px-6 py-4 text-sm sm:text-base">{item.downloads.toLocaleString()}</td>
-                      <td className="px-4 sm:px-6 py-4 text-sm sm:text-base">{item.uploadedDate}</td>
+                      <td className="px-4 sm:px-6 py-4 text-sm sm:text-base whitespace-nowrap">{item.category}</td>
+                      <td className="px-4 sm:px-6 py-4 text-sm sm:text-base whitespace-nowrap">{item.type}</td>
+                      <td className="px-4 sm:px-6 py-4 whitespace-nowrap">
+                        <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
+                          item.status === "pending" ? "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200" :
+                          item.status === "approved" ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200" :
+                          "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200"
+                        }`}>
+                          {item.status === "pending" ? "Pending" : item.status === "approved" ? "Approved" : "Rejected"}
+                        </span>
+                      </td>
+                      <td className="px-4 sm:px-6 py-4 text-sm sm:text-base whitespace-nowrap">{item.downloads.toLocaleString()}</td>
+                      <td className="px-4 sm:px-6 py-4 text-sm sm:text-base whitespace-nowrap">{item.uploadedDate}</td>
                       <td className="px-4 sm:px-6 py-4">
                         <div className="flex justify-end gap-2">
-                          <button className="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors touch-manipulation">
+                          {item.status === "pending" && (
+                            <>
+                              <button
+                                onClick={() => handleApprove(item)}
+                                className="p-2 hover:bg-green-100 dark:hover:bg-green-900 rounded-lg transition-colors touch-manipulation"
+                                title="Approve"
+                              >
+                                <Check className="w-4 h-4 sm:w-5 sm:h-5 text-green-600 dark:text-green-400" />
+                              </button>
+                              <button
+                                onClick={() => setRejectingMedia(item)}
+                                className="p-2 hover:bg-red-100 dark:hover:bg-red-900 rounded-lg transition-colors touch-manipulation"
+                                title="Reject"
+                              >
+                                <XCircle className="w-4 h-4 sm:w-5 sm:h-5 text-red-600 dark:text-red-400" />
+                              </button>
+                            </>
+                          )}
+                          <button
+                            onClick={() => setEditingMedia(item)}
+                            className="p-2 hover:bg-slate-100 dark:hover:bg-slate-700 rounded-lg transition-colors touch-manipulation"
+                            title="Edit"
+                          >
                             <Edit className="w-4 h-4 sm:w-5 sm:h-5 text-primary" />
+                          </button>
+                          <button
+                            onClick={() => setDeletingMedia(item)}
+                            className="p-2 hover:bg-red-100 dark:hover:bg-red-900 rounded-lg transition-colors touch-manipulation"
+                            title="Delete"
+                          >
+                            <Trash2 className="w-4 h-4 sm:w-5 sm:h-5 text-red-600 dark:text-red-400" />
                           </button>
                         </div>
                       </td>
@@ -1019,7 +1249,191 @@ export default function AdminMedia() {
             </div>
           )}
         </div>
+
+        {/* Edit Modal */}
+        {editingMedia && (
+          <Dialog open={!!editingMedia} onOpenChange={() => setEditingMedia(null)}>
+            <DialogContent className="max-w-2xl max-h-[90vh] overflow-y-auto">
+              <DialogHeader>
+                <DialogTitle>Edit Media: {editingMedia.title}</DialogTitle>
+              </DialogHeader>
+              <EditMediaForm
+                media={editingMedia}
+                onSave={(updates) => handleEdit(editingMedia, updates)}
+                onCancel={() => setEditingMedia(null)}
+              />
+            </DialogContent>
+          </Dialog>
+        )}
+
+        {/* Reject Modal */}
+        {rejectingMedia && (
+          <Dialog open={!!rejectingMedia} onOpenChange={() => setRejectingMedia(null)}>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Reject Media: {rejectingMedia.title}</DialogTitle>
+              </DialogHeader>
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium mb-2">Rejection Reason</label>
+                  <textarea
+                    value={rejectReason}
+                    onChange={(e) => setRejectReason(e.target.value)}
+                    placeholder="Enter reason for rejection..."
+                    rows={4}
+                    className="w-full px-3 py-2 border border-border rounded-lg bg-white dark:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-primary"
+                  />
+                </div>
+                <div className="flex gap-2 justify-end">
+                  <Button variant="outline" onClick={() => {
+                    setRejectingMedia(null);
+                    setRejectReason("");
+                  }}>
+                    Cancel
+                  </Button>
+                  <Button
+                    onClick={() => handleReject(rejectingMedia, rejectReason)}
+                    className="bg-red-600 hover:bg-red-700"
+                  >
+                    Reject
+                  </Button>
+                </div>
+              </div>
+            </DialogContent>
+          </Dialog>
+        )}
+
+        {/* Delete Confirmation Modal */}
+        {deletingMedia && (
+          <Dialog open={!!deletingMedia} onOpenChange={() => !isDeleting && setDeletingMedia(null)}>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Delete Media: {deletingMedia.title}</DialogTitle>
+                <DialogDescription>
+                  This action cannot be undone. This will permanently delete the media from both the database and Cloudinary storage.
+                </DialogDescription>
+              </DialogHeader>
+              <div className="space-y-4">
+                <div className="bg-red-50 dark:bg-red-900/20 border border-red-200 dark:border-red-800 rounded-lg p-4">
+                  <div className="flex items-start gap-3">
+                    <AlertCircle className="w-5 h-5 text-red-600 dark:text-red-400 flex-shrink-0 mt-0.5" />
+                    <div className="text-sm text-red-800 dark:text-red-200">
+                      <p className="font-semibold mb-1">Warning: Permanent Deletion</p>
+                      <ul className="list-disc list-inside space-y-1">
+                        <li>Media will be removed from the database</li>
+                        <li>File will be deleted from Cloudinary storage</li>
+                        <li>Preview images and screenshots will also be deleted</li>
+                        <li>This action cannot be reversed</li>
+                      </ul>
+                    </div>
+                  </div>
+                </div>
+                <div className="flex gap-2 justify-end">
+                  <Button 
+                    variant="outline" 
+                    onClick={() => setDeletingMedia(null)}
+                    disabled={isDeleting}
+                  >
+                    Cancel
+                  </Button>
+                  <Button
+                    onClick={() => handleDelete(deletingMedia)}
+                    disabled={isDeleting}
+                    className="bg-red-600 hover:bg-red-700"
+                  >
+                    {isDeleting ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin mr-2" />
+                        Deleting...
+                      </>
+                    ) : (
+                      <>
+                        <Trash2 className="w-4 h-4 mr-2" />
+                        Delete Permanently
+                      </>
+                    )}
+                  </Button>
+                </div>
+              </div>
+            </DialogContent>
+          </Dialog>
+        )}
       </div>
     </AdminLayout>
+  );
+}
+
+function EditMediaForm({ media, onSave, onCancel }: { media: MediaItem; onSave: (updates: Partial<MediaItem>) => void; onCancel: () => void }) {
+  const [formData, setFormData] = useState({
+    title: media.title,
+    description: media.description || "",
+    tags: Array.isArray(media.tags) ? media.tags.join(", ") : media.tags || "",
+    type: media.type,
+    isPremium: media.isPremium,
+  });
+
+  return (
+    <div className="space-y-4">
+      <div>
+        <label className="block text-sm font-medium mb-2">Title</label>
+        <input
+          type="text"
+          value={formData.title}
+          onChange={(e) => setFormData({ ...formData, title: e.target.value })}
+          className="w-full px-3 py-2 border border-border rounded-lg bg-white dark:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-primary"
+        />
+      </div>
+      <div>
+        <label className="block text-sm font-medium mb-2">Description</label>
+        <textarea
+          value={formData.description}
+          onChange={(e) => setFormData({ ...formData, description: e.target.value })}
+          rows={4}
+          className="w-full px-3 py-2 border border-border rounded-lg bg-white dark:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-primary resize-none"
+        />
+      </div>
+      <div>
+        <label className="block text-sm font-medium mb-2">Tags (comma-separated)</label>
+        <input
+          type="text"
+          value={formData.tags}
+          onChange={(e) => setFormData({ ...formData, tags: e.target.value })}
+          placeholder="tag1, tag2, tag3"
+          className="w-full px-3 py-2 border border-border rounded-lg bg-white dark:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-primary"
+        />
+      </div>
+      <div>
+        <label className="block text-sm font-medium mb-2">Type/Format</label>
+        <input
+          type="text"
+          value={formData.type}
+          onChange={(e) => setFormData({ ...formData, type: e.target.value })}
+          className="w-full px-3 py-2 border border-border rounded-lg bg-white dark:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-primary"
+        />
+      </div>
+      <div className="flex items-center gap-2">
+        <input
+          type="checkbox"
+          id="edit-premium"
+          checked={formData.isPremium}
+          onChange={(e) => setFormData({ ...formData, isPremium: e.target.checked })}
+          className="w-4 h-4 rounded border-border"
+        />
+        <label htmlFor="edit-premium" className="text-sm font-medium">
+          Mark as Premium
+        </label>
+      </div>
+      <div className="flex gap-2 justify-end">
+        <Button variant="outline" onClick={onCancel}>
+          Cancel
+        </Button>
+        <Button onClick={() => onSave({
+          ...formData,
+          tags: formData.tags.split(",").map(t => t.trim()).filter(Boolean),
+        })}>
+          Save Changes
+        </Button>
+      </div>
+    </div>
   );
 }

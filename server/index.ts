@@ -1,15 +1,18 @@
 import "dotenv/config";
 import express from "express";
 import cors from "cors";
-import * as mediaRoutes from "./routes/media";
-import * as authRoutes from "./routes/auth";
-import * as downloadRoutes from "./routes/downloads";
-import * as adminRoutes from "./routes/admin";
+import * as mediaRoutes from "./routes/media.js";
+import * as authRoutes from "./routes/auth.js";
+import * as downloadRoutes from "./routes/downloads.js";
+import * as adminRoutes from "./routes/admin.js";
 import * as creatorRoutes from "./routes/creators.js";
 import * as settingsRoutes from "./routes/settings.js";
 import * as usersRoutes from "./routes/users.js";
 import * as popupAdsRoutes from "./routes/popup-ads.js";
+import * as referralRoutes from "./routes/referral.js";
 import { handleFileUpload, handleUrlUpload, upload, handleAssetUpload } from "./routes/upload.js";
+import { recoverCreatorAccounts } from "./routes/creators-recovery.js";
+import { migrateStorageTo1GB } from "./routes/creators-migration.js";
 import { initializeKV } from "./utils/database.js";
 import { initializeAutoSync } from "./services/syncService.js";
 
@@ -87,12 +90,15 @@ import { createIndexes } from "./models/mongodb.js";
 
 // Check if we're in a build context (not runtime)
 // During build, Vite will import this file but we shouldn't initialize databases
-// Simple detection: if no PORT is set and we're not on a hosting platform, we're likely building
-const isBuildTime = !process.env.PORT && 
-                    !process.env.RENDER && 
-                    !process.env.VERCEL &&
-                    (process.argv.some(arg => arg.includes('vite') || arg.includes('build')) ||
-                     process.env.VITE_BUILD === 'true');
+// Only skip initialization during actual build commands, not during dev server startup
+const isBuildTime = process.env.VITE_BUILD === 'true' ||
+                    process.argv.some(arg => 
+                      arg.includes('build') && 
+                      !arg.includes('dev') && 
+                      !arg.includes('serve')
+                    ) ||
+                    (process.env.NODE_ENV === 'production' && 
+                     process.argv.some(arg => arg.includes('vite') && arg.includes('build')));
 
 // Initialize MongoDB with proper error handling
 // Only run during actual server startup, not during build
@@ -145,9 +151,11 @@ if (!isBuildTime) {
   })();
 } else {
   console.log("🔧 Build detected - skipping database initialization");
+  console.log("   Note: Server will still be created, but databases won't initialize");
 }
 
 export function createServer() {
+  console.log("📦 Creating Express server...");
   const app = express();
 
   // Middleware
@@ -188,6 +196,20 @@ export function createServer() {
 
   // Mock auth middleware (in production, use JWT verification)
   app.use((req, _res, next) => {
+    // Check for user info in X-User-Info header (from Firebase Auth)
+    const userInfoHeader = req.headers["x-user-info"];
+    if (userInfoHeader && typeof userInfoHeader === "string") {
+      try {
+        const decoded = JSON.parse(Buffer.from(userInfoHeader, "base64").toString());
+        (req as any).user = decoded;
+        next();
+        return;
+      } catch {
+        // Invalid user info, continue to check Authorization header
+      }
+    }
+    
+    // Fallback: Check Authorization header (legacy format)
     const token = req.headers.authorization?.split(" ")[1];
     if (token) {
       try {
@@ -341,8 +363,12 @@ export function createServer() {
   app.post("/api/creators/storage/purchase", creatorRoutes.purchaseCreatorStorage);
   app.post("/api/creators/storage/purchase/manual", creatorRoutes.purchaseCreatorStorageManual);
   app.get("/api/admin/storage/manual-payments", creatorRoutes.getManualStoragePayments);
+  app.get("/api/admin/storage/all-purchases", creatorRoutes.getAllStoragePurchases);
+  app.delete("/api/admin/storage/purchases/:creatorId/:purchaseId", creatorRoutes.deleteStoragePurchase);
+  app.patch("/api/admin/storage/purchases/:creatorId/:purchaseId/extend", creatorRoutes.extendCreatorStorage);
   app.post("/api/admin/storage/manual-payments/:creatorId/:purchaseId/approve", creatorRoutes.approveManualStoragePayment);
   app.post("/api/admin/storage/manual-payments/:creatorId/:purchaseId/reject", creatorRoutes.rejectManualStoragePayment);
+  app.patch("/api/admin/creators/:creatorId/freeze", creatorRoutes.freezeCreatorAccount);
 
   app.get("/api/settings/payment", settingsRoutes.getPaymentSettings);
   app.put("/api/settings/payment", settingsRoutes.updatePaymentSettings);
@@ -350,8 +376,16 @@ export function createServer() {
   app.put("/api/settings/branding", settingsRoutes.updateBrandingSettings);
   app.get("/api/settings/general", settingsRoutes.getGeneralSettings);
   app.put("/api/settings/general", settingsRoutes.updateGeneralSettings);
+  app.get("/api/settings/app", settingsRoutes.getAppSettings);
+  app.put("/api/settings/app", settingsRoutes.updateAppSettings);
   app.get("/api/admin/creators", creatorRoutes.getCreatorsAdmin);
   app.patch("/api/admin/creators/:id", creatorRoutes.updateCreatorStatus);
+  
+  // Creator recovery endpoint (admin only)
+  app.post("/api/admin/creators/recover", recoverCreatorAccounts);
+  
+  // One-time migration endpoint to update all creators from 5 GB to 1 GB (admin only)
+  app.post("/api/admin/creators/migrate-storage", migrateStorageTo1GB);
 
   // Upload routes
   app.post("/api/upload/file", upload.array("files", 10), handleFileUpload);
@@ -367,5 +401,31 @@ export function createServer() {
   app.post("/api/popup-ads/:id/impression", popupAdsRoutes.trackImpression);
   app.post("/api/popup-ads/:id/click", popupAdsRoutes.trackClick);
 
+  // Referral & Sharing System routes
+  // User endpoints
+  app.get("/api/referral/info", referralRoutes.getUserReferralInfo);
+  app.get("/api/referral/earnings", referralRoutes.getUserEarnings);
+  app.get("/api/referral/history", referralRoutes.getReferralHistory);
+  app.get("/api/share/posts", referralRoutes.getActiveSharePosts);
+  app.post("/api/share/link", referralRoutes.createShareLink);
+  app.get("/api/share/history", referralRoutes.getShareHistory);
+  app.post("/api/withdraw/request", referralRoutes.createWithdrawRequest);
+  app.get("/api/withdraw/history", referralRoutes.getWithdrawHistory);
+  app.get("/api/share/track", referralRoutes.trackShareVisitor);
+  
+  // Admin endpoints
+  app.get("/api/admin/share-posts", referralRoutes.getAllSharePosts);
+  app.post("/api/admin/share-posts", referralRoutes.createSharePost);
+  app.put("/api/admin/share-posts/:id", referralRoutes.updateSharePost);
+  app.delete("/api/admin/share-posts/:id", referralRoutes.deleteSharePost);
+  app.get("/api/admin/referrals", referralRoutes.getAllReferrals);
+  app.put("/api/admin/referrals/:id", referralRoutes.updateReferralStatus);
+  app.get("/api/admin/share-records", referralRoutes.getAllShareRecords);
+  app.put("/api/admin/share-records/:id", referralRoutes.updateShareRecordStatus);
+  app.get("/api/admin/withdraw-requests", referralRoutes.getAllWithdrawRequests);
+  app.put("/api/admin/withdraw-requests/:id", referralRoutes.updateWithdrawRequestStatus);
+  app.get("/api/admin/share-visitors", referralRoutes.getAllShareVisitors);
+
+  console.log("✅ Express server created with all routes registered");
   return app;
 }
