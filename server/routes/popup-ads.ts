@@ -16,7 +16,7 @@ const POPUP_ADS_DB_FILE = join(DATA_DIR, "popup-ads-database.json");
 const DEFAULT_POPUP_ADS: PopupAd[] = [];
 
 // Load pop-up ads database from file
-async function loadPopupAdsDatabase(): Promise<PopupAd[]> {
+export async function loadPopupAdsDatabase(): Promise<PopupAd[]> {
   try {
     // Ensure data directory exists
     await fs.mkdir(DATA_DIR, { recursive: true });

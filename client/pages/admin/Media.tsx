@@ -1153,8 +1153,8 @@ export default function AdminMedia() {
                 <tbody className="divide-y divide-border">
                   {sortedFiltered.map((item) => (
                     <tr key={item.id} className="hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors">
-                      <td className="px-4 sm:px-6 py-4">
-                        <div className="flex items-center gap-3">
+                      <td className="px-4 sm:px-6 py-4" style={{ width: '30%' }}>
+                        <div className="flex items-center gap-3 min-w-0">
                           <div className="w-12 h-12 sm:w-14 sm:h-14 rounded-lg overflow-hidden bg-slate-100 dark:bg-slate-800 flex items-center justify-center flex-shrink-0">
                             {item.previewUrl ? (
                               <img
@@ -1171,31 +1171,31 @@ export default function AdminMedia() {
                               })()
                             )}
                           </div>
-                          <div className="min-w-0">
+                          <div className="min-w-0 flex-1 overflow-hidden">
                             <Link
                               to={`/browse/${item.category.toLowerCase()}/${item.id}`}
                               target="_blank"
                               rel="noopener noreferrer"
-                              className="font-semibold text-sm sm:text-base truncate hover:text-primary transition-colors flex items-center gap-1.5 group inline-flex"
+                              className="font-semibold text-sm sm:text-base hover:text-primary transition-colors flex items-center gap-1.5 group"
                               title={`View ${item.title} on user site`}
                             >
-                              <span className="truncate">{item.title}</span>
+                              <span className="truncate block">{item.title}</span>
                               <ExternalLink className="w-3 h-3 sm:w-4 sm:h-4 opacity-60 group-hover:opacity-100 transition-opacity flex-shrink-0" />
                             </Link>
-                            <div className="flex items-center gap-2 mt-1">
+                            <div className="flex items-center gap-2 mt-1 flex-wrap">
                               {item.isPremium && (
-                                <span className="text-xs text-yellow-600 dark:text-yellow-400">Premium</span>
+                                <span className="text-xs text-yellow-600 dark:text-yellow-400 whitespace-nowrap">Premium</span>
                               )}
                               {item.creatorId && (
-                                <span className="text-xs text-muted-foreground">Creator Upload</span>
+                                <span className="text-xs text-muted-foreground whitespace-nowrap">Creator Upload</span>
                               )}
                             </div>
                           </div>
                         </div>
                       </td>
-                      <td className="px-4 sm:px-6 py-4 text-sm sm:text-base whitespace-nowrap">{item.category}</td>
-                      <td className="px-4 sm:px-6 py-4 text-sm sm:text-base whitespace-nowrap">{item.type}</td>
-                      <td className="px-4 sm:px-6 py-4 whitespace-nowrap">
+                      <td className="px-4 sm:px-6 py-4 text-sm sm:text-base whitespace-nowrap" style={{ width: '10%' }}>{item.category}</td>
+                      <td className="px-4 sm:px-6 py-4 text-sm sm:text-base whitespace-nowrap truncate" style={{ width: '10%' }} title={item.type}>{item.type}</td>
+                      <td className="px-4 sm:px-6 py-4 whitespace-nowrap" style={{ width: '10%' }}>
                         <span className={`inline-flex items-center px-2 py-1 rounded-full text-xs font-medium ${
                           item.status === "pending" ? "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200" :
                           item.status === "approved" ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200" :
@@ -1204,9 +1204,9 @@ export default function AdminMedia() {
                           {item.status === "pending" ? "Pending" : item.status === "approved" ? "Approved" : "Rejected"}
                         </span>
                       </td>
-                      <td className="px-4 sm:px-6 py-4 text-sm sm:text-base whitespace-nowrap">{item.downloads.toLocaleString()}</td>
-                      <td className="px-4 sm:px-6 py-4 text-sm sm:text-base whitespace-nowrap">{item.uploadedDate}</td>
-                      <td className="px-4 sm:px-6 py-4">
+                      <td className="px-4 sm:px-6 py-4 text-sm sm:text-base whitespace-nowrap" style={{ width: '10%' }}>{item.downloads.toLocaleString()}</td>
+                      <td className="px-4 sm:px-6 py-4 text-sm sm:text-base whitespace-nowrap" style={{ width: '12%' }}>{item.uploadedDate}</td>
+                      <td className="px-4 sm:px-6 py-4" style={{ width: '18%' }}>
                         <div className="flex justify-end gap-2">
                           {item.status === "pending" && (
                             <>

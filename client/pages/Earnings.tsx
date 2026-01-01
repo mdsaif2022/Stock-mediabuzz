@@ -200,7 +200,7 @@ export default function Earnings() {
   return (
     <Layout>
       <div className="container mx-auto px-4 py-8 max-w-6xl">
-        <h1 className="text-3xl font-bold mb-6">Earnings & Referrals</h1>
+        <h1 className="text-2xl sm:text-3xl font-bold mb-6 break-words whitespace-normal">Earnings & Referrals</h1>
         
         {error && (
           <div className="mb-6 p-4 bg-destructive/10 border border-destructive/20 text-destructive rounded-lg">
@@ -223,11 +223,11 @@ export default function Earnings() {
           <>
 
         {/* Tabs */}
-        <div className="flex gap-2 border-b border-border mb-6">
+        <div className="flex gap-2 border-b border-border mb-6 overflow-x-auto scrollbar-hide">
           <button
             onClick={() => setActiveTab("overview")}
             className={cn(
-              "px-4 py-2 font-medium transition-colors",
+              "px-3 sm:px-4 py-2 font-medium transition-colors whitespace-nowrap flex-shrink-0",
               activeTab === "overview"
                 ? "border-b-2 border-primary text-primary"
                 : "text-muted-foreground hover:text-foreground"
@@ -238,7 +238,7 @@ export default function Earnings() {
           <button
             onClick={() => setActiveTab("referral")}
             className={cn(
-              "px-4 py-2 font-medium transition-colors",
+              "px-3 sm:px-4 py-2 font-medium transition-colors whitespace-nowrap flex-shrink-0",
               activeTab === "referral"
                 ? "border-b-2 border-primary text-primary"
                 : "text-muted-foreground hover:text-foreground"
@@ -249,7 +249,7 @@ export default function Earnings() {
           <button
             onClick={() => setActiveTab("sharing")}
             className={cn(
-              "px-4 py-2 font-medium transition-colors",
+              "px-3 sm:px-4 py-2 font-medium transition-colors whitespace-nowrap flex-shrink-0",
               activeTab === "sharing"
                 ? "border-b-2 border-primary text-primary"
                 : "text-muted-foreground hover:text-foreground"
@@ -260,7 +260,7 @@ export default function Earnings() {
           <button
             onClick={() => setActiveTab("withdraw")}
             className={cn(
-              "px-4 py-2 font-medium transition-colors",
+              "px-3 sm:px-4 py-2 font-medium transition-colors whitespace-nowrap flex-shrink-0",
               activeTab === "withdraw"
                 ? "border-b-2 border-primary text-primary"
                 : "text-muted-foreground hover:text-foreground"

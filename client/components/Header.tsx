@@ -79,10 +79,10 @@ export default function Header() {
   return (
     <>
     <header className="sticky top-0 z-50 w-full bg-white dark:bg-slate-950 border-b border-border shadow-sm">
-      <div className="container mx-auto px-4">
-        <div className="flex h-16 items-center justify-between">
+      <div className="container mx-auto px-2 sm:px-4">
+        <div className="flex h-16 items-center justify-between gap-1 sm:gap-2 md:gap-4 min-w-0">
           {/* Logo */}
-          <Link to="/" className="flex items-center gap-2 group">
+          <Link to="/" className="flex items-center gap-1.5 sm:gap-2 group flex-shrink-0 min-w-0">
             {siteLogo ? (
               <img
                 src={siteLogo}
@@ -110,7 +110,7 @@ export default function Header() {
                 <span className="text-white font-bold text-lg">F</span>
               </div>
             )}
-            <span className="text-lg sm:text-xl font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent whitespace-nowrap">
+            <span className="text-sm sm:text-base md:text-lg lg:text-xl font-bold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent whitespace-nowrap">
               FreeMediaBuzz
             </span>
           </Link>
@@ -135,36 +135,36 @@ export default function Header() {
           </nav>
 
           {/* Right Section */}
-          <div className="flex items-center gap-4">
-            {/* Get App - Glitch/Cyberpunk Style */}
+          <div className="flex items-center gap-1 sm:gap-2 md:gap-4 flex-shrink-0">
+            {/* Get App - Mobile & Desktop - Glitch/Cyberpunk Style */}
             {appSettings?.downloadEnabled && (appSettings.apkUrl || appSettings.xapkUrl || appSettings.playStoreUrl || appSettings.appStoreUrl) ? (
               <a
                 href={appSettings.apkUrl || appSettings.xapkUrl || appSettings.playStoreUrl || appSettings.appStoreUrl || "#"}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="hidden sm:flex relative text-sm font-medium text-foreground transition-all duration-300 items-center gap-2 px-3 py-1.5 rounded-lg hover:bg-primary/10 group animate-cyberpunk overflow-hidden border border-red-500/30 hover:border-blue-500/60"
+                className="flex relative text-xs sm:text-sm font-medium text-foreground transition-all duration-300 items-center gap-1 sm:gap-2 px-1.5 sm:px-3 py-1 sm:py-1.5 rounded-lg hover:bg-primary/10 group animate-cyberpunk overflow-hidden border border-red-500/30 hover:border-blue-500/60"
               >
-                <Smartphone className="w-4 h-4 transition-transform duration-300 group-hover:scale-110 group-hover:rotate-12 relative z-10" />
-                <span className="relative z-10 font-bold group-hover:animate-glitch">
+                <Smartphone className="w-3.5 h-3.5 sm:w-4 sm:h-4 transition-transform duration-300 group-hover:scale-110 group-hover:rotate-12 relative z-10" />
+                <span className="relative z-10 font-bold group-hover:animate-glitch hidden sm:inline">
                   Get App
                 </span>
               </a>
             ) : (
               <Link
                 to="/get-app"
-                className="hidden sm:flex relative text-sm font-medium text-foreground transition-all duration-300 items-center gap-2 px-3 py-1.5 rounded-lg hover:bg-primary/10 group animate-cyberpunk overflow-hidden border border-red-500/30 hover:border-blue-500/60"
+                className="flex relative text-xs sm:text-sm font-medium text-foreground transition-all duration-300 items-center gap-1 sm:gap-2 px-1.5 sm:px-3 py-1 sm:py-1.5 rounded-lg hover:bg-primary/10 group animate-cyberpunk overflow-hidden border border-red-500/30 hover:border-blue-500/60"
               >
-                <Smartphone className="w-4 h-4 transition-transform duration-300 group-hover:scale-110 group-hover:rotate-12 relative z-10" />
-                <span className="relative z-10 font-bold group-hover:animate-glitch">
+                <Smartphone className="w-3.5 h-3.5 sm:w-4 sm:h-4 transition-transform duration-300 group-hover:scale-110 group-hover:rotate-12 relative z-10" />
+                <span className="relative z-10 font-bold group-hover:animate-glitch hidden sm:inline">
                   Get App
                 </span>
               </Link>
             )}
-            {/* Earnings - Currency Drop Animation - Only show if logged in */}
+            {/* Earnings - Mobile & Desktop - Currency Drop Animation - Only show if logged in */}
             {isLoggedIn && (
               <Link
                 to="/earnings"
-                className="hidden sm:flex relative text-sm font-medium text-foreground hover:text-primary transition-all duration-300 items-center gap-2 px-3 py-1.5 rounded-lg hover:bg-primary/10 group overflow-hidden currency-drop-container"
+                className="flex relative text-xs sm:text-sm font-medium text-foreground hover:text-primary transition-all duration-300 items-center gap-1 sm:gap-2 px-1.5 sm:px-3 py-1 sm:py-1.5 rounded-lg hover:bg-primary/10 group overflow-hidden currency-drop-container"
               >
                 {/* Currency symbols dropping */}
                 <span className="currency-symbol">₿</span>
@@ -173,8 +173,8 @@ export default function Header() {
                 <span className="currency-symbol">৳</span>
                 
                 <div className="absolute inset-0 bg-gradient-to-r from-transparent via-yellow-400/20 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000"></div>
-                <DollarSign className="w-4 h-4 transition-all duration-300 group-hover:scale-110 group-hover:text-yellow-500 relative z-10" />
-                <span className="relative z-10 font-semibold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent group-hover:from-yellow-500 group-hover:to-yellow-400 transition-all duration-300">
+                <DollarSign className="w-3.5 h-3.5 sm:w-4 sm:h-4 transition-all duration-300 group-hover:scale-110 group-hover:text-yellow-500 relative z-10" />
+                <span className="relative z-10 font-semibold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent group-hover:from-yellow-500 group-hover:to-yellow-400 transition-all duration-300 hidden sm:inline">
                   Earnings
                 </span>
               </Link>
@@ -247,10 +247,10 @@ export default function Header() {
               </div>
             )}
 
-            {/* Mobile Menu Button */}
+            {/* Mobile Menu Button - Always visible on mobile */}
             <button
               onClick={() => setIsMenuOpen(!isMenuOpen)}
-              className="md:hidden"
+              className="md:hidden flex-shrink-0"
             >
               {isMenuOpen ? (
                 <X className="w-5 h-5" />
@@ -264,48 +264,6 @@ export default function Header() {
         {/* Mobile Navigation */}
         {isMenuOpen && (
           <nav className="md:hidden pb-4 border-t border-border space-y-1">
-            {/* Get App - Mobile - Glitch/Cyberpunk Style */}
-            {appSettings?.downloadEnabled && (appSettings.apkUrl || appSettings.xapkUrl || appSettings.playStoreUrl || appSettings.appStoreUrl) ? (
-              <a
-                href={appSettings.apkUrl || appSettings.xapkUrl || appSettings.playStoreUrl || appSettings.appStoreUrl || "#"}
-                target="_blank"
-                rel="noopener noreferrer"
-                onClick={() => setIsMenuOpen(false)}
-                className="block px-4 py-2 text-sm font-medium hover:bg-primary/10 transition-all duration-300 flex items-center gap-2 border-b border-border group relative animate-cyberpunk overflow-hidden border-l-2 border-r-2 border-l-red-500/50 border-r-blue-500/50"
-              >
-                <Smartphone className="w-4 h-4 transition-transform duration-300 group-hover:scale-110 group-hover:rotate-12 relative z-10" />
-                <span className="relative z-10 font-bold group-hover:animate-glitch">Get App</span>
-              </a>
-            ) : (
-              <Link
-                to="/get-app"
-                onClick={() => setIsMenuOpen(false)}
-                className="block px-4 py-2 text-sm font-medium hover:bg-primary/10 transition-all duration-300 flex items-center gap-2 border-b border-border group relative animate-cyberpunk overflow-hidden border-l-2 border-r-2 border-l-red-500/50 border-r-blue-500/50"
-              >
-                <Smartphone className="w-4 h-4 transition-transform duration-300 group-hover:scale-110 group-hover:rotate-12 relative z-10" />
-                <span className="relative z-10 font-bold group-hover:animate-glitch">Get App</span>
-              </Link>
-            )}
-            {/* Earnings - Mobile - Currency Drop Animation - Only show if logged in */}
-            {isLoggedIn && (
-              <Link
-                to="/earnings"
-                onClick={() => setIsMenuOpen(false)}
-                className="block px-4 py-2 text-sm font-medium hover:bg-primary/10 transition-all duration-300 flex items-center gap-2 border-b border-border group relative overflow-hidden currency-drop-container"
-              >
-                {/* Currency symbols dropping */}
-                <span className="currency-symbol">₿</span>
-                <span className="currency-symbol">৳</span>
-                <span className="currency-symbol">₿</span>
-                <span className="currency-symbol">৳</span>
-                
-                <div className="absolute inset-0 bg-gradient-to-r from-transparent via-yellow-400/20 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000"></div>
-                <DollarSign className="w-4 h-4 transition-all duration-300 group-hover:scale-110 group-hover:text-yellow-500 relative z-10" />
-                <span className="relative z-10 font-semibold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent group-hover:from-yellow-500 group-hover:to-yellow-400 transition-all duration-300">
-                  Earnings
-                </span>
-              </Link>
-            )}
             {/* Mobile Theme Toggle */}
             <div className="px-4 py-2 border-b border-border">
               <div className="flex items-center justify-between">

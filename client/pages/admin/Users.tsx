@@ -133,6 +133,9 @@ export default function AdminUsers() {
   }, []);
 
   const handleUserStatusChange = async (userId: string, status: "active" | "banned" | "pending") => {
+    if (!confirm(`Are you sure you want to change this user's status to "${status}"?`)) {
+      return;
+    }
     try {
       const response = await apiFetch(`/api/admin/users/${userId}/ban`, {
         method: "POST",
@@ -142,13 +145,14 @@ export default function AdminUsers() {
         body: JSON.stringify({ status }),
       });
       if (!response.ok) {
-        throw new Error("Failed to update user status");
+        const errorData = await response.json().catch(() => ({}));
+        throw new Error(errorData.error || "Failed to update user status");
       }
       await fetchUsers();
       alert(`User status updated to ${status} successfully`);
-    } catch (error) {
-      console.error(error);
-      alert("Unable to update user status. Please try again.");
+    } catch (error: any) {
+      console.error("Error updating user status:", error);
+      alert(error.message || "Unable to update user status. Please try again.");
     }
   };
 
@@ -457,6 +461,25 @@ export default function AdminUsers() {
                         {user.role !== "admin" && (
                           <button
                             title="Promote to Admin"
+                            onClick={async () => {
+                              if (!confirm(`Are you sure you want to promote ${user.email} to admin?`)) return;
+                              try {
+                                const response = await apiFetch(`/api/admin/users/${user.id}/promote`, {
+                                  method: "POST",
+                                  headers: {
+                                    "Content-Type": "application/json",
+                                  },
+                                });
+                                if (!response.ok) {
+                                  throw new Error("Failed to promote user to admin");
+                                }
+                                await fetchUsers();
+                                alert(`User ${user.email} has been promoted to admin successfully`);
+                              } catch (error: any) {
+                                console.error("Error promoting user:", error);
+                                alert(error.message || "Failed to promote user to admin. Please try again.");
+                              }
+                            }}
                             className="p-1 hover:bg-purple-100 dark:hover:bg-purple-900/30 rounded transition-colors text-purple-600 dark:text-purple-400"
                           >
                             <Shield className="w-4 h-4" />
@@ -496,6 +519,10 @@ export default function AdminUsers() {
                         </button>
                         <button
                           title="Delete User"
+                          onClick={async () => {
+                            if (!confirm(`Are you sure you want to delete user ${user.email}? This action cannot be undone.`)) return;
+                            alert("Delete user functionality is not yet implemented. Please contact the developer.");
+                          }}
                           className="p-1 hover:bg-destructive/10 rounded transition-colors text-destructive"
                         >
                           <Trash2 className="w-4 h-4" />

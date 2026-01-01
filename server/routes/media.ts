@@ -149,6 +149,42 @@ export const getMedia: RequestHandler = async (req, res) => {
   // Items without status are considered approved for backward compatibility
   filtered = filtered.filter((m) => !m.status || m.status === "approved");
 
+  // Exclude media URLs that are used in share posts or pop-up ads
+  try {
+    // Load share posts to get their media URLs
+    const { loadSharePostsDatabase } = await import("./referral.js");
+    const sharePosts = await loadSharePostsDatabase();
+    const sharePostUrls = new Set<string>();
+    sharePosts.forEach((post) => {
+      if (post.imageUrl) sharePostUrls.add(post.imageUrl);
+      if (post.videoUrl) sharePostUrls.add(post.videoUrl);
+    });
+
+    // Load pop-up ads
+    const { loadPopupAdsDatabase } = await import("./popup-ads.js");
+    const popupAds = await loadPopupAdsDatabase();
+    const popupAdUrls = new Set<string>();
+    popupAds.forEach((ad) => {
+      if (ad.mediaUrl) popupAdUrls.add(ad.mediaUrl);
+    });
+
+    // Filter out media items whose URLs match share post or pop-up ad URLs
+    filtered = filtered.filter((m) => {
+      const fileUrl = m.fileUrl || "";
+      const previewUrl = m.previewUrl || "";
+      const iconUrl = m.iconUrl || "";
+      
+      // Check if any of the media URLs match share post or pop-up ad URLs
+      const isSharePostMedia = sharePostUrls.has(fileUrl) || sharePostUrls.has(previewUrl) || sharePostUrls.has(iconUrl);
+      const isPopupAdMedia = popupAdUrls.has(fileUrl) || popupAdUrls.has(previewUrl) || popupAdUrls.has(iconUrl);
+      
+      return !isSharePostMedia && !isPopupAdMedia;
+    });
+  } catch (error) {
+    // If we can't load share posts or pop-up ads, continue without filtering
+    console.warn("Could not filter share post/pop-up ad media:", error);
+  }
+
   if (category) {
     const normalizedCategory = normalizeCategoryValue(category as string);
     filtered = normalizedCategory
@@ -212,6 +248,37 @@ export const getMediaById: RequestHandler = async (req, res) => {
   if (media.status && media.status !== "approved") {
     res.status(404).json({ error: "Media not found" });
     return;
+  }
+
+  // Check if this media is used in share posts or pop-up ads
+  try {
+    const { loadSharePostsDatabase } = await import("./referral.js");
+    const sharePosts = await loadSharePostsDatabase();
+    const sharePostUrls = new Set<string>();
+    sharePosts.forEach((post) => {
+      if (post.imageUrl) sharePostUrls.add(post.imageUrl);
+      if (post.videoUrl) sharePostUrls.add(post.videoUrl);
+    });
+
+    const { loadPopupAdsDatabase } = await import("./popup-ads.js");
+    const popupAds = await loadPopupAdsDatabase();
+    const popupAdUrls = new Set<string>();
+    popupAds.forEach((ad) => {
+      if (ad.mediaUrl) popupAdUrls.add(ad.mediaUrl);
+    });
+
+    const fileUrl = media.fileUrl || "";
+    const previewUrl = media.previewUrl || "";
+    const iconUrl = media.iconUrl || "";
+    const isSharePostMedia = sharePostUrls.has(fileUrl) || sharePostUrls.has(previewUrl) || sharePostUrls.has(iconUrl);
+    const isPopupAdMedia = popupAdUrls.has(fileUrl) || popupAdUrls.has(previewUrl) || popupAdUrls.has(iconUrl);
+    
+    if (isSharePostMedia || isPopupAdMedia) {
+      res.status(404).json({ error: "Media not found" });
+      return;
+    }
+  } catch (error) {
+    console.warn("Could not check if media is used in share posts/pop-up ads:", error);
   }
 
   res.json(media);
@@ -485,7 +552,39 @@ export const deleteMedia: RequestHandler = async (req, res) => {
 // Get trending media
 export const getTrendingMedia: RequestHandler = async (req, res) => {
   const mediaDatabase = await getMediaDatabase();
-  const trending = [...mediaDatabase]
+  
+  // Get share post and pop-up ad URLs to exclude
+  let sharePostUrls = new Set<string>();
+  let popupAdUrls = new Set<string>();
+  
+  try {
+    const { loadSharePostsDatabase } = await import("./referral.js");
+    const sharePosts = await loadSharePostsDatabase();
+    sharePosts.forEach((post) => {
+      if (post.imageUrl) sharePostUrls.add(post.imageUrl);
+      if (post.videoUrl) sharePostUrls.add(post.videoUrl);
+    });
+
+    const { loadPopupAdsDatabase } = await import("./popup-ads.js");
+    const popupAds = await loadPopupAdsDatabase();
+    popupAds.forEach((ad) => {
+      if (ad.mediaUrl) popupAdUrls.add(ad.mediaUrl);
+    });
+  } catch (error) {
+    console.warn("Could not load share posts/pop-up ads for trending filtering:", error);
+  }
+  
+  // Filter out share post and pop-up ad media, then sort by downloads
+  const filtered = mediaDatabase.filter((m) => {
+    const fileUrl = m.fileUrl || "";
+    const previewUrl = m.previewUrl || "";
+    const iconUrl = m.iconUrl || "";
+    const isSharePostMedia = sharePostUrls.has(fileUrl) || sharePostUrls.has(previewUrl) || sharePostUrls.has(iconUrl);
+    const isPopupAdMedia = popupAdUrls.has(fileUrl) || popupAdUrls.has(previewUrl) || popupAdUrls.has(iconUrl);
+    return !isSharePostMedia && !isPopupAdMedia;
+  });
+  
+  const trending = [...filtered]
     .sort((a, b) => b.downloads - a.downloads)
     .slice(0, 10);
 
@@ -524,12 +623,44 @@ function getVideoThumbnailUrl(videoUrl: string): string | null {
 
 export const getCategorySummary: RequestHandler = async (_req, res) => {
   const mediaDatabase = await getMediaDatabase();
+  
+  // Get share post and pop-up ad URLs to exclude from category previews
+  let sharePostUrls = new Set<string>();
+  let popupAdUrls = new Set<string>();
+  
+  try {
+    const { loadSharePostsDatabase } = await import("./referral.js");
+    const sharePosts = await loadSharePostsDatabase();
+    sharePosts.forEach((post) => {
+      if (post.imageUrl) sharePostUrls.add(post.imageUrl);
+      if (post.videoUrl) sharePostUrls.add(post.videoUrl);
+    });
+
+    const { loadPopupAdsDatabase } = await import("./popup-ads.js");
+    const popupAds = await loadPopupAdsDatabase();
+    popupAds.forEach((ad) => {
+      if (ad.mediaUrl) popupAdUrls.add(ad.mediaUrl);
+    });
+  } catch (error) {
+    console.warn("Could not load share posts/pop-up ads for category filtering:", error);
+  }
+  
   const summary = CATEGORY_KEYS.map((category) => {
     // Filter approved items only (or items without status for backward compatibility)
+    // Also exclude items used in share posts or pop-up ads
     const items = mediaDatabase.filter(
-      (item) => 
-        normalizeCategoryValue(item.category) === category &&
-        (!item.status || item.status === "approved")
+      (item) => {
+        const matchesCategory = normalizeCategoryValue(item.category) === category;
+        const isApproved = !item.status || item.status === "approved";
+        const fileUrl = item.fileUrl || "";
+        const previewUrl = item.previewUrl || "";
+        const iconUrl = item.iconUrl || "";
+        const isSharePostMedia = sharePostUrls.has(fileUrl) || sharePostUrls.has(previewUrl) || sharePostUrls.has(iconUrl);
+        const isPopupAdMedia = popupAdUrls.has(fileUrl) || popupAdUrls.has(previewUrl) || popupAdUrls.has(iconUrl);
+        const isNotAdMedia = !isSharePostMedia && !isPopupAdMedia;
+        
+        return matchesCategory && isApproved && isNotAdMedia;
+      }
     );
     
     if (items.length === 0) {

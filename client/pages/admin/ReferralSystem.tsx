@@ -1,5 +1,6 @@
 import AdminLayout from "@/components/AdminLayout";
 import { useState, useEffect, useCallback, useRef } from "react";
+import { createPortal } from "react-dom";
 import { apiFetch } from "@/lib/api";
 import { SharePost, ReferralRecord, ShareRecord, WithdrawRequest } from "@shared/api";
 import { Plus, Edit, Trash2, Check, X, DollarSign, Users, Share2, ExternalLink, Copy, CheckCircle, XCircle, Clock, Image as ImageIcon, Video, Upload, X as XIcon } from "lucide-react";
@@ -399,23 +400,23 @@ export default function AdminReferralSystem() {
               <div className="text-center py-8 text-muted-foreground">No share posts found</div>
             ) : (
               <div className="overflow-x-auto">
-                <table className="w-full border-collapse">
+                <table className="w-full table-fixed border-collapse">
                   <thead>
                     <tr className="border-b border-border">
-                      <th className="px-4 py-3 text-left">Preview</th>
-                      <th className="px-4 py-3 text-left">Title</th>
-                      <th className="px-4 py-3 text-left">URL</th>
-                      <th className="px-4 py-3 text-left">Coin Value</th>
-                      <th className="px-4 py-3 text-left">Status</th>
-                      <th className="px-4 py-3 text-left">Pop-up</th>
-                      <th className="px-4 py-3 text-left">Created</th>
-                      <th className="px-4 py-3 text-right">Actions</th>
+                      <th className="px-4 py-3 text-left text-xs sm:text-sm font-semibold text-muted-foreground whitespace-nowrap" style={{ width: '10%' }}>Preview</th>
+                      <th className="px-4 py-3 text-left text-xs sm:text-sm font-semibold text-muted-foreground whitespace-nowrap" style={{ width: '20%' }}>Title</th>
+                      <th className="px-4 py-3 text-left text-xs sm:text-sm font-semibold text-muted-foreground whitespace-nowrap" style={{ width: '25%' }}>URL</th>
+                      <th className="px-4 py-3 text-left text-xs sm:text-sm font-semibold text-muted-foreground whitespace-nowrap" style={{ width: '10%' }}>Coin Value</th>
+                      <th className="px-4 py-3 text-left text-xs sm:text-sm font-semibold text-muted-foreground whitespace-nowrap" style={{ width: '10%' }}>Status</th>
+                      <th className="px-4 py-3 text-left text-xs sm:text-sm font-semibold text-muted-foreground whitespace-nowrap" style={{ width: '10%' }}>Pop-up</th>
+                      <th className="px-4 py-3 text-left text-xs sm:text-sm font-semibold text-muted-foreground whitespace-nowrap" style={{ width: '10%' }}>Created</th>
+                      <th className="px-4 py-3 text-right text-xs sm:text-sm font-semibold text-muted-foreground whitespace-nowrap" style={{ width: '5%' }}>Actions</th>
                     </tr>
                   </thead>
                   <tbody>
                     {sharePosts.map((post) => (
                       <tr key={post.id} className="border-b border-border hover:bg-slate-50 dark:hover:bg-slate-800">
-                        <td className="px-4 py-3">
+                        <td className="px-4 py-3" style={{ width: '10%' }}>
                           {post.imageUrl ? (
                             <img src={post.imageUrl} alt={post.title} className="w-16 h-16 object-cover rounded" />
                           ) : post.videoUrl ? (
@@ -426,15 +427,15 @@ export default function AdminReferralSystem() {
                             </div>
                           )}
                         </td>
-                        <td className="px-4 py-3">{post.title}</td>
-                        <td className="px-4 py-3">
-                          <a href={post.url} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline flex items-center gap-1">
-                            {post.url.length > 40 ? post.url.substring(0, 40) + "..." : post.url}
-                            <ExternalLink className="w-3 h-3" />
+                        <td className="px-4 py-3 truncate" style={{ width: '20%' }} title={post.title}>{post.title}</td>
+                        <td className="px-4 py-3" style={{ width: '25%' }}>
+                          <a href={post.url} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline flex items-center gap-1 min-w-0">
+                            <span className="truncate block">{post.url}</span>
+                            <ExternalLink className="w-3 h-3 flex-shrink-0" />
                           </a>
                         </td>
-                        <td className="px-4 py-3">{post.coinValue} coins</td>
-                        <td className="px-4 py-3">
+                        <td className="px-4 py-3 whitespace-nowrap" style={{ width: '10%' }}>{post.coinValue} coins</td>
+                        <td className="px-4 py-3 whitespace-nowrap" style={{ width: '10%' }}>
                           <span className={cn(
                             "px-2 py-1 rounded-full text-xs",
                             post.status === "active" ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200" : "bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-200"
@@ -442,7 +443,7 @@ export default function AdminReferralSystem() {
                             {post.status}
                           </span>
                         </td>
-                        <td className="px-4 py-3">
+                        <td className="px-4 py-3 whitespace-nowrap" style={{ width: '10%' }}>
                           {post.showAsPopup ? (
                             <span className="px-2 py-1 rounded-full text-xs bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200 flex items-center gap-1 w-fit">
                               <Share2 className="w-3 h-3" />
@@ -452,8 +453,8 @@ export default function AdminReferralSystem() {
                             <span className="text-xs text-muted-foreground">-</span>
                           )}
                         </td>
-                        <td className="px-4 py-3">{new Date(post.createdAt).toLocaleDateString()}</td>
-                        <td className="px-4 py-3 text-right">
+                        <td className="px-4 py-3 whitespace-nowrap text-sm" style={{ width: '10%' }}>{new Date(post.createdAt).toLocaleDateString()}</td>
+                        <td className="px-4 py-3 text-right whitespace-nowrap" style={{ width: '5%' }}>
                           <div className="flex justify-end gap-2">
                             <button
                               onClick={() => {
@@ -506,30 +507,30 @@ export default function AdminReferralSystem() {
               <div className="text-center py-8 text-muted-foreground">No referrals found</div>
             ) : (
               <div className="overflow-x-auto">
-                <table className="w-full border-collapse">
+                <table className="w-full table-fixed border-collapse">
                   <thead>
                     <tr className="border-b border-border">
-                      <th className="px-4 py-3 text-left">Referrer</th>
-                      <th className="px-4 py-3 text-left">Referred User</th>
-                      <th className="px-4 py-3 text-left">Coins</th>
-                      <th className="px-4 py-3 text-left">Status</th>
-                      <th className="px-4 py-3 text-left">Date</th>
-                      <th className="px-4 py-3 text-right">Actions</th>
+                      <th className="px-4 py-3 text-left text-xs sm:text-sm font-semibold text-muted-foreground whitespace-nowrap" style={{ width: '25%' }}>Referrer</th>
+                      <th className="px-4 py-3 text-left text-xs sm:text-sm font-semibold text-muted-foreground whitespace-nowrap" style={{ width: '25%' }}>Referred User</th>
+                      <th className="px-4 py-3 text-left text-xs sm:text-sm font-semibold text-muted-foreground whitespace-nowrap" style={{ width: '10%' }}>Coins</th>
+                      <th className="px-4 py-3 text-left text-xs sm:text-sm font-semibold text-muted-foreground whitespace-nowrap" style={{ width: '15%' }}>Status</th>
+                      <th className="px-4 py-3 text-left text-xs sm:text-sm font-semibold text-muted-foreground whitespace-nowrap" style={{ width: '15%' }}>Date</th>
+                      <th className="px-4 py-3 text-right text-xs sm:text-sm font-semibold text-muted-foreground whitespace-nowrap" style={{ width: '10%' }}>Actions</th>
                     </tr>
                   </thead>
                   <tbody>
                     {referrals.map((ref: any) => (
                       <tr key={ref.id} className="border-b border-border hover:bg-slate-50 dark:hover:bg-slate-800">
-                        <td className="px-4 py-3">
-                          <div className="font-medium">{ref.referrerName || ref.referrerId}</div>
-                          <div className="text-sm text-muted-foreground">{ref.referrerEmail || ref.referrerId}</div>
+                        <td className="px-4 py-3" style={{ width: '25%' }}>
+                          <div className="font-medium truncate" title={ref.referrerName || ref.referrerId}>{ref.referrerName || ref.referrerId}</div>
+                          <div className="text-sm text-muted-foreground truncate" title={ref.referrerEmail || ref.referrerId}>{ref.referrerEmail || ref.referrerId}</div>
                         </td>
-                        <td className="px-4 py-3">
-                          <div className="font-medium">{ref.referredName || ref.referredId}</div>
-                          <div className="text-sm text-muted-foreground">{ref.referredEmail || ref.referredId}</div>
+                        <td className="px-4 py-3" style={{ width: '25%' }}>
+                          <div className="font-medium truncate" title={ref.referredName || ref.referredId}>{ref.referredName || ref.referredId}</div>
+                          <div className="text-sm text-muted-foreground truncate" title={ref.referredEmail || ref.referredId}>{ref.referredEmail || ref.referredId}</div>
                         </td>
-                        <td className="px-4 py-3">{ref.coinsEarned} coins</td>
-                        <td className="px-4 py-3">
+                        <td className="px-4 py-3 whitespace-nowrap" style={{ width: '10%' }}>{ref.coinsEarned} coins</td>
+                        <td className="px-4 py-3 whitespace-nowrap" style={{ width: '15%' }}>
                           <span className={cn(
                             "px-2 py-1 rounded-full text-xs",
                             ref.status === "approved" ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200" :
@@ -539,8 +540,8 @@ export default function AdminReferralSystem() {
                             {ref.status}
                           </span>
                         </td>
-                        <td className="px-4 py-3">{new Date(ref.createdAt).toLocaleDateString()}</td>
-                        <td className="px-4 py-3 text-right">
+                        <td className="px-4 py-3 whitespace-nowrap text-sm" style={{ width: '15%' }}>{new Date(ref.createdAt).toLocaleDateString()}</td>
+                        <td className="px-4 py-3 text-right whitespace-nowrap" style={{ width: '10%' }}>
                           <div className="flex justify-end gap-2">
                             {ref.status === "pending" && (
                               <>
@@ -578,27 +579,27 @@ export default function AdminReferralSystem() {
               <div className="text-center py-8 text-muted-foreground">No share records found</div>
             ) : (
               <div className="overflow-x-auto">
-                <table className="w-full border-collapse">
+                <table className="w-full table-fixed border-collapse">
                   <thead>
                     <tr className="border-b border-border">
-                      <th className="px-4 py-3 text-left">User</th>
-                      <th className="px-4 py-3 text-left">Type</th>
-                      <th className="px-4 py-3 text-left">Link</th>
-                      <th className="px-4 py-3 text-left">Registrations</th>
-                      <th className="px-4 py-3 text-left">Coins</th>
-                      <th className="px-4 py-3 text-left">Status</th>
-                      <th className="px-4 py-3 text-left">Date</th>
-                      <th className="px-4 py-3 text-right">Actions</th>
+                      <th className="px-4 py-3 text-left text-xs sm:text-sm font-semibold text-muted-foreground whitespace-nowrap" style={{ width: '20%' }}>User</th>
+                      <th className="px-4 py-3 text-left text-xs sm:text-sm font-semibold text-muted-foreground whitespace-nowrap" style={{ width: '12%' }}>Type</th>
+                      <th className="px-4 py-3 text-left text-xs sm:text-sm font-semibold text-muted-foreground whitespace-nowrap" style={{ width: '25%' }}>Link</th>
+                      <th className="px-4 py-3 text-left text-xs sm:text-sm font-semibold text-muted-foreground whitespace-nowrap" style={{ width: '10%' }}>Registrations</th>
+                      <th className="px-4 py-3 text-left text-xs sm:text-sm font-semibold text-muted-foreground whitespace-nowrap" style={{ width: '10%' }}>Coins</th>
+                      <th className="px-4 py-3 text-left text-xs sm:text-sm font-semibold text-muted-foreground whitespace-nowrap" style={{ width: '10%' }}>Status</th>
+                      <th className="px-4 py-3 text-left text-xs sm:text-sm font-semibold text-muted-foreground whitespace-nowrap" style={{ width: '10%' }}>Date</th>
+                      <th className="px-4 py-3 text-right text-xs sm:text-sm font-semibold text-muted-foreground whitespace-nowrap" style={{ width: '3%' }}>Actions</th>
                     </tr>
                   </thead>
                   <tbody>
                     {shareRecords.map((record: any) => (
                       <tr key={record.id} className="border-b border-border hover:bg-slate-50 dark:hover:bg-slate-800">
-                        <td className="px-4 py-3">
-                          <div className="font-medium">{record.userName || record.userId}</div>
-                          <div className="text-sm text-muted-foreground">{record.userEmail || record.userId}</div>
+                        <td className="px-4 py-3" style={{ width: '20%' }}>
+                          <div className="font-medium truncate" title={record.userName || record.userId}>{record.userName || record.userId}</div>
+                          <div className="text-sm text-muted-foreground truncate" title={record.userEmail || record.userId}>{record.userEmail || record.userId}</div>
                         </td>
-                        <td className="px-4 py-3">
+                        <td className="px-4 py-3 whitespace-nowrap" style={{ width: '12%' }}>
                           <span className={cn(
                             "px-2 py-1 rounded-full text-xs",
                             record.shareType === "admin_post" ? "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200" :
@@ -607,17 +608,17 @@ export default function AdminReferralSystem() {
                             {record.shareType === "admin_post" ? "Admin Post" : "Normal Link"}
                           </span>
                         </td>
-                        <td className="px-4 py-3">
-                          <div className="flex items-center gap-2">
-                            <span className="truncate max-w-xs">{record.shareLink}</span>
-                            <button onClick={() => copyToClipboard(record.shareLink)} className="p-1 hover:bg-slate-100 dark:hover:bg-slate-800 rounded">
+                        <td className="px-4 py-3" style={{ width: '25%' }}>
+                          <div className="flex items-center gap-2 min-w-0">
+                            <span className="truncate block" title={record.shareLink}>{record.shareLink}</span>
+                            <button onClick={() => copyToClipboard(record.shareLink)} className="p-1 hover:bg-slate-100 dark:hover:bg-slate-800 rounded flex-shrink-0">
                               <Copy className="w-3 h-3" />
                             </button>
                           </div>
                         </td>
-                        <td className="px-4 py-3">{record.registrationCount}</td>
-                        <td className="px-4 py-3">{record.coinsEarned} coins</td>
-                        <td className="px-4 py-3">
+                        <td className="px-4 py-3 whitespace-nowrap" style={{ width: '10%' }}>{record.registrationCount}</td>
+                        <td className="px-4 py-3 whitespace-nowrap" style={{ width: '10%' }}>{record.coinsEarned} coins</td>
+                        <td className="px-4 py-3 whitespace-nowrap" style={{ width: '10%' }}>
                           <span className={cn(
                             "px-2 py-1 rounded-full text-xs",
                             record.status === "approved" ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200" :
@@ -627,8 +628,8 @@ export default function AdminReferralSystem() {
                             {record.status}
                           </span>
                         </td>
-                        <td className="px-4 py-3">{new Date(record.createdAt).toLocaleDateString()}</td>
-                        <td className="px-4 py-3 text-right">
+                        <td className="px-4 py-3 whitespace-nowrap text-sm" style={{ width: '10%' }}>{new Date(record.createdAt).toLocaleDateString()}</td>
+                        <td className="px-4 py-3 text-right whitespace-nowrap" style={{ width: '3%' }}>
                           <div className="flex justify-end gap-2">
                             {record.status === "pending" && (
                               <>
@@ -666,29 +667,29 @@ export default function AdminReferralSystem() {
               <div className="text-center py-8 text-muted-foreground">No withdraw requests found</div>
             ) : (
               <div className="overflow-x-auto">
-                <table className="w-full border-collapse">
+                <table className="w-full table-fixed border-collapse">
                   <thead>
                     <tr className="border-b border-border">
-                      <th className="px-4 py-3 text-left">User</th>
-                      <th className="px-4 py-3 text-left">Coins</th>
-                      <th className="px-4 py-3 text-left">Amount (BDT)</th>
-                      <th className="px-4 py-3 text-left">bKash Number</th>
-                      <th className="px-4 py-3 text-left">Status</th>
-                      <th className="px-4 py-3 text-left">Date</th>
-                      <th className="px-4 py-3 text-right">Actions</th>
+                      <th className="px-4 py-3 text-left text-xs sm:text-sm font-semibold text-muted-foreground whitespace-nowrap" style={{ width: '25%' }}>User</th>
+                      <th className="px-4 py-3 text-left text-xs sm:text-sm font-semibold text-muted-foreground whitespace-nowrap" style={{ width: '12%' }}>Coins</th>
+                      <th className="px-4 py-3 text-left text-xs sm:text-sm font-semibold text-muted-foreground whitespace-nowrap" style={{ width: '12%' }}>Amount (BDT)</th>
+                      <th className="px-4 py-3 text-left text-xs sm:text-sm font-semibold text-muted-foreground whitespace-nowrap" style={{ width: '15%' }}>bKash Number</th>
+                      <th className="px-4 py-3 text-left text-xs sm:text-sm font-semibold text-muted-foreground whitespace-nowrap" style={{ width: '12%' }}>Status</th>
+                      <th className="px-4 py-3 text-left text-xs sm:text-sm font-semibold text-muted-foreground whitespace-nowrap" style={{ width: '12%' }}>Date</th>
+                      <th className="px-4 py-3 text-right text-xs sm:text-sm font-semibold text-muted-foreground whitespace-nowrap" style={{ width: '12%' }}>Actions</th>
                     </tr>
                   </thead>
                   <tbody>
                     {withdrawRequests.map((request: any) => (
                       <tr key={request.id} className="border-b border-border hover:bg-slate-50 dark:hover:bg-slate-800">
-                        <td className="px-4 py-3">
-                          <div className="font-medium">{request.userName || request.userId}</div>
-                          <div className="text-sm text-muted-foreground">{request.userEmail || request.userId}</div>
+                        <td className="px-4 py-3" style={{ width: '25%' }}>
+                          <div className="font-medium truncate" title={request.userName || request.userId}>{request.userName || request.userId}</div>
+                          <div className="text-sm text-muted-foreground truncate" title={request.userEmail || request.userId}>{request.userEmail || request.userId}</div>
                         </td>
-                        <td className="px-4 py-3">{request.coins.toLocaleString()} coins</td>
-                        <td className="px-4 py-3">{request.amountBdt.toFixed(2)} BDT</td>
-                        <td className="px-4 py-3">{request.bkashNumber}</td>
-                        <td className="px-4 py-3">
+                        <td className="px-4 py-3 whitespace-nowrap" style={{ width: '12%' }}>{request.coins.toLocaleString()} coins</td>
+                        <td className="px-4 py-3 whitespace-nowrap" style={{ width: '12%' }}>{request.amountBdt.toFixed(2)} BDT</td>
+                        <td className="px-4 py-3 truncate" style={{ width: '15%' }} title={request.bkashNumber}>{request.bkashNumber}</td>
+                        <td className="px-4 py-3 whitespace-nowrap" style={{ width: '12%' }}>
                           <span className={cn(
                             "px-2 py-1 rounded-full text-xs",
                             request.status === "approved" ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200" :
@@ -698,8 +699,8 @@ export default function AdminReferralSystem() {
                             {request.status}
                           </span>
                         </td>
-                        <td className="px-4 py-3">{new Date(request.createdAt).toLocaleDateString()}</td>
-                        <td className="px-4 py-3 text-right">
+                        <td className="px-4 py-3 whitespace-nowrap text-sm" style={{ width: '12%' }}>{new Date(request.createdAt).toLocaleDateString()}</td>
+                        <td className="px-4 py-3 text-right whitespace-nowrap" style={{ width: '12%' }}>
                           <div className="flex justify-end gap-2">
                             {request.status === "pending" && (
                               <>
@@ -728,11 +729,28 @@ export default function AdminReferralSystem() {
           </div>
         )}
 
-        {/* Add/Edit Post Modal */}
-        {(showAddPostModal || editingPost) && (
-          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 overflow-y-auto">
-            <div className="bg-white dark:bg-slate-900 rounded-lg p-6 w-full max-w-2xl my-8">
-              <h2 className="text-xl font-bold mb-4">{editingPost ? "Edit Share Post" : "Add Share Post"}</h2>
+        {/* Add/Edit Post Modal - Using Portal to render outside AdminLayout */}
+        {(showAddPostModal || editingPost) && typeof document !== 'undefined' && createPortal(
+          <div className="fixed inset-0 bg-black/50 z-[9999] overflow-y-auto" onClick={() => {
+            setShowAddPostModal(false);
+            setEditingPost(null);
+            resetForm();
+          }}>
+            <div className="min-h-full flex items-start justify-center p-4 pt-20" onClick={(e) => e.stopPropagation()}>
+              <div className="bg-white dark:bg-slate-900 rounded-lg p-6 w-full max-w-2xl my-8 relative z-[10000] shadow-2xl">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-xl font-bold">{editingPost ? "Edit Share Post" : "Add Share Post"}</h2>
+                <button
+                  onClick={() => {
+                    setShowAddPostModal(false);
+                    setEditingPost(null);
+                    resetForm();
+                  }}
+                  className="p-1 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg transition-colors"
+                >
+                  <XIcon className="w-5 h-5" />
+                </button>
+              </div>
               <div className="space-y-4">
                 <div>
                   <label className="block text-sm font-medium mb-1">Title</label>
@@ -958,8 +976,10 @@ export default function AdminReferralSystem() {
                   </button>
                 </div>
               </div>
+              </div>
             </div>
-          </div>
+          </div>,
+          document.body
         )}
       </div>
     </AdminLayout>

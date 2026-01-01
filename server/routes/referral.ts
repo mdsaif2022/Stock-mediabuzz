@@ -83,7 +83,7 @@ async function loadReferralDatabase(): Promise<ReferralRecord[]> {
   }
 }
 
-async function loadSharePostsDatabase(): Promise<SharePost[]> {
+export async function loadSharePostsDatabase(): Promise<SharePost[]> {
   const useMongo = await isMongoDBAvailable();
   
   if (useMongo) {

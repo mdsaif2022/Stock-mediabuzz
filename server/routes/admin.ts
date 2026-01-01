@@ -131,12 +131,24 @@ export const toggleUserBan: RequestHandler = async (req, res) => {
     const mongoService = await import("../services/mongodbService.js");
     
     const users = await getUsersDatabase();
-    const user = users.find((u) => u.id === userId);
+    console.log(`[toggleUserBan] Looking for user with ID: ${userId}`);
+    console.log(`[toggleUserBan] Total users in database: ${users.length}`);
+    
+    const user = users.find((u) => {
+      const matchesId = u.id === userId;
+      const matchesFirebaseUid = u.firebaseUid === userId;
+      const matchesEmail = u.email?.toLowerCase() === userId.toLowerCase();
+      return matchesId || matchesFirebaseUid || matchesEmail;
+    });
     
     if (!user) {
+      console.log(`[toggleUserBan] User not found. Searched for: ${userId}`);
+      console.log(`[toggleUserBan] Available user IDs (first 5):`, users.slice(0, 5).map(u => ({ id: u.id, firebaseUid: u.firebaseUid, email: u.email })));
       res.status(404).json({ error: "User not found" });
       return;
     }
+    
+    console.log(`[toggleUserBan] Found user: ${user.email} (ID: ${user.id}, FirebaseUID: ${user.firebaseUid})`);
 
     // Determine new status
     const newStatus = status || (user.status === "banned" ? "active" : user.status === "pending" ? "active" : "banned");
@@ -149,7 +161,11 @@ export const toggleUserBan: RequestHandler = async (req, res) => {
       try {
         // Find user in MongoDB
         const mongoUsers = await mongoService.default.getAllUsers();
-        const mongoUser = mongoUsers.find((u: any) => (u.id && u.id === userId) || u._id.toString() === userId);
+        const mongoUser = mongoUsers.find((u: any) => 
+          (u.id && (u.id === userId || u.id === user.id)) || 
+          (u.firebaseUid && (u.firebaseUid === userId || u.firebaseUid === user.firebaseUid)) ||
+          u._id.toString() === userId
+        );
         if (mongoUser) {
           await mongoService.default.updateUser(mongoUser._id.toString(), {
             status: newStatus,
@@ -188,7 +204,7 @@ export const toggleUserBan: RequestHandler = async (req, res) => {
 };
 
 // Promote user to admin
-export const promoteUserToAdmin: RequestHandler = (req, res) => {
+export const promoteUserToAdmin: RequestHandler = async (req, res) => {
   if (req.user?.role !== "admin") {
     res.status(403).json({ error: "Admin access required" });
     return;
@@ -196,11 +212,76 @@ export const promoteUserToAdmin: RequestHandler = (req, res) => {
 
   const { userId } = req.params;
 
-  res.json({
-    userId,
-    role: "admin",
-    message: "User promoted to admin successfully",
-  });
+  try {
+    const { getUsersDatabase } = await import("./users.js");
+    const { isMongoDBAvailable } = await import("../utils/mongodb.js");
+    const mongoService = await import("../services/mongodbService.js");
+    
+    const users = await getUsersDatabase();
+    console.log(`[promoteUserToAdmin] Looking for user with ID: ${userId}`);
+    
+    const user = users.find((u) => {
+      const matchesId = u.id === userId;
+      const matchesFirebaseUid = u.firebaseUid === userId;
+      const matchesEmail = u.email?.toLowerCase() === userId.toLowerCase();
+      return matchesId || matchesFirebaseUid || matchesEmail;
+    });
+    
+    if (!user) {
+      console.log(`[promoteUserToAdmin] User not found. Searched for: ${userId}`);
+      res.status(404).json({ error: "User not found" });
+      return;
+    }
+    
+    console.log(`[promoteUserToAdmin] Found user: ${user.email} (ID: ${user.id}, FirebaseUID: ${user.firebaseUid})`);
+
+    user.role = "admin";
+    user.updatedAt = new Date().toISOString();
+
+    // Update in database
+    const useMongo = await isMongoDBAvailable();
+    if (useMongo) {
+      try {
+        const mongoUsers = await mongoService.default.getAllUsers();
+        const mongoUser = mongoUsers.find((u: any) => 
+          (u.id && (u.id === userId || u.id === user.id)) || 
+          (u.firebaseUid && (u.firebaseUid === userId || u.firebaseUid === user.firebaseUid)) ||
+          u._id.toString() === userId
+        );
+        if (mongoUser) {
+          await mongoService.default.updateUser(mongoUser._id.toString(), {
+            role: "admin",
+            updatedAt: user.updatedAt,
+          });
+          console.log(`[Admin] ✅ Promoted user ${userId} to admin in MongoDB`);
+        }
+      } catch (mongoError) {
+        console.error("❌ Error updating user in MongoDB:", mongoError);
+      }
+    }
+
+    // Update in file storage
+    const { promises: fs } = await import("fs");
+    const { join } = await import("path");
+    const { DATA_DIR } = await import("../utils/dataPath.js");
+    const USERS_DB_FILE = join(DATA_DIR, "users-database.json");
+    
+    try {
+      await fs.mkdir(DATA_DIR, { recursive: true });
+      await fs.writeFile(USERS_DB_FILE, JSON.stringify(users, null, 2), "utf-8");
+    } catch (fileError) {
+      console.error("❌ Error saving to file:", fileError);
+    }
+
+    res.json({
+      userId,
+      role: "admin",
+      message: "User promoted to admin successfully",
+    });
+  } catch (error: any) {
+    console.error("Error promoting user to admin:", error);
+    res.status(500).json({ error: error.message || "Failed to promote user to admin" });
+  }
 };
 
 // Helper functions to generate real data
