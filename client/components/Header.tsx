@@ -126,17 +126,6 @@ export default function Header() {
             <Link to="/contact" className="text-sm font-medium text-foreground hover:text-primary transition-colors">
               Contact
             </Link>
-            {appSettings?.downloadEnabled && (appSettings.apkUrl || appSettings.xapkUrl || appSettings.playStoreUrl || appSettings.appStoreUrl) && (
-              <a
-                href={appSettings.apkUrl || appSettings.xapkUrl || appSettings.playStoreUrl || appSettings.appStoreUrl || "#"}
-                target="_blank"
-                rel="noopener noreferrer"
-                className="text-sm font-medium text-foreground hover:text-primary transition-colors flex items-center gap-2"
-              >
-                <Smartphone className="w-4 h-4" />
-                Get Our App
-              </a>
-            )}
             <Link
               to="/creator"
               className="text-sm font-medium text-foreground hover:text-primary transition-colors flex items-center gap-2"
@@ -149,6 +138,26 @@ export default function Header() {
           <div className="flex items-center gap-4">
             {/* Theme Toggle */}
             <ThemeToggle />
+            {/* Get App */}
+            {appSettings?.downloadEnabled && (appSettings.apkUrl || appSettings.xapkUrl || appSettings.playStoreUrl || appSettings.appStoreUrl) ? (
+              <a
+                href={appSettings.apkUrl || appSettings.xapkUrl || appSettings.playStoreUrl || appSettings.appStoreUrl || "#"}
+                target="_blank"
+                rel="noopener noreferrer"
+                className="text-sm font-medium text-foreground hover:text-primary transition-colors flex items-center gap-2"
+              >
+                <Smartphone className="w-4 h-4" />
+                Get App
+              </a>
+            ) : (
+              <Link
+                to="/get-app"
+                className="text-sm font-medium text-foreground hover:text-primary transition-colors flex items-center gap-2"
+              >
+                <Smartphone className="w-4 h-4" />
+                Get App
+              </Link>
+            )}
             {/* Desktop Auth Buttons */}
             {!isLoggedIn ? (
               <div className="hidden sm:flex gap-2">
@@ -239,6 +248,28 @@ export default function Header() {
                 <ThemeToggle />
               </div>
             </div>
+            {/* Get App - Mobile */}
+            {appSettings?.downloadEnabled && (appSettings.apkUrl || appSettings.xapkUrl || appSettings.playStoreUrl || appSettings.appStoreUrl) ? (
+              <a
+                href={appSettings.apkUrl || appSettings.xapkUrl || appSettings.playStoreUrl || appSettings.appStoreUrl || "#"}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={() => setIsMenuOpen(false)}
+                className="block px-4 py-2 text-sm font-medium hover:bg-secondary/10 transition-colors flex items-center gap-2 border-b border-border"
+              >
+                <Smartphone className="w-4 h-4" />
+                Get App
+              </a>
+            ) : (
+              <Link
+                to="/get-app"
+                onClick={() => setIsMenuOpen(false)}
+                className="block px-4 py-2 text-sm font-medium hover:bg-secondary/10 transition-colors flex items-center gap-2 border-b border-border"
+              >
+                <Smartphone className="w-4 h-4" />
+                Get App
+              </Link>
+            )}
             <Link
               to="/browse"
               onClick={() => setIsMenuOpen(false)}
@@ -260,18 +291,6 @@ export default function Header() {
             >
               Contact
             </Link>
-            {appSettings?.downloadEnabled && (appSettings.apkUrl || appSettings.xapkUrl || appSettings.playStoreUrl || appSettings.appStoreUrl) && (
-              <a
-                href={appSettings.apkUrl || appSettings.xapkUrl || appSettings.playStoreUrl || appSettings.appStoreUrl || "#"}
-                target="_blank"
-                rel="noopener noreferrer"
-                onClick={() => setIsMenuOpen(false)}
-                className="block px-4 py-2 text-sm font-medium hover:bg-secondary/10 transition-colors flex items-center gap-2"
-              >
-                <Smartphone className="w-4 h-4" />
-                Get Our App
-              </a>
-            )}
             {!isLoggedIn && (
               <div className="flex gap-2 px-4 py-3 border-t border-border">
                 <Link

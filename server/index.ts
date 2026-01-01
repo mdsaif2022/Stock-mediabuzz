@@ -320,6 +320,7 @@ export function createServer() {
   app.get("/api/media", mediaRoutes.getMedia);
   app.get("/api/media/trending", mediaRoutes.getTrendingMedia);
   app.get("/api/media/categories/summary", mediaRoutes.getCategorySummary);
+  app.get("/api/media/official-apps", mediaRoutes.getOfficialApps);
   app.get("/api/media/database/status", mediaRoutes.getDatabaseStatus); // Diagnostic endpoint
   app.get("/api/media/health", mediaRoutes.healthCheck); // Health check - verify data persistence
   app.get("/api/media/test-cloudinary", mediaRoutes.testCloudinary); // Test Cloudinary connection
@@ -425,6 +426,7 @@ export function createServer() {
   app.get("/api/admin/withdraw-requests", referralRoutes.getAllWithdrawRequests);
   app.put("/api/admin/withdraw-requests/:id", referralRoutes.updateWithdrawRequestStatus);
   app.get("/api/admin/share-visitors", referralRoutes.getAllShareVisitors);
+  app.post("/api/admin/add-coins", referralRoutes.addUserCoins);
 
   console.log("✅ Express server created with all routes registered");
   return app;

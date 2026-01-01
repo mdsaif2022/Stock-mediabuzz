@@ -11,6 +11,7 @@ import Index from "./pages/Index";
 import NotFound from "./pages/NotFound";
 import BrowseMedia from "./pages/BrowseMedia";
 import Categories from "./pages/Categories";
+import GetApp from "./pages/GetApp";
 import Contact from "./pages/Contact";
 import Login from "./pages/Login";
 import Signup from "./pages/Signup";
@@ -55,6 +56,7 @@ function AppRoutes() {
         <Route path="/browse/:category" element={<BrowseMedia />} />
         <Route path="/browse/:category/:id" element={<MediaDetail />} />
         <Route path="/categories" element={<Categories />} />
+        <Route path="/get-app" element={<GetApp />} />
         <Route path="/contact" element={<Contact />} />
         <Route path="/login" element={<Login />} />
         <Route path="/signup" element={<Signup />} />

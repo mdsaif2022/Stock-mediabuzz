@@ -1,5 +1,5 @@
 import AdminLayout from "@/components/AdminLayout";
-import { Search, Ban, Shield, RotateCcw, Trash2, CheckCircle2, AlertTriangle, Loader2, Sparkles, Calendar, Clock, Edit, Plus, History } from "lucide-react";
+import { Search, Ban, Shield, RotateCcw, Trash2, CheckCircle2, AlertTriangle, Loader2, Sparkles, Calendar, Clock, Edit, Plus, History, Coins, X } from "lucide-react";
 import { useEffect, useState } from "react";
 import { CreatorProfile, CreatorStoragePurchase, PlatformUser } from "@shared/api";
 import { apiFetch } from "@/lib/api";
@@ -24,11 +24,21 @@ export default function AdminUsers() {
   const [allPurchases, setAllPurchases] = useState<ManualPaymentRecord[]>([]);
   const [allPurchasesLoading, setAllPurchasesLoading] = useState(false);
   const [allPurchasesError, setAllPurchasesError] = useState("");
+  
+  // Add Coins Modal State
+  const [showAddCoinsModal, setShowAddCoinsModal] = useState(false);
+  const [selectedUser, setSelectedUser] = useState<PlatformUser | null>(null);
+  const [coinsAmount, setCoinsAmount] = useState("");
+  const [coinsNote, setCoinsNote] = useState("");
+  const [addingCoins, setAddingCoins] = useState(false);
 
-  const filtered = users.filter((user) =>
-    user.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
-    user.email.toLowerCase().includes(searchQuery.toLowerCase())
-  );
+  const filtered = users.filter((user) => {
+    if (!searchQuery.trim()) return true;
+    const query = searchQuery.toLowerCase().trim();
+    const userName = (user.name || "").toLowerCase();
+    const userEmail = (user.email || "").toLowerCase();
+    return userName.includes(query) || userEmail.includes(query);
+  });
 
   const fetchUsers = async () => {
     try {
@@ -121,6 +131,26 @@ export default function AdminUsers() {
 
     return () => clearInterval(interval);
   }, []);
+
+  const handleUserStatusChange = async (userId: string, status: "active" | "banned" | "pending") => {
+    try {
+      const response = await apiFetch(`/api/admin/users/${userId}/ban`, {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({ status }),
+      });
+      if (!response.ok) {
+        throw new Error("Failed to update user status");
+      }
+      await fetchUsers();
+      alert(`User status updated to ${status} successfully`);
+    } catch (error) {
+      console.error(error);
+      alert("Unable to update user status. Please try again.");
+    }
+  };
 
   const updateCreatorStatus = async (id: string, status: CreatorProfile["status"]) => {
     try {
@@ -234,6 +264,64 @@ export default function AdminUsers() {
     }
   };
 
+  const handleAddCoins = async () => {
+    if (!selectedUser) return;
+    
+    const amount = parseInt(coinsAmount);
+    if (!amount || amount <= 0) {
+      alert("Please enter a valid positive number of coins");
+      return;
+    }
+    
+    if (!confirm(`Add ${amount} coins to ${selectedUser.email}?`)) {
+      return;
+    }
+    
+    try {
+      setAddingCoins(true);
+      const response = await apiFetch("/api/admin/add-coins", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          email: selectedUser.email,
+          coins: amount,
+          note: coinsNote || `Admin grant of ${amount} coins`,
+        }),
+      });
+      
+      if (!response.ok) {
+        const error = await response.json().catch(() => ({ error: "Failed to add coins" }));
+        throw new Error(error.error || "Failed to add coins");
+      }
+      
+      const data = await response.json();
+      alert(`✅ Successfully added ${amount} coins to ${selectedUser.email}!`);
+      
+      // Reset form and close modal
+      setShowAddCoinsModal(false);
+      setSelectedUser(null);
+      setCoinsAmount("");
+      setCoinsNote("");
+      
+      // Optionally refresh users to see updated data
+      await fetchUsers();
+    } catch (error: any) {
+      console.error("Error adding coins:", error);
+      alert(error.message || "Failed to add coins. Please try again.");
+    } finally {
+      setAddingCoins(false);
+    }
+  };
+
+  const openAddCoinsModal = (user: PlatformUser) => {
+    setSelectedUser(user);
+    setCoinsAmount("");
+    setCoinsNote("");
+    setShowAddCoinsModal(true);
+  };
+
   return (
     <AdminLayout>
       <div className="space-y-6">
@@ -244,27 +332,43 @@ export default function AdminUsers() {
         </div>
 
         {/* Search and Refresh */}
-        <div className="flex gap-3">
-          <div className="relative flex-1">
-            <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
-            <input
-              type="text"
-              placeholder="Search users by name or email..."
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-              className="w-full pl-10 pr-4 py-2 border border-border rounded-lg bg-white dark:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-primary"
-            />
+        <div className="space-y-3">
+          <div className="flex gap-3">
+            <div className="relative flex-1">
+              <Search className="absolute left-3 top-1/2 -translate-y-1/2 w-5 h-5 text-muted-foreground" />
+              <input
+                type="text"
+                placeholder="Search users by name or email (e.g., user@gmail.com)..."
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+                className="w-full pl-10 pr-10 py-2 border border-border rounded-lg bg-white dark:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-primary"
+              />
+              {searchQuery && (
+                <button
+                  onClick={() => setSearchQuery("")}
+                  className="absolute right-3 top-1/2 -translate-y-1/2 p-1 hover:bg-slate-100 dark:hover:bg-slate-800 rounded transition-colors"
+                  title="Clear search"
+                >
+                  <X className="w-4 h-4 text-muted-foreground" />
+                </button>
+              )}
+            </div>
+            <button
+              onClick={() => {
+                fetchUsers();
+                fetchCreators();
+              }}
+              className="px-4 py-2 text-sm border border-border rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 flex items-center gap-2 whitespace-nowrap"
+            >
+              <RotateCcw className="w-4 h-4" />
+              Refresh
+            </button>
           </div>
-          <button
-            onClick={() => {
-              fetchUsers();
-              fetchCreators();
-            }}
-            className="px-4 py-2 text-sm border border-border rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 flex items-center gap-2 whitespace-nowrap"
-          >
-            <RotateCcw className="w-4 h-4" />
-            Refresh
-          </button>
+          {searchQuery && (
+            <div className="text-sm text-muted-foreground">
+              Found {filtered.length} {filtered.length === 1 ? "user" : "users"} matching "{searchQuery}"
+            </div>
+          )}
         </div>
 
         {/* Users Table */}
@@ -296,8 +400,21 @@ export default function AdminUsers() {
                 </tr>
               ) : filtered.length === 0 ? (
                 <tr>
-                  <td colSpan={7} className="px-6 py-6 text-center text-sm text-muted-foreground">
-                    No users match your search.
+                  <td colSpan={7} className="px-6 py-8 text-center">
+                    <div className="flex flex-col items-center gap-2">
+                      <Search className="w-8 h-8 text-muted-foreground opacity-50" />
+                      <p className="text-sm text-muted-foreground font-medium">
+                        {searchQuery ? `No users found matching "${searchQuery}"` : "No users found"}
+                      </p>
+                      {searchQuery && (
+                        <button
+                          onClick={() => setSearchQuery("")}
+                          className="text-xs text-primary hover:underline"
+                        >
+                          Clear search
+                        </button>
+                      )}
+                    </div>
                   </td>
                 </tr>
               ) : (
@@ -345,9 +462,18 @@ export default function AdminUsers() {
                             <Shield className="w-4 h-4" />
                           </button>
                         )}
-                        {user.status === "active" ? (
+                        {user.status === "pending" ? (
+                          <button
+                            title="Approve User"
+                            onClick={() => handleUserStatusChange(user.id, "active")}
+                            className="p-1 hover:bg-green-100 dark:hover:bg-green-900/30 rounded transition-colors text-green-600 dark:text-green-400"
+                          >
+                            <CheckCircle2 className="w-4 h-4" />
+                          </button>
+                        ) : user.status === "active" ? (
                           <button
                             title="Ban User"
+                            onClick={() => handleUserStatusChange(user.id, "banned")}
                             className="p-1 hover:bg-destructive/10 rounded transition-colors text-destructive"
                           >
                             <Ban className="w-4 h-4" />
@@ -355,11 +481,19 @@ export default function AdminUsers() {
                         ) : (
                           <button
                             title="Unban User"
+                            onClick={() => handleUserStatusChange(user.id, "active")}
                             className="p-1 hover:bg-green-100 dark:hover:bg-green-900/30 rounded transition-colors text-green-600 dark:text-green-400"
                           >
                             <RotateCcw className="w-4 h-4" />
                           </button>
                         )}
+                        <button
+                          title="Add Coins"
+                          onClick={() => openAddCoinsModal(user)}
+                          className="p-1 hover:bg-yellow-100 dark:hover:bg-yellow-900/30 rounded transition-colors text-yellow-600 dark:text-yellow-400"
+                        >
+                          <Coins className="w-4 h-4" />
+                        </button>
                         <button
                           title="Delete User"
                           className="p-1 hover:bg-destructive/10 rounded transition-colors text-destructive"
@@ -374,6 +508,98 @@ export default function AdminUsers() {
             </tbody>
           </table>
         </div>
+
+        {/* Add Coins Modal */}
+        {showAddCoinsModal && selectedUser && (
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 p-4">
+            <div className="bg-white dark:bg-slate-900 rounded-lg border border-border max-w-md w-full p-6 space-y-4">
+              <div className="flex items-center justify-between mb-4">
+                <h2 className="text-xl font-bold flex items-center gap-2">
+                  <Coins className="w-5 h-5 text-yellow-600" />
+                  Add Coins
+                </h2>
+                <button
+                  onClick={() => {
+                    setShowAddCoinsModal(false);
+                    setSelectedUser(null);
+                    setCoinsAmount("");
+                    setCoinsNote("");
+                  }}
+                  className="p-1 hover:bg-slate-100 dark:hover:bg-slate-800 rounded transition-colors"
+                >
+                  <X className="w-5 h-5" />
+                </button>
+              </div>
+              
+              <div className="space-y-4">
+                <div>
+                  <label className="block text-sm font-medium mb-1">User</label>
+                  <div className="p-2 bg-slate-50 dark:bg-slate-800 rounded text-sm">
+                    <div className="font-semibold">{selectedUser.name}</div>
+                    <div className="text-muted-foreground">{selectedUser.email}</div>
+                  </div>
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium mb-1">Coins Amount *</label>
+                  <input
+                    type="number"
+                    min="1"
+                    value={coinsAmount}
+                    onChange={(e) => setCoinsAmount(e.target.value)}
+                    placeholder="Enter number of coins"
+                    className="w-full px-3 py-2 border border-border rounded-lg bg-white dark:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-primary"
+                    disabled={addingCoins}
+                  />
+                </div>
+                
+                <div>
+                  <label className="block text-sm font-medium mb-1">Note (Optional)</label>
+                  <textarea
+                    value={coinsNote}
+                    onChange={(e) => setCoinsNote(e.target.value)}
+                    placeholder="Optional note about this coin grant"
+                    rows={3}
+                    className="w-full px-3 py-2 border border-border rounded-lg bg-white dark:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-primary resize-none"
+                    disabled={addingCoins}
+                  />
+                </div>
+                
+                <div className="flex gap-3 pt-2">
+                  <button
+                    onClick={handleAddCoins}
+                    disabled={addingCoins || !coinsAmount || parseInt(coinsAmount) <= 0}
+                    className="flex-1 px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90 transition-colors disabled:opacity-50 disabled:cursor-not-allowed flex items-center justify-center gap-2"
+                  >
+                    {addingCoins ? (
+                      <>
+                        <Loader2 className="w-4 h-4 animate-spin" />
+                        Adding...
+                      </>
+                    ) : (
+                      <>
+                        <Coins className="w-4 h-4" />
+                        Add Coins
+                      </>
+                    )}
+                  </button>
+                  <button
+                    onClick={() => {
+                      setShowAddCoinsModal(false);
+                      setSelectedUser(null);
+                      setCoinsAmount("");
+                      setCoinsNote("");
+                    }}
+                    disabled={addingCoins}
+                    className="px-4 py-2 border border-border rounded-lg hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors disabled:opacity-50"
+                  >
+                    Cancel
+                  </button>
+                </div>
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* User Stats */}
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6">

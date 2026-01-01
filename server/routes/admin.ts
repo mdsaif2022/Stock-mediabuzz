@@ -115,21 +115,76 @@ export const getUsersData: RequestHandler = (req, res) => {
   });
 };
 
-// Ban/Unban user
-export const toggleUserBan: RequestHandler = (req, res) => {
+// Ban/Unban/Approve user
+export const toggleUserBan: RequestHandler = async (req, res) => {
   if (req.user?.role !== "admin") {
     res.status(403).json({ error: "Admin access required" });
     return;
   }
 
   const { userId } = req.params;
-  const { banned } = req.body;
+  const { status } = req.body; // status: "active" | "banned" | "pending"
 
-  res.json({
-    userId,
-    banned,
-    message: `User ${banned ? "banned" : "unbanned"} successfully`,
-  });
+  try {
+    const { getUsersDatabase } = await import("./users.js");
+    const { isMongoDBAvailable } = await import("../utils/mongodb.js");
+    const mongoService = await import("../services/mongodbService.js");
+    
+    const users = await getUsersDatabase();
+    const user = users.find((u) => u.id === userId);
+    
+    if (!user) {
+      res.status(404).json({ error: "User not found" });
+      return;
+    }
+
+    // Determine new status
+    const newStatus = status || (user.status === "banned" ? "active" : user.status === "pending" ? "active" : "banned");
+    user.status = newStatus;
+    user.updatedAt = new Date().toISOString();
+
+    // Update in database
+    const useMongo = await isMongoDBAvailable();
+    if (useMongo) {
+      try {
+        // Find user in MongoDB
+        const mongoUsers = await mongoService.default.getAllUsers();
+        const mongoUser = mongoUsers.find((u: any) => (u.id && u.id === userId) || u._id.toString() === userId);
+        if (mongoUser) {
+          await mongoService.default.updateUser(mongoUser._id.toString(), {
+            status: newStatus,
+            updatedAt: user.updatedAt,
+          });
+          console.log(`[Admin] ✅ Updated user ${userId} status to ${newStatus} in MongoDB`);
+        }
+      } catch (mongoError) {
+        console.error("❌ Error updating user in MongoDB:", mongoError);
+        // Continue with file storage fallback
+      }
+    }
+
+    // Update in file storage
+    const { promises: fs } = await import("fs");
+    const { join } = await import("path");
+    const { DATA_DIR } = await import("../utils/dataPath.js");
+    const USERS_DB_FILE = join(DATA_DIR, "users-database.json");
+    
+    try {
+      await fs.mkdir(DATA_DIR, { recursive: true });
+      await fs.writeFile(USERS_DB_FILE, JSON.stringify(users, null, 2), "utf-8");
+    } catch (fileError) {
+      console.error("❌ Error saving to file:", fileError);
+    }
+
+    res.json({
+      userId,
+      status: newStatus,
+      message: `User status updated to ${newStatus} successfully`,
+    });
+  } catch (error: any) {
+    console.error("Error updating user status:", error);
+    res.status(500).json({ error: error.message || "Failed to update user status" });
+  }
 };
 
 // Promote user to admin

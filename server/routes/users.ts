@@ -214,16 +214,17 @@ export const registerUser: RequestHandler = async (req, res) => {
           });
           console.log(`[Users] ✅ New user saved to MongoDB: ${user.email}`);
         } else {
-          // Update existing user
+          // Update existing user - make sure to include role update
           await mongoService.updateUser(existingUser._id.toString(), {
             name: user.name,
             accountType: user.accountType,
             emailVerified: user.emailVerified,
             firebaseUid: firebaseUid || existingUser.firebaseUid,
             status: user.status,
+            role: user.role, // Include role update
             updatedAt: user.updatedAt,
           });
-          console.log(`[Users] ✅ User updated in MongoDB: ${user.email}`);
+          console.log(`[Users] ✅ User updated in MongoDB: ${user.email} (role: ${user.role})`);
         }
         // Reload users from MongoDB to sync in-memory database
         const allUsers = await mongoService.getAllUsers();

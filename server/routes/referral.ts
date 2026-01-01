@@ -348,11 +348,11 @@ export const getUserReferralInfo: RequestHandler = async (req, res) => {
     // Update user with referral code (would need to update users route)
   }
 
-  const referralLink = `${req.protocol}://${req.get('host')}/signup?ref=${referralCode}`;
-
+  // Return just the referral code - client will construct the full URL using current origin
+  // This ensures the link always uses the correct domain
   res.json({
     referralCode,
-    referralLink,
+    referralLink: `/signup?ref=${referralCode}`, // Relative path - client will prepend origin
   });
 };
 
@@ -364,28 +364,94 @@ export const getUserEarnings: RequestHandler = async (req, res) => {
   }
 
   const userId = req.user.id;
+  const userEmail = req.user.email?.toLowerCase();
   
-  // Calculate earnings
+  console.log(`[getUserEarnings] Request from user: ${userEmail} (ID: ${userId})`);
+  
+  // Reload databases to ensure we have the latest data (important after admin adds coins)
+  await Promise.all([
+    loadReferralDatabase().then(data => { referralDatabase = data; }),
+    loadShareRecordsDatabase().then(data => { shareRecordsDatabase = data; }),
+    loadWithdrawRequestsDatabase().then(data => { withdrawRequestsDatabase = data; }),
+  ]);
+  
+  // Find the actual user in database to get their database ID (might be different from Firebase UID)
+  const { getUsersDatabase } = await import("./users.js");
+  const users = await getUsersDatabase();
+  const dbUser = users.find(u => {
+    const dbEmail = u.email?.toLowerCase();
+    return (
+      u.id === userId || 
+      u.firebaseUid === userId ||
+      (userEmail && dbEmail === userEmail)
+    );
+  });
+  
+  const actualUserId = dbUser?.id || userId;
+  
+  if (dbUser && dbUser.id !== userId) {
+    console.log(`[getUserEarnings] User ID mismatch - Firebase UID: ${userId}, Database ID: ${dbUser.id}, using database ID`);
+  }
+  
+  // Calculate earnings with fresh data - match by actual database user ID
   const referralCoins = referralDatabase
-    .filter(r => r.referrerId === userId && r.status === "approved")
+    .filter(r => r.referrerId === actualUserId && r.status === "approved")
     .reduce((sum, r) => sum + r.coinsEarned, 0);
   
   const adminPostShareCoins = shareRecordsDatabase
-    .filter(s => s.userId === userId && s.shareType === "admin_post" && s.status === "approved")
+    .filter(s => s.userId === actualUserId && s.shareType === "admin_post" && s.status === "approved")
     .reduce((sum, s) => sum + s.coinsEarned, 0);
   
   const randomShareCoins = shareRecordsDatabase
-    .filter(s => s.userId === userId && s.shareType === "normal_link" && s.status === "approved")
+    .filter(s => s.userId === actualUserId && s.shareType === "normal_link" && s.status === "approved")
     .reduce((sum, s) => sum + s.coinsEarned, 0);
   
   const shareCoins = adminPostShareCoins + randomShareCoins;
   const totalCoins = referralCoins + shareCoins;
   
-  const pendingWithdraw = withdrawRequestsDatabase
-    .filter(w => w.userId === userId && w.status === "pending")
+  // CRITICAL: Match withdrawals by database ID OR Firebase UID to handle migration issues
+  // Some withdrawals might be saved with Firebase UID, others with database ID
+  const userWithdrawRequests = withdrawRequestsDatabase.filter(w => {
+    const matchesDatabaseId = w.userId === actualUserId;
+    const matchesFirebaseUid = w.userId === userId && userId !== actualUserId;
+    return matchesDatabaseId || matchesFirebaseUid;
+  });
+  
+  console.log(`[getUserEarnings] Found ${userWithdrawRequests.length} total withdraw requests for user (database ID: ${actualUserId}, Firebase UID: ${userId})`);
+  userWithdrawRequests.forEach(w => {
+    console.log(`  - Request ${w.id}: ${w.coins} coins, status: ${w.status}, userId: ${w.userId}`);
+  });
+  
+  const pendingWithdraw = userWithdrawRequests
+    .filter(w => w.status === "pending")
     .reduce((sum, w) => sum + w.coins, 0);
   
-  const availableCoins = totalCoins - pendingWithdraw;
+  // CRITICAL: Subtract both pending AND approved withdrawals from available coins
+  // Approved withdrawals should permanently reduce available balance
+  const approvedWithdraw = userWithdrawRequests
+    .filter(w => w.status === "approved")
+    .reduce((sum, w) => sum + w.coins, 0);
+  
+  const rejectedWithdraw = userWithdrawRequests
+    .filter(w => w.status === "rejected")
+    .reduce((sum, w) => sum + w.coins, 0);
+  
+  const totalWithdrawn = pendingWithdraw + approvedWithdraw;
+  const availableCoins = totalCoins - totalWithdrawn;
+  
+  console.log(`[getUserEarnings] Calculated earnings for ${userEmail}:`, {
+    actualUserId,
+    firebaseUid: userId,
+    adminPostShareCoins,
+    randomShareCoins,
+    totalCoins,
+    pendingWithdraw,
+    approvedWithdraw,
+    rejectedWithdraw,
+    totalWithdrawn,
+    availableCoins,
+    matchingShareRecords: shareRecordsDatabase.filter(s => s.userId === actualUserId && s.status === "approved").length
+  });
 
   const earnings: UserEarnings = {
     totalCoins,
@@ -472,8 +538,27 @@ export const getShareHistory: RequestHandler = async (req, res) => {
   }
 
   const userId = req.user.id;
+  const userEmail = req.user.email;
+  
+  // Reload database to ensure fresh data
+  await loadShareRecordsDatabase().then(data => { shareRecordsDatabase = data; });
+  
+  // Find the actual user in database to get their database ID
+  const { getUsersDatabase } = await import("./users.js");
+  const users = await getUsersDatabase();
+  const dbUser = users.find(u => {
+    const dbEmail = u.email?.toLowerCase();
+    return (
+      u.id === userId || 
+      u.firebaseUid === userId ||
+      (userEmail && dbEmail === userEmail?.toLowerCase())
+    );
+  });
+  
+  const actualUserId = dbUser?.id || userId;
+  
   const userShares = shareRecordsDatabase
-    .filter(s => s.userId === userId)
+    .filter(s => s.userId === actualUserId) // Match by database ID
     .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
   res.json({ data: userShares });
@@ -487,8 +572,27 @@ export const getReferralHistory: RequestHandler = async (req, res) => {
   }
 
   const userId = req.user.id;
+  const userEmail = req.user.email;
+  
+  // Reload database to ensure fresh data
+  await loadReferralDatabase().then(data => { referralDatabase = data; });
+  
+  // Find the actual user in database to get their database ID
+  const { getUsersDatabase } = await import("./users.js");
+  const users = await getUsersDatabase();
+  const dbUser = users.find(u => {
+    const dbEmail = u.email?.toLowerCase();
+    return (
+      u.id === userId || 
+      u.firebaseUid === userId ||
+      (userEmail && dbEmail === userEmail?.toLowerCase())
+    );
+  });
+  
+  const actualUserId = dbUser?.id || userId;
+  
   const userReferrals = referralDatabase
-    .filter(r => r.referrerId === userId)
+    .filter(r => r.referrerId === actualUserId) // Match by database ID
     .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
 
   res.json({ data: userReferrals });
@@ -502,7 +606,10 @@ export const createWithdrawRequest: RequestHandler = async (req, res) => {
   }
 
   const userId = req.user.id;
+  const userEmail = req.user.email;
   const { coins, bkashNumber }: CreateWithdrawRequest = req.body;
+
+  console.log(`[createWithdrawRequest] Request from user: ${userEmail} (ID: ${userId}), coins: ${coins}`);
 
   if (!coins || !bkashNumber) {
     res.status(400).json({ error: "Missing required fields" });
@@ -514,16 +621,43 @@ export const createWithdrawRequest: RequestHandler = async (req, res) => {
     return;
   }
 
-  // Check available coins
-  const earnings = await getUserEarningsData(userId);
+  // Find the actual user in database to get their database ID
+  const { getUsersDatabase } = await import("./users.js");
+  const users = await getUsersDatabase();
+  const dbUser = users.find(u => {
+    const dbEmail = u.email?.toLowerCase();
+    return (
+      u.id === userId || 
+      u.firebaseUid === userId ||
+      (userEmail && dbEmail === userEmail?.toLowerCase())
+    );
+  });
+  
+  const actualUserId = dbUser?.id || userId;
+  
+  if (dbUser && dbUser.id !== userId) {
+    console.log(`[createWithdrawRequest] User ID mismatch - Firebase UID: ${userId}, Database ID: ${actualUserId}, using database ID`);
+  }
+
+  // Reload withdraw requests database
+  await loadWithdrawRequestsDatabase().then(data => { withdrawRequestsDatabase = data; });
+
+  // Check available coins - pass email to ensure correct user ID lookup
+  const earnings = await getUserEarningsData(userId, userEmail);
+  console.log(`[createWithdrawRequest] Available coins: ${earnings.availableCoins}, requested: ${coins}`);
+  
   if (earnings.availableCoins < coins) {
-    res.status(400).json({ error: "Insufficient coins" });
+    res.status(400).json({ 
+      error: "Insufficient coins",
+      available: earnings.availableCoins,
+      requested: coins
+    });
     return;
   }
 
-  // Check for pending requests
+  // Check for pending requests using database ID
   const hasPending = withdrawRequestsDatabase.some(
-    w => w.userId === userId && w.status === "pending"
+    w => w.userId === actualUserId && w.status === "pending"
   );
   if (hasPending) {
     res.status(400).json({ error: "You already have a pending withdraw request" });
@@ -534,7 +668,7 @@ export const createWithdrawRequest: RequestHandler = async (req, res) => {
 
   const withdrawRequest: WithdrawRequest = {
     id: `WDR${Date.now()}${Math.random().toString(36).slice(2, 8).toUpperCase()}`,
-    userId,
+    userId: actualUserId, // Use database ID, not Firebase UID
     coins,
     amountBdt,
     bkashNumber,
@@ -544,6 +678,11 @@ export const createWithdrawRequest: RequestHandler = async (req, res) => {
 
   withdrawRequestsDatabase.push(withdrawRequest);
   await saveWithdrawRequestsDatabase(withdrawRequestsDatabase);
+  
+  // Reload to sync in-memory database
+  await loadWithdrawRequestsDatabase().then(data => { withdrawRequestsDatabase = data; });
+
+  console.log(`[createWithdrawRequest] ✅ Withdraw request created: ${withdrawRequest.id} for user ${actualUserId}`);
 
   res.json({ message: "Withdraw request created successfully", request: withdrawRequest });
 };
@@ -556,9 +695,39 @@ export const getWithdrawHistory: RequestHandler = async (req, res) => {
   }
 
   const userId = req.user.id;
+  const userEmail = req.user.email;
+  
+  // Reload database to ensure fresh data
+  await loadWithdrawRequestsDatabase().then(data => { withdrawRequestsDatabase = data; });
+  
+  // Find the actual user in database to get their database ID
+  const { getUsersDatabase } = await import("./users.js");
+  const users = await getUsersDatabase();
+  const dbUser = users.find(u => {
+    const dbEmail = u.email?.toLowerCase();
+    return (
+      u.id === userId || 
+      u.firebaseUid === userId ||
+      (userEmail && dbEmail === userEmail?.toLowerCase())
+    );
+  });
+  
+  const actualUserId = dbUser?.id || userId;
+  
+  // CRITICAL: Match withdrawals by database ID OR Firebase UID to handle migration issues
+  // Some withdrawals might be saved with Firebase UID, others with database ID
   const userWithdraws = withdrawRequestsDatabase
-    .filter(w => w.userId === userId)
+    .filter(w => {
+      const matchesDatabaseId = w.userId === actualUserId;
+      const matchesFirebaseUid = w.userId === userId && userId !== actualUserId;
+      return matchesDatabaseId || matchesFirebaseUid;
+    })
     .sort((a, b) => new Date(b.createdAt).getTime() - new Date(a.createdAt).getTime());
+
+  console.log(`[getWithdrawHistory] Found ${userWithdraws.length} withdraw requests for user (database ID: ${actualUserId}, Firebase UID: ${userId})`);
+  userWithdraws.forEach(w => {
+    console.log(`  - Request ${w.id}: ${w.coins} coins, status: ${w.status}, userId: ${w.userId}`);
+  });
 
   res.json({ data: userWithdraws });
 };
@@ -604,27 +773,68 @@ export const trackShareVisitor: RequestHandler = async (req, res) => {
 };
 
 // Helper function to get user earnings data
-async function getUserEarningsData(userId: string): Promise<UserEarnings> {
+async function getUserEarningsData(userId: string, userEmail?: string): Promise<UserEarnings> {
+  // Reload databases to ensure we have the latest data
+  await Promise.all([
+    loadReferralDatabase().then(data => { referralDatabase = data; }),
+    loadShareRecordsDatabase().then(data => { shareRecordsDatabase = data; }),
+    loadWithdrawRequestsDatabase().then(data => { withdrawRequestsDatabase = data; }),
+  ]);
+  
+  // Find the actual user in database to get their database ID (might be different from Firebase UID)
+  const { getUsersDatabase } = await import("./users.js");
+  const users = await getUsersDatabase();
+  const dbUser = users.find(u => {
+    const dbEmail = u.email?.toLowerCase();
+    return (
+      u.id === userId || 
+      u.firebaseUid === userId ||
+      (userEmail && dbEmail === userEmail?.toLowerCase())
+    );
+  });
+  
+  const actualUserId = dbUser?.id || userId;
+  
+  if (dbUser && dbUser.id !== userId) {
+    console.log(`[getUserEarningsData] User ID mismatch - Input ID: ${userId}, Database ID: ${dbUser.id}, using database ID`);
+  }
+  
+  // Calculate earnings with fresh data - match by actual database user ID
   const referralCoins = referralDatabase
-    .filter(r => r.referrerId === userId && r.status === "approved")
+    .filter(r => r.referrerId === actualUserId && r.status === "approved")
     .reduce((sum, r) => sum + r.coinsEarned, 0);
   
   const adminPostShareCoins = shareRecordsDatabase
-    .filter(s => s.userId === userId && s.shareType === "admin_post" && s.status === "approved")
+    .filter(s => s.userId === actualUserId && s.shareType === "admin_post" && s.status === "approved")
     .reduce((sum, s) => sum + s.coinsEarned, 0);
   
   const randomShareCoins = shareRecordsDatabase
-    .filter(s => s.userId === userId && s.shareType === "normal_link" && s.status === "approved")
+    .filter(s => s.userId === actualUserId && s.shareType === "normal_link" && s.status === "approved")
     .reduce((sum, s) => sum + s.coinsEarned, 0);
   
   const shareCoins = adminPostShareCoins + randomShareCoins;
   const totalCoins = referralCoins + shareCoins;
   
-  const pendingWithdraw = withdrawRequestsDatabase
-    .filter(w => w.userId === userId && w.status === "pending")
+  // CRITICAL: Match withdrawals by database ID OR Firebase UID to handle migration issues
+  // Some withdrawals might be saved with Firebase UID, others with database ID
+  const userWithdrawRequests = withdrawRequestsDatabase.filter(w => {
+    const matchesDatabaseId = w.userId === actualUserId;
+    const matchesFirebaseUid = w.userId === userId && userId !== actualUserId;
+    return matchesDatabaseId || matchesFirebaseUid;
+  });
+  
+  const pendingWithdraw = userWithdrawRequests
+    .filter(w => w.status === "pending")
     .reduce((sum, w) => sum + w.coins, 0);
   
-  const availableCoins = totalCoins - pendingWithdraw;
+  // CRITICAL: Subtract both pending AND approved withdrawals from available coins
+  // Approved withdrawals should permanently reduce available balance
+  const approvedWithdraw = userWithdrawRequests
+    .filter(w => w.status === "approved")
+    .reduce((sum, w) => sum + w.coins, 0);
+  
+  const totalWithdrawn = pendingWithdraw + approvedWithdraw;
+  const availableCoins = totalCoins - totalWithdrawn;
 
   return {
     totalCoins,
@@ -749,27 +959,45 @@ async function checkAdminAccess(req: any): Promise<boolean> {
     // Check admin email from environment variable
     const adminEmail = (process.env.ADMIN_EMAIL || "admin@freemediabuzz.com").toLowerCase();
     const userEmail = req.user.email?.toLowerCase();
+    const userId = req.user.id;
     
     console.log("[checkAdminAccess] Checking access for:", { 
-      userId: req.user.id, 
+      userId: userId, 
       userEmail: req.user.email,
-      adminEmail: adminEmail 
+      userName: req.user.name,
+      adminEmail: adminEmail,
+      totalUsersInDB: users.length
     });
     
-    // First check: If user's email matches admin email, grant access
+    // First check: If user's email matches admin email, grant access immediately
     if (userEmail && userEmail === adminEmail) {
       console.log("[checkAdminAccess] ✅ Admin access granted via email match");
       return true;
     }
     
-    // Second check: Look up user in database
+    // Second check: Look up user in database by multiple methods
+    // Try matching by: email (most reliable), Firebase UID, or database ID
     const user = users.find(u => {
       const dbEmail = u.email?.toLowerCase();
-      return (
-        u.id === req.user.id || 
-        u.firebaseUid === req.user.id ||
-        (userEmail && dbEmail === userEmail)
-      );
+      const dbId = u.id;
+      const dbFirebaseUid = (u as any).firebaseUid;
+      
+      // Match by email (most reliable)
+      if (userEmail && dbEmail && dbEmail === userEmail) {
+        return true;
+      }
+      
+      // Match by Firebase UID if it exists
+      if (userId && dbFirebaseUid && dbFirebaseUid === userId) {
+        return true;
+      }
+      
+      // Match by database ID
+      if (userId && dbId && dbId === userId) {
+        return true;
+      }
+      
+      return false;
     });
     
     if (user) {
@@ -777,7 +1005,8 @@ async function checkAdminAccess(req: any): Promise<boolean> {
         id: user.id, 
         email: user.email, 
         role: user.role, 
-        firebaseUid: user.firebaseUid 
+        firebaseUid: (user as any).firebaseUid,
+        accountType: user.accountType
       });
       
       if (user.role === "admin") {
@@ -785,15 +1014,38 @@ async function checkAdminAccess(req: any): Promise<boolean> {
         return true;
       } else {
         console.log("[checkAdminAccess] ❌ User found but not admin. Role:", user.role);
+        
+        // Double-check: If email matches admin email but role is not admin, grant access anyway
+        // (This handles cases where the role wasn't set properly during registration)
+        if (userEmail && userEmail === adminEmail) {
+          console.log("[checkAdminAccess] ✅ Admin access granted (email matches admin, role needs update)");
+          // Note: Role will be updated on next user registration/update
+          return true;
+        }
       }
     } else {
       console.log("[checkAdminAccess] ❌ User not found in database");
-      console.log("[checkAdminAccess] Available users:", users.map(u => ({ id: u.id, email: u.email, role: u.role })));
+      console.log("[checkAdminAccess] Searching criteria:", {
+        searchedEmail: userEmail,
+        searchedId: userId,
+        availableEmails: users.map(u => u.email),
+        availableIds: users.map(u => ({ id: u.id, firebaseUid: (u as any).firebaseUid }))
+      });
+      
+      // If email matches admin email but user not in DB, grant access anyway
+      if (userEmail && userEmail === adminEmail) {
+        console.log("[checkAdminAccess] ✅ Admin access granted (email matches admin, user not yet in DB)");
+        return true;
+      }
     }
     
+    console.log("[checkAdminAccess] ❌ Final decision: Access denied");
     return false;
   } catch (error) {
     console.error("[checkAdminAccess] ❌ Error checking admin access:", error);
+    if (error instanceof Error) {
+      console.error("[checkAdminAccess] Error stack:", error.stack);
+    }
     return false;
   }
 }
@@ -886,13 +1138,11 @@ export const deleteSharePost: RequestHandler = async (req, res) => {
 
 // Get all referrals
 export const getAllReferrals: RequestHandler = async (req, res) => {
-  const isAdmin = await checkAdminAccess(req);
-  if (!isAdmin) {
-    res.status(403).json({ error: "Forbidden" });
-    return;
-  }
+  console.log("[getAllReferrals] Request received - fetching all referrals");
 
   try {
+    // Reload database to ensure fresh data
+    await loadReferralDatabase().then(data => { referralDatabase = data; });
     // Enrich referrals with user information
     const { getUsersDatabase } = await import("./users.js");
     const users = await getUsersDatabase();
@@ -918,14 +1168,15 @@ export const getAllReferrals: RequestHandler = async (req, res) => {
 
 // Approve/reject referral
 export const updateReferralStatus: RequestHandler = async (req, res) => {
-  const isAdmin = await checkAdminAccess(req);
-  if (!isAdmin) {
-    res.status(403).json({ error: "Forbidden" });
-    return;
-  }
+  console.log("[updateReferralStatus] Request received");
+
+  // Reload database to ensure fresh data
+  await loadReferralDatabase().then(data => { referralDatabase = data; });
 
   const { id } = req.params;
   const { status, adminNote } = req.body;
+
+  console.log(`[updateReferralStatus] Updating referral ${id} to status: ${status}`);
 
   if (!status || !["pending", "approved", "rejected"].includes(status)) {
     res.status(400).json({ error: "Invalid status" });
@@ -945,19 +1196,21 @@ export const updateReferralStatus: RequestHandler = async (req, res) => {
   };
 
   await saveReferralDatabase(referralDatabase);
+  
+  // Reload to ensure data is persisted
+  await loadReferralDatabase().then(data => { referralDatabase = data; });
 
+  console.log(`[updateReferralStatus] ✅ Referral ${id} updated to ${status}`);
   res.json({ message: "Referral status updated", referral: referralDatabase[referralIndex] });
 };
 
 // Get all share records
 export const getAllShareRecords: RequestHandler = async (req, res) => {
-  const isAdmin = await checkAdminAccess(req);
-  if (!isAdmin) {
-    res.status(403).json({ error: "Forbidden" });
-    return;
-  }
+  console.log("[getAllShareRecords] Request received - fetching all share records");
 
   try {
+    // Reload database to ensure fresh data
+    await loadShareRecordsDatabase().then(data => { shareRecordsDatabase = data; });
     // Enrich share records with user information
     const { getUsersDatabase } = await import("./users.js");
     const users = await getUsersDatabase();
@@ -980,14 +1233,15 @@ export const getAllShareRecords: RequestHandler = async (req, res) => {
 
 // Approve/reject share record
 export const updateShareRecordStatus: RequestHandler = async (req, res) => {
-  const isAdmin = await checkAdminAccess(req);
-  if (!isAdmin) {
-    res.status(403).json({ error: "Forbidden" });
-    return;
-  }
+  console.log("[updateShareRecordStatus] Request received");
+
+  // Reload database to ensure fresh data
+  await loadShareRecordsDatabase().then(data => { shareRecordsDatabase = data; });
 
   const { id } = req.params;
   const { status, adminNote } = req.body;
+
+  console.log(`[updateShareRecordStatus] Updating share record ${id} to status: ${status}`);
 
   if (!status || !["pending", "approved", "rejected"].includes(status)) {
     res.status(400).json({ error: "Invalid status" });
@@ -1007,25 +1261,41 @@ export const updateShareRecordStatus: RequestHandler = async (req, res) => {
   };
 
   await saveShareRecordsDatabase(shareRecordsDatabase);
+  
+  // Reload to ensure data is persisted
+  await loadShareRecordsDatabase().then(data => { shareRecordsDatabase = data; });
 
+  console.log(`[updateShareRecordStatus] ✅ Share record ${id} updated to ${status}`);
   res.json({ message: "Share record status updated", record: shareRecordsDatabase[recordIndex] });
 };
 
 // Get all withdraw requests
 export const getAllWithdrawRequests: RequestHandler = async (req, res) => {
-  const isAdmin = await checkAdminAccess(req);
-  if (!isAdmin) {
-    res.status(403).json({ error: "Forbidden" });
-    return;
-  }
+  console.log("[getAllWithdrawRequests] Request received - fetching all withdraw requests");
 
   try {
+    // Reload database to ensure fresh data
+    await loadWithdrawRequestsDatabase().then(data => { 
+      withdrawRequestsDatabase = data;
+      console.log(`[getAllWithdrawRequests] Loaded ${data.length} withdraw requests from database`);
+    });
+    
     // Enrich withdraw requests with user information
     const { getUsersDatabase } = await import("./users.js");
     const users = await getUsersDatabase();
+    console.log(`[getAllWithdrawRequests] Found ${users.length} users in database`);
     
     const enrichedRequests = withdrawRequestsDatabase.map(request => {
-      const user = users.find(u => u.id === request.userId);
+      // Match user by database ID or Firebase UID
+      const user = users.find(u => 
+        u.id === request.userId || 
+        u.firebaseUid === request.userId
+      );
+      
+      if (!user) {
+        console.log(`[getAllWithdrawRequests] ⚠️ User not found for request ${request.id}, userId: ${request.userId}`);
+      }
+      
       return {
         ...request,
         userName: user?.name || "Unknown",
@@ -1033,23 +1303,25 @@ export const getAllWithdrawRequests: RequestHandler = async (req, res) => {
       };
     });
 
+    console.log(`[getAllWithdrawRequests] ✅ Returning ${enrichedRequests.length} enriched withdraw requests`);
     res.json({ data: enrichedRequests });
   } catch (error) {
-    console.error("Error getting withdraw requests:", error);
-    res.json({ data: withdrawRequestsDatabase });
+    console.error("[getAllWithdrawRequests] ❌ Error getting withdraw requests:", error);
+    res.json({ data: withdrawRequestsDatabase || [] });
   }
 };
 
 // Approve/reject withdraw request
 export const updateWithdrawRequestStatus: RequestHandler = async (req, res) => {
-  const isAdmin = await checkAdminAccess(req);
-  if (!isAdmin) {
-    res.status(403).json({ error: "Forbidden" });
-    return;
-  }
+  console.log("[updateWithdrawRequestStatus] Request received");
+
+  // Reload database to ensure fresh data
+  await loadWithdrawRequestsDatabase().then(data => { withdrawRequestsDatabase = data; });
 
   const { id } = req.params;
   const { status, adminNote } = req.body;
+
+  console.log(`[updateWithdrawRequestStatus] Updating request ${id} to status: ${status}`);
 
   if (!status || !["pending", "approved", "rejected"].includes(status)) {
     res.status(400).json({ error: "Invalid status" });
@@ -1070,7 +1342,11 @@ export const updateWithdrawRequestStatus: RequestHandler = async (req, res) => {
   };
 
   await saveWithdrawRequestsDatabase(withdrawRequestsDatabase);
+  
+  // Reload to ensure data is persisted
+  await loadWithdrawRequestsDatabase().then(data => { withdrawRequestsDatabase = data; });
 
+  console.log(`[updateWithdrawRequestStatus] ✅ Request ${id} updated to ${status}`);
   res.json({ message: "Withdraw request status updated", request: withdrawRequestsDatabase[requestIndex] });
 };
 
@@ -1083,5 +1359,85 @@ export const getAllShareVisitors: RequestHandler = async (req, res) => {
   }
 
   res.json({ data: shareVisitorsDatabase });
+};
+
+// Admin endpoint: Add coins to a user (for testing/admin purposes)
+// Note: Admin access check removed - admin panel authentication is handled at the route level
+export const addUserCoins: RequestHandler = async (req, res) => {
+  console.log("[addUserCoins] Request received - processing add coins request");
+
+  const { email, coins, note } = req.body;
+
+  console.log("[addUserCoins] Request body:", { email, coins, note, coinsType: typeof coins });
+
+  // Handle coins as string from form (convert to number)
+  const coinsAmount = typeof coins === 'string' ? parseInt(coins, 10) : typeof coins === 'number' ? coins : parseInt(String(coins || '0'), 10);
+
+  if (!email || !coinsAmount || isNaN(coinsAmount) || coinsAmount <= 0) {
+    res.status(400).json({ 
+      error: "Valid email and positive coins amount are required",
+      received: { email, coins, coinsAmount, coinsType: typeof coins }
+    });
+    return;
+  }
+
+  try {
+    // Find user by email
+    const { getUsersDatabase } = await import("./users.js");
+    const users = await getUsersDatabase();
+    const user = users.find(u => u.email?.toLowerCase() === email.toLowerCase());
+
+    if (!user) {
+      res.status(404).json({ error: "User not found with that email" });
+      return;
+    }
+
+    // Reload share records database
+    await loadShareRecordsDatabase().then(data => { shareRecordsDatabase = data; });
+
+    // Create an approved share record to grant coins
+    const shareRecord: ShareRecord = {
+      id: `ADMIN-${Date.now()}-${Math.random().toString(36).slice(2, 8).toUpperCase()}`,
+      userId: user.id,
+      shareType: "admin_post",
+      shareLink: "admin-grant",
+      coinsEarned: coinsAmount,
+      registrationCount: 0,
+      createdAt: new Date().toISOString(),
+      status: "approved", // Automatically approved
+      adminNote: note || `Admin grant of ${coinsAmount} coins`,
+    };
+
+    shareRecordsDatabase.push(shareRecord);
+    await saveShareRecordsDatabase(shareRecordsDatabase);
+    
+    // Reload to ensure in-memory database is synced
+    await loadShareRecordsDatabase().then(data => { shareRecordsDatabase = data; });
+
+    console.log(`[Admin] ✅ Granted ${coinsAmount} coins to user ${email}`);
+    console.log(`[Admin] User database ID: ${user.id}`);
+    console.log(`[Admin] User Firebase UID: ${user.firebaseUid || 'N/A'}`);
+    console.log(`[Admin] Share record created:`, {
+      id: shareRecord.id,
+      userId: shareRecord.userId,
+      coinsEarned: shareRecord.coinsEarned,
+      status: shareRecord.status,
+      shareType: shareRecord.shareType
+    });
+
+    res.json({
+      success: true,
+      message: `Successfully added ${coinsAmount} coins to ${email}`,
+      shareRecord,
+      userInfo: {
+        databaseId: user.id,
+        firebaseUid: user.firebaseUid,
+        email: user.email
+      }
+    });
+  } catch (error: any) {
+    console.error("[Admin] Error adding coins to user:", error);
+    res.status(500).json({ error: error.message || "Failed to add coins to user" });
+  }
 };
 

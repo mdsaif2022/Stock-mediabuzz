@@ -33,7 +33,12 @@ export default function AdminReferralSystem() {
         setShareRecords(data.data || []);
       } else if (activeTab === "withdraws") {
         const res = await apiFetch("/api/admin/withdraw-requests");
+        if (!res.ok) {
+          const errorData = await res.json().catch(() => ({ error: "Failed to fetch withdraw requests" }));
+          throw new Error(errorData.error || "Failed to fetch withdraw requests");
+        }
         const data = await res.json();
+        console.log("Withdraw requests data:", data);
         setWithdrawRequests(data.data || []);
       }
     } catch (error: any) {

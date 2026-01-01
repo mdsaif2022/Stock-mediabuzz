@@ -84,23 +84,62 @@ export default function Categories() {
                       </div>
                       <ArrowRight className="w-5 h-5 text-muted-foreground" />
                     </div>
-                    <div className="h-36 rounded-lg overflow-hidden bg-slate-100 dark:bg-slate-800 relative">
-                      {category.previewUrl ? (
-                        <img
-                          src={category.previewUrl}
-                          alt={category.latestTitle ?? "latest"}
-                          className="w-full h-full object-cover"
-                          loading="lazy"
-                          onError={(e) => ((e.currentTarget.style.display = "none"))}
-                        />
-                      ) : (
+                    <div className="h-36 rounded-lg overflow-hidden bg-slate-100 dark:bg-slate-800 relative group">
+                      {category.previewUrl && (() => {
+                        // Check if previewUrl is a video file that can't be displayed as an image
+                        const isDirectVideoFile = category.previewUrl.match(/\.(mp4|webm|mov|avi|ogg)$/i) && 
+                                                 !category.previewUrl.includes('/video/upload/so_') &&
+                                                 !category.previewUrl.includes('/image/') &&
+                                                 !category.previewUrl.includes('cloudinary.com/video/upload');
+                        
+                        // If it's a direct video file (not a thumbnail), don't try to display it as an image
+                        if (isDirectVideoFile) {
+                          return (
+                            <div className="w-full h-full flex items-center justify-center text-muted-foreground relative">
+                              <Icon className="w-10 h-10" />
+                              <div className="absolute inset-0 flex items-center justify-center">
+                                <div className="w-16 h-16 rounded-full bg-black/30 dark:bg-white/10 flex items-center justify-center">
+                                  <Play className="w-8 h-8 text-white ml-1" />
+                                </div>
+                              </div>
+                            </div>
+                          );
+                        }
+                        
+                        // For images and thumbnails, display normally
+                        return (
+                          <>
+                            <img
+                              src={category.previewUrl}
+                              alt={category.latestTitle ?? "Preview"}
+                              className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
+                              loading="lazy"
+                              onError={(e) => {
+                                e.currentTarget.style.display = "none";
+                                // Show fallback icon if image fails to load
+                                const fallback = e.currentTarget.nextElementSibling as HTMLElement;
+                                if (fallback) fallback.style.display = "flex";
+                              }}
+                            />
+                            <div className="hidden w-full h-full items-center justify-center text-muted-foreground">
+                              <Icon className="w-10 h-10" />
+                            </div>
+                          </>
+                        );
+                      })()}
+                      {!category.previewUrl && (
                         <div className="w-full h-full flex items-center justify-center text-muted-foreground">
                           <Icon className="w-10 h-10" />
                         </div>
                       )}
                       {category.latestTitle && (
-                        <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/70 to-transparent text-white p-3 text-sm line-clamp-2">
-                          Latest: {category.latestTitle}
+                        <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/80 via-black/60 to-transparent text-white p-3 text-sm">
+                          <p className="font-medium line-clamp-1">{category.latestTitle}</p>
+                          {category.count > 0 && (
+                            <p className="text-xs text-white/80 mt-0.5">
+                              {category.count === 1 ? "1 file" : `${category.count} files`}
+                            </p>
+                          )}
                         </div>
                       )}
                     </div>

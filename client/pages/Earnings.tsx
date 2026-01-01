@@ -67,6 +67,11 @@ export default function Earnings() {
         pendingWithdraw: earningsData.pendingWithdraw ?? 0,
         availableCoins: earningsData.availableCoins ?? 0,
       });
+      // Construct full referral link using current origin (ensures correct domain)
+      if (referralData && referralData.referralCode && typeof window !== 'undefined') {
+        const currentOrigin = window.location.origin;
+        referralData.referralLink = `${currentOrigin}/signup?ref=${referralData.referralCode}`;
+      }
       setReferralInfo(referralData);
       setSharePosts(postsData.data || []);
       setShareHistory(sharesData.data || []);

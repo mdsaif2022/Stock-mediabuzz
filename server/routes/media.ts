@@ -492,26 +492,161 @@ export const getTrendingMedia: RequestHandler = async (req, res) => {
   res.json(trending);
 };
 
+// Helper function to generate video thumbnail URL from Cloudinary video URL
+function getVideoThumbnailUrl(videoUrl: string): string | null {
+  try {
+    // Check if this is a Cloudinary video URL
+    if (videoUrl.includes('cloudinary.com') && videoUrl.includes('/video/')) {
+      const urlObj = new URL(videoUrl);
+      const pathParts = urlObj.pathname.split('/');
+      const videoIndex = pathParts.indexOf('video');
+      
+      if (videoIndex !== -1 && pathParts[videoIndex + 1] === 'upload') {
+        // Extract cloud_name and public_id
+        const cloudName = pathParts[videoIndex - 1] || pathParts[1];
+        const publicIdParts = pathParts.slice(videoIndex + 2);
+        const publicId = publicIdParts.join('/').replace(/\.(mp4|webm|mov|avi)$/i, '');
+        
+        // Generate thumbnail URL using Cloudinary transformation
+        // so_1 = seek to 1 second, w_640 = width 640, h_360 = height 360, q_auto = quality auto, f_jpg = format jpg
+        const thumbnailUrl = `https://res.cloudinary.com/${cloudName}/video/upload/so_1,w_640,h_360,q_auto,f_jpg/${publicId}.jpg`;
+        return thumbnailUrl;
+      }
+    }
+    
+    // For non-Cloudinary videos, return null to use preview endpoint
+    return null;
+  } catch (e) {
+    // If URL parsing fails, return null
+    return null;
+  }
+}
+
 export const getCategorySummary: RequestHandler = async (_req, res) => {
   const mediaDatabase = await getMediaDatabase();
   const summary = CATEGORY_KEYS.map((category) => {
-    const items = mediaDatabase.filter((item) => normalizeCategoryValue(item.category) === category);
-    const latest =
-      items.length > 0
-        ? [...items].sort(
-            (a, b) => new Date(b.uploadedDate || 0).getTime() - new Date(a.uploadedDate || 0).getTime()
-          )[0]
-        : undefined;
+    // Filter approved items only (or items without status for backward compatibility)
+    const items = mediaDatabase.filter(
+      (item) => 
+        normalizeCategoryValue(item.category) === category &&
+        (!item.status || item.status === "approved")
+    );
+    
+    if (items.length === 0) {
+      return {
+        category,
+        count: 0,
+        latestTitle: null,
+        previewUrl: null,
+        sampleId: null,
+      };
+    }
+    
+    // Try to get most popular item (by downloads + views)
+    const mostPopular = [...items]
+      .filter(item => (item.downloads || 0) + (item.views || 0) > 0)
+      .sort((a, b) => {
+        const scoreA = (a.downloads || 0) + (a.views || 0);
+        const scoreB = (b.downloads || 0) + (b.views || 0);
+        return scoreB - scoreA;
+      })[0];
+    
+    // Fallback to latest if no popular items
+    const selectedItem = mostPopular || [...items].sort(
+      (a, b) => new Date(b.uploadedDate || 0).getTime() - new Date(a.uploadedDate || 0).getTime()
+    )[0];
+    
+    // Determine best preview URL based on category
+    let previewUrl: string | null = null;
+    
+    if (category === "video") {
+      // For videos, try to generate thumbnail from fileUrl if it's Cloudinary
+      if (selectedItem.fileUrl) {
+        const thumbnailUrl = getVideoThumbnailUrl(selectedItem.fileUrl);
+        if (thumbnailUrl) {
+          previewUrl = thumbnailUrl;
+        } else if (selectedItem.previewUrl) {
+          // Check if previewUrl is already an image (not a video file)
+          const isImageUrl = selectedItem.previewUrl.match(/\.(jpg|jpeg|png|gif|webp)$/i) || 
+                            selectedItem.previewUrl.includes('/image/');
+          if (isImageUrl) {
+            previewUrl = selectedItem.previewUrl;
+          } else {
+            // If previewUrl is a video, use preview endpoint (will be handled on frontend)
+            previewUrl = selectedItem.previewUrl;
+          }
+        }
+      } else if (selectedItem.previewUrl) {
+        previewUrl = selectedItem.previewUrl;
+      }
+    } else if (category === "apk") {
+      // For APK, prefer iconUrl or first feature screenshot
+      if (selectedItem.iconUrl) {
+        previewUrl = selectedItem.iconUrl;
+      } else if (selectedItem.featureScreenshots && selectedItem.featureScreenshots.length > 0) {
+        previewUrl = selectedItem.featureScreenshots[0].url;
+      } else if (selectedItem.previewUrl) {
+        previewUrl = selectedItem.previewUrl;
+      }
+    } else if (category === "audio") {
+      // For audio, prefer iconUrl, then previewUrl
+      if (selectedItem.iconUrl) {
+        previewUrl = selectedItem.iconUrl;
+      } else if (selectedItem.previewUrl) {
+        previewUrl = selectedItem.previewUrl;
+      }
+    } else if (category === "template") {
+      // For templates, prefer iconUrl, then previewUrl
+      if (selectedItem.iconUrl) {
+        previewUrl = selectedItem.iconUrl;
+      } else if (selectedItem.previewUrl) {
+        previewUrl = selectedItem.previewUrl;
+      }
+    } else {
+      // For images and others, use previewUrl directly
+      previewUrl = selectedItem.previewUrl || null;
+    }
+    
     return {
       category,
       count: items.length,
-      latestTitle: latest?.title || null,
-      previewUrl: latest?.previewUrl || null,
-      sampleId: latest?.id || null,
+      latestTitle: selectedItem?.title || null,
+      previewUrl,
+      sampleId: selectedItem?.id || null,
     };
   });
 
   res.json(summary);
+};
+
+// Get official apps (admin-uploaded, approved APKs)
+export const getOfficialApps: RequestHandler = async (_req, res) => {
+  const mediaDatabase = await getMediaDatabase();
+  
+  // Filter for official apps:
+  // 1. Category must be "apk"
+  // 2. Status must be "approved" or undefined (backward compatibility)
+  // 3. No creatorId (admin-uploaded, not creator-uploaded)
+  const officialApps = mediaDatabase.filter((m) => {
+    const isApk = normalizeCategoryValue(m.category) === "apk";
+    const isApproved = !m.status || m.status === "approved";
+    const isAdminUpload = !m.creatorId; // No creatorId means admin uploaded
+    return isApk && isApproved && isAdminUpload;
+  });
+  
+  // Sort by most popular (downloads + views), then by latest
+  officialApps.sort((a, b) => {
+    const scoreA = (a.downloads || 0) + (a.views || 0);
+    const scoreB = (b.downloads || 0) + (b.views || 0);
+    if (scoreB !== scoreA) {
+      return scoreB - scoreA;
+    }
+    const dateA = new Date(a.uploadedDate || 0).getTime();
+    const dateB = new Date(b.uploadedDate || 0).getTime();
+    return dateB - dateA;
+  });
+  
+  res.json({ data: officialApps });
 };
 
 // Test Cloudinary connection
