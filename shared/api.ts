@@ -255,6 +255,12 @@ export interface SharePost {
   url: string;
   coinValue: number;
   status: "active" | "inactive";
+  imageUrl?: string;
+  videoUrl?: string;
+  showAsPopup?: boolean; // Enable this share post to show as pop-up ad
+  showDelay?: number; // Delay in milliseconds before showing (default: 2000)
+  closeAfter?: number; // Auto-close after X milliseconds (optional)
+  maxDisplays?: number; // Maximum number of times to show to the same user (optional)
   createdAt: string;
   updatedAt: string;
 }
@@ -319,6 +325,12 @@ export interface CreateSharePostRequest {
   url: string;
   coinValue: number;
   status?: "active" | "inactive";
+  imageUrl?: string;
+  videoUrl?: string;
+  showAsPopup?: boolean;
+  showDelay?: number;
+  closeAfter?: number;
+  maxDisplays?: number;
 }
 
 export interface UpdateSharePostRequest {
@@ -326,6 +338,12 @@ export interface UpdateSharePostRequest {
   url?: string;
   coinValue?: number;
   status?: "active" | "inactive";
+  imageUrl?: string;
+  videoUrl?: string;
+  showAsPopup?: boolean;
+  showDelay?: number;
+  closeAfter?: number;
+  maxDisplays?: number;
 }
 
 export interface CreateWithdrawRequest {

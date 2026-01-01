@@ -1,8 +1,8 @@
 import AdminLayout from "@/components/AdminLayout";
-import { useState, useEffect, useCallback } from "react";
+import { useState, useEffect, useCallback, useRef } from "react";
 import { apiFetch } from "@/lib/api";
 import { SharePost, ReferralRecord, ShareRecord, WithdrawRequest } from "@shared/api";
-import { Plus, Edit, Trash2, Check, X, DollarSign, Users, Share2, ExternalLink, Copy, CheckCircle, XCircle, Clock } from "lucide-react";
+import { Plus, Edit, Trash2, Check, X, DollarSign, Users, Share2, ExternalLink, Copy, CheckCircle, XCircle, Clock, Image as ImageIcon, Video, Upload, X as XIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export default function AdminReferralSystem() {
@@ -14,7 +14,26 @@ export default function AdminReferralSystem() {
   const [loading, setLoading] = useState(true);
   const [showAddPostModal, setShowAddPostModal] = useState(false);
   const [editingPost, setEditingPost] = useState<SharePost | null>(null);
-  const [formData, setFormData] = useState({ title: "", url: "", coinValue: 100, status: "active" as "active" | "inactive" });
+  const [formData, setFormData] = useState({ 
+    title: "", 
+    url: "", 
+    coinValue: 100, 
+    status: "active" as "active" | "inactive", 
+    imageUrl: "", 
+    videoUrl: "",
+    showAsPopup: false,
+    showDelay: 2000,
+    closeAfter: undefined as number | undefined,
+    maxDisplays: undefined as number | undefined
+  });
+  const [imageFile, setImageFile] = useState<File | null>(null);
+  const [videoFile, setVideoFile] = useState<File | null>(null);
+  const [imagePreview, setImagePreview] = useState<string>("");
+  const [videoPreview, setVideoPreview] = useState<string>("");
+  const [uploadingImage, setUploadingImage] = useState(false);
+  const [uploadingVideo, setUploadingVideo] = useState(false);
+  const imageInputRef = useRef<HTMLInputElement>(null);
+  const videoInputRef = useRef<HTMLInputElement>(null);
 
   const fetchData = useCallback(async () => {
     setLoading(true);
@@ -53,22 +72,97 @@ export default function AdminReferralSystem() {
     fetchData();
   }, [fetchData]);
 
+  const uploadAssetFile = async (file: File) => {
+    const formData = new FormData();
+    formData.append("file", file);
+    formData.append("server", "auto");
+    const response = await apiFetch("/api/upload/asset", {
+      method: "POST",
+      body: formData,
+    });
+    const data = await response.json();
+    if (!response.ok) {
+      throw new Error(data?.message || "Failed to upload file");
+    }
+    return data.secureUrl || data.url;
+  };
+
+  const handleImageUpload = async (file: File) => {
+    setUploadingImage(true);
+    try {
+      const uploadedUrl = await uploadAssetFile(file);
+      setFormData({ ...formData, imageUrl: uploadedUrl });
+      setImagePreview(uploadedUrl);
+      setImageFile(null);
+    } catch (error: any) {
+      console.error("Image upload failed:", error);
+      alert(error.message || "Failed to upload image");
+    } finally {
+      setUploadingImage(false);
+      if (imageInputRef.current) imageInputRef.current.value = "";
+    }
+  };
+
+  const handleVideoUpload = async (file: File) => {
+    setUploadingVideo(true);
+    try {
+      const uploadedUrl = await uploadAssetFile(file);
+      setFormData({ ...formData, videoUrl: uploadedUrl });
+      setVideoPreview(uploadedUrl);
+      setVideoFile(null);
+    } catch (error: any) {
+      console.error("Video upload failed:", error);
+      alert(error.message || "Failed to upload video");
+    } finally {
+      setUploadingVideo(false);
+      if (videoInputRef.current) videoInputRef.current.value = "";
+    }
+  };
+
   const handleCreatePost = async () => {
     if (!formData.title || !formData.url || !formData.coinValue) {
       alert("Please fill in all required fields");
       return;
+    }
+
+    // Upload image if selected
+    let imageUrl = formData.imageUrl;
+    if (imageFile) {
+      try {
+        setUploadingImage(true);
+        imageUrl = await uploadAssetFile(imageFile);
+      } catch (error: any) {
+        alert(error.message || "Failed to upload image");
+        return;
+      } finally {
+        setUploadingImage(false);
+      }
+    }
+
+    // Upload video if selected
+    let videoUrl = formData.videoUrl;
+    if (videoFile) {
+      try {
+        setUploadingVideo(true);
+        videoUrl = await uploadAssetFile(videoFile);
+      } catch (error: any) {
+        alert(error.message || "Failed to upload video");
+        return;
+      } finally {
+        setUploadingVideo(false);
+      }
     }
     
     try {
       const response = await apiFetch("/api/admin/share-posts", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(formData),
+        body: JSON.stringify({ ...formData, imageUrl, videoUrl }),
       });
       if (response.ok) {
         alert("Share post created successfully!");
         setShowAddPostModal(false);
-        setFormData({ title: "", url: "", coinValue: 100, status: "active" });
+        resetForm();
         fetchData();
       } else {
         const error = await response.json();
@@ -80,23 +174,70 @@ export default function AdminReferralSystem() {
     }
   };
 
+  const resetForm = () => {
+    setFormData({ 
+      title: "", 
+      url: "", 
+      coinValue: 100, 
+      status: "active" as "active" | "inactive", 
+      imageUrl: "", 
+      videoUrl: "",
+      showAsPopup: false,
+      showDelay: 2000,
+      closeAfter: undefined,
+      maxDisplays: undefined
+    });
+    setImageFile(null);
+    setVideoFile(null);
+    setImagePreview("");
+    setVideoPreview("");
+  };
+
   const handleUpdatePost = async () => {
     if (!editingPost) return;
     if (!formData.title || !formData.url || !formData.coinValue) {
       alert("Please fill in all required fields");
       return;
     }
+
+    // Upload image if new file selected
+    let imageUrl = formData.imageUrl;
+    if (imageFile) {
+      try {
+        setUploadingImage(true);
+        imageUrl = await uploadAssetFile(imageFile);
+      } catch (error: any) {
+        alert(error.message || "Failed to upload image");
+        return;
+      } finally {
+        setUploadingImage(false);
+      }
+    }
+
+    // Upload video if new file selected
+    let videoUrl = formData.videoUrl;
+    if (videoFile) {
+      try {
+        setUploadingVideo(true);
+        videoUrl = await uploadAssetFile(videoFile);
+      } catch (error: any) {
+        alert(error.message || "Failed to upload video");
+        return;
+      } finally {
+        setUploadingVideo(false);
+      }
+    }
     
     try {
       const response = await apiFetch(`/api/admin/share-posts/${editingPost.id}`, {
         method: "PUT",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify(formData),
+        body: JSON.stringify({ ...formData, imageUrl, videoUrl }),
       });
       if (response.ok) {
         alert("Share post updated successfully!");
         setEditingPost(null);
-        setFormData({ title: "", url: "", coinValue: 100, status: "active" });
+        resetForm();
         setShowAddPostModal(false);
         fetchData();
       } else {
@@ -242,7 +383,7 @@ export default function AdminReferralSystem() {
               <button
                 onClick={() => {
                   setEditingPost(null);
-                  setFormData({ title: "", url: "", coinValue: 100, status: "active" });
+                  resetForm();
                   setShowAddPostModal(true);
                 }}
                 className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90"
@@ -261,10 +402,12 @@ export default function AdminReferralSystem() {
                 <table className="w-full border-collapse">
                   <thead>
                     <tr className="border-b border-border">
+                      <th className="px-4 py-3 text-left">Preview</th>
                       <th className="px-4 py-3 text-left">Title</th>
                       <th className="px-4 py-3 text-left">URL</th>
                       <th className="px-4 py-3 text-left">Coin Value</th>
                       <th className="px-4 py-3 text-left">Status</th>
+                      <th className="px-4 py-3 text-left">Pop-up</th>
                       <th className="px-4 py-3 text-left">Created</th>
                       <th className="px-4 py-3 text-right">Actions</th>
                     </tr>
@@ -272,6 +415,17 @@ export default function AdminReferralSystem() {
                   <tbody>
                     {sharePosts.map((post) => (
                       <tr key={post.id} className="border-b border-border hover:bg-slate-50 dark:hover:bg-slate-800">
+                        <td className="px-4 py-3">
+                          {post.imageUrl ? (
+                            <img src={post.imageUrl} alt={post.title} className="w-16 h-16 object-cover rounded" />
+                          ) : post.videoUrl ? (
+                            <video src={post.videoUrl} className="w-16 h-16 object-cover rounded" muted />
+                          ) : (
+                            <div className="w-16 h-16 bg-slate-200 dark:bg-slate-700 rounded flex items-center justify-center">
+                              <ImageIcon className="w-6 h-6 text-slate-400" />
+                            </div>
+                          )}
+                        </td>
                         <td className="px-4 py-3">{post.title}</td>
                         <td className="px-4 py-3">
                           <a href={post.url} target="_blank" rel="noopener noreferrer" className="text-primary hover:underline flex items-center gap-1">
@@ -288,13 +442,38 @@ export default function AdminReferralSystem() {
                             {post.status}
                           </span>
                         </td>
+                        <td className="px-4 py-3">
+                          {post.showAsPopup ? (
+                            <span className="px-2 py-1 rounded-full text-xs bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200 flex items-center gap-1 w-fit">
+                              <Share2 className="w-3 h-3" />
+                              Enabled
+                            </span>
+                          ) : (
+                            <span className="text-xs text-muted-foreground">-</span>
+                          )}
+                        </td>
                         <td className="px-4 py-3">{new Date(post.createdAt).toLocaleDateString()}</td>
                         <td className="px-4 py-3 text-right">
                           <div className="flex justify-end gap-2">
                             <button
                               onClick={() => {
                                 setEditingPost(post);
-                                setFormData({ title: post.title, url: post.url, coinValue: post.coinValue, status: post.status });
+                                setFormData({ 
+                                  title: post.title, 
+                                  url: post.url, 
+                                  coinValue: post.coinValue, 
+                                  status: post.status, 
+                                  imageUrl: post.imageUrl || "", 
+                                  videoUrl: post.videoUrl || "",
+                                  showAsPopup: post.showAsPopup || false,
+                                  showDelay: post.showDelay || 2000,
+                                  closeAfter: post.closeAfter,
+                                  maxDisplays: post.maxDisplays
+                                });
+                                setImagePreview(post.imageUrl || "");
+                                setVideoPreview(post.videoUrl || "");
+                                setImageFile(null);
+                                setVideoFile(null);
                                 setShowAddPostModal(true);
                               }}
                               className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded"
@@ -551,8 +730,8 @@ export default function AdminReferralSystem() {
 
         {/* Add/Edit Post Modal */}
         {(showAddPostModal || editingPost) && (
-          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50">
-            <div className="bg-white dark:bg-slate-900 rounded-lg p-6 w-full max-w-md">
+          <div className="fixed inset-0 bg-black/50 flex items-center justify-center z-50 overflow-y-auto">
+            <div className="bg-white dark:bg-slate-900 rounded-lg p-6 w-full max-w-2xl my-8">
               <h2 className="text-xl font-bold mb-4">{editingPost ? "Edit Share Post" : "Add Share Post"}</h2>
               <div className="space-y-4">
                 <div>
@@ -593,11 +772,179 @@ export default function AdminReferralSystem() {
                     <option value="inactive">Inactive</option>
                   </select>
                 </div>
+                
+                {/* Photo Upload */}
+                <div>
+                  <label className="block text-sm font-medium mb-1">
+                    Photo (Optional)
+                    {videoPreview && <span className="text-xs text-muted-foreground ml-2">- Remove video first</span>}
+                  </label>
+                  {imagePreview ? (
+                    <div className="relative mb-2">
+                      <img src={imagePreview} alt="Preview" className="w-full h-48 object-cover rounded-lg border border-border" />
+                      <button
+                        onClick={() => {
+                          setImagePreview("");
+                          setFormData({ ...formData, imageUrl: "" });
+                          setImageFile(null);
+                          if (imageInputRef.current) imageInputRef.current.value = "";
+                        }}
+                        className="absolute top-2 right-2 p-1 bg-red-500 text-white rounded-full hover:bg-red-600"
+                      >
+                        <XIcon className="w-4 h-4" />
+                      </button>
+                    </div>
+                  ) : (
+                    <div
+                      onClick={() => imageInputRef.current?.click()}
+                      className="w-full h-32 border-2 border-dashed border-border rounded-lg flex flex-col items-center justify-center cursor-pointer hover:border-primary transition-colors"
+                    >
+                      {uploadingImage ? (
+                        <div className="text-sm text-muted-foreground">Uploading...</div>
+                      ) : (
+                        <>
+                          <Upload className="w-6 h-6 text-muted-foreground mb-2" />
+                          <span className="text-sm text-muted-foreground">Click to upload image</span>
+                        </>
+                      )}
+                    </div>
+                  )}
+                  <input
+                    ref={imageInputRef}
+                    type="file"
+                    accept="image/*"
+                    className="hidden"
+                    disabled={!!videoPreview}
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) {
+                        if (videoPreview) {
+                          alert("Please remove video first before uploading an image");
+                          return;
+                        }
+                        setImageFile(file);
+                        handleImageUpload(file);
+                      }
+                    }}
+                  />
+                </div>
+
+                {/* Video Upload */}
+                <div>
+                  <label className="block text-sm font-medium mb-1">
+                    Video (Optional)
+                    {imagePreview && <span className="text-xs text-muted-foreground ml-2">- Remove image first</span>}
+                  </label>
+                  {videoPreview ? (
+                    <div className="relative mb-2">
+                      <video src={videoPreview} className="w-full h-48 object-cover rounded-lg border border-border" controls />
+                      <button
+                        onClick={() => {
+                          setVideoPreview("");
+                          setFormData({ ...formData, videoUrl: "" });
+                          setVideoFile(null);
+                          if (videoInputRef.current) videoInputRef.current.value = "";
+                        }}
+                        className="absolute top-2 right-2 p-1 bg-red-500 text-white rounded-full hover:bg-red-600"
+                      >
+                        <XIcon className="w-4 h-4" />
+                      </button>
+                    </div>
+                  ) : (
+                    <div
+                      onClick={() => videoInputRef.current?.click()}
+                      className="w-full h-32 border-2 border-dashed border-border rounded-lg flex flex-col items-center justify-center cursor-pointer hover:border-primary transition-colors"
+                    >
+                      {uploadingVideo ? (
+                        <div className="text-sm text-muted-foreground">Uploading...</div>
+                      ) : (
+                        <>
+                          <Video className="w-6 h-6 text-muted-foreground mb-2" />
+                          <span className="text-sm text-muted-foreground">Click to upload video</span>
+                        </>
+                      )}
+                    </div>
+                  )}
+                  <input
+                    ref={videoInputRef}
+                    type="file"
+                    accept="video/*"
+                    className="hidden"
+                    disabled={!!imagePreview}
+                    onChange={(e) => {
+                      const file = e.target.files?.[0];
+                      if (file) {
+                        if (imagePreview) {
+                          alert("Please remove image first before uploading a video");
+                          return;
+                        }
+                        setVideoFile(file);
+                        handleVideoUpload(file);
+                      }
+                    }}
+                  />
+                </div>
+
+                {/* Pop-up Ad Settings */}
+                <div className="border-t border-border pt-4 space-y-4">
+                  <div className="flex items-center gap-2">
+                    <input
+                      type="checkbox"
+                      id="showAsPopup"
+                      checked={formData.showAsPopup}
+                      onChange={(e) => setFormData({ ...formData, showAsPopup: e.target.checked })}
+                      className="w-4 h-4"
+                    />
+                    <label htmlFor="showAsPopup" className="text-sm font-medium cursor-pointer">
+                      Show as Pop-up Ad
+                    </label>
+                  </div>
+                  
+                  {formData.showAsPopup && (
+                    <div className="space-y-3 pl-6 border-l-2 border-primary/20">
+                      <div>
+                        <label className="block text-sm font-medium mb-1">Show Delay (ms)</label>
+                        <input
+                          type="number"
+                          value={formData.showDelay}
+                          onChange={(e) => setFormData({ ...formData, showDelay: parseInt(e.target.value) || 2000 })}
+                          className="w-full px-3 py-2 border border-border rounded-lg bg-white dark:bg-slate-800"
+                          placeholder="2000"
+                        />
+                        <p className="text-xs text-muted-foreground mt-1">Delay before showing pop-up (milliseconds)</p>
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium mb-1">Auto-close After (ms) - Optional</label>
+                        <input
+                          type="number"
+                          value={formData.closeAfter || ""}
+                          onChange={(e) => setFormData({ ...formData, closeAfter: e.target.value ? parseInt(e.target.value) : undefined })}
+                          className="w-full px-3 py-2 border border-border rounded-lg bg-white dark:bg-slate-800"
+                          placeholder="Leave empty for no auto-close"
+                        />
+                        <p className="text-xs text-muted-foreground mt-1">Auto-close pop-up after X milliseconds (leave empty to disable)</p>
+                      </div>
+                      <div>
+                        <label className="block text-sm font-medium mb-1">Max Displays per User - Optional</label>
+                        <input
+                          type="number"
+                          value={formData.maxDisplays || ""}
+                          onChange={(e) => setFormData({ ...formData, maxDisplays: e.target.value ? parseInt(e.target.value) : undefined })}
+                          className="w-full px-3 py-2 border border-border rounded-lg bg-white dark:bg-slate-800"
+                          placeholder="Leave empty for unlimited"
+                        />
+                        <p className="text-xs text-muted-foreground mt-1">Maximum times to show this pop-up to the same user</p>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
                 <div className="flex gap-2 justify-end">
                   <button
                     onClick={() => {
                       setShowAddPostModal(false);
                       setEditingPost(null);
+                      resetForm();
                     }}
                     className="px-4 py-2 border border-border rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800"
                   >

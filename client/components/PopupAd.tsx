@@ -1,6 +1,6 @@
 import { useEffect, useState, useRef, useCallback } from "react";
 import { useLocation } from "react-router-dom";
-import { PopupAd as PopupAdType } from "@shared/api";
+import { PopupAd as PopupAdType, SharePost } from "@shared/api";
 import { apiFetch } from "@/lib/api";
 import {
   Dialog,
@@ -12,6 +12,28 @@ import {
 import { Button } from "@/components/ui/button";
 import { X } from "lucide-react";
 import { cn } from "@/lib/utils";
+
+// Convert SharePost to PopupAd format for display
+const convertSharePostToPopupAd = (post: SharePost): PopupAdType => {
+  return {
+    id: `share_post_${post.id}`,
+    title: post.title,
+    description: "",
+    mediaType: post.videoUrl ? "video" : "image",
+    mediaUrl: post.videoUrl || post.imageUrl || "",
+    buttonText: "Visit Link",
+    buttonLink: post.url,
+    targetPages: ["/"], // Share posts always show on home page
+    isActive: true,
+    clicks: 0,
+    impressions: 0,
+    createdAt: post.createdAt,
+    updatedAt: post.updatedAt,
+    showDelay: post.showDelay || 2000,
+    closeAfter: post.closeAfter,
+    maxDisplays: post.maxDisplays,
+  };
+};
 
 export default function PopupAd() {
   const location = useLocation();
@@ -42,10 +64,21 @@ export default function PopupAd() {
     const fetchAds = async () => {
       try {
         setIsLoading(true);
-        const response = await apiFetch(`/api/popup-ads?route=${encodeURIComponent(location.pathname)}`);
-        const data = await response.json();
-        const activeAds = (data.data || []).filter((ad: PopupAdType) => ad.isActive);
-        setAds(activeAds);
+        
+        // Fetch both pop-up ads and share posts
+        const [popupAdsResponse, sharePostsResponse] = await Promise.all([
+          apiFetch(`/api/popup-ads?route=${encodeURIComponent(location.pathname)}`),
+          apiFetch("/api/share-posts/popup"),
+        ]);
+        
+        const popupAdsData = await popupAdsResponse.json();
+        const sharePostsData = await sharePostsResponse.json();
+        
+        const activePopupAds = (popupAdsData.data || []).filter((ad: PopupAdType) => ad.isActive);
+        const sharePostAds = (sharePostsData.data || []).map(convertSharePostToPopupAd);
+        
+        // Combine both types of ads
+        setAds([...activePopupAds, ...sharePostAds]);
       } catch (error) {
         console.error("Error fetching pop-up ads:", error);
       } finally {

@@ -1,6 +1,6 @@
 import { Link, useNavigate } from "react-router-dom";
 import { useState, useEffect } from "react";
-import { Menu, X, LogOut, LogIn, User, Smartphone, Download } from "lucide-react";
+import { Menu, X, LogOut, LogIn, User, Smartphone, Download, DollarSign } from "lucide-react";
 import AdsSlider from "./AdsSlider";
 import { useAuth } from "@/contexts/AuthContext";
 import { ThemeToggle } from "./ThemeToggle";
@@ -136,24 +136,47 @@ export default function Header() {
 
           {/* Right Section */}
           <div className="flex items-center gap-4">
-            {/* Get App */}
+            {/* Get App - Glitch/Cyberpunk Style */}
             {appSettings?.downloadEnabled && (appSettings.apkUrl || appSettings.xapkUrl || appSettings.playStoreUrl || appSettings.appStoreUrl) ? (
               <a
                 href={appSettings.apkUrl || appSettings.xapkUrl || appSettings.playStoreUrl || appSettings.appStoreUrl || "#"}
                 target="_blank"
                 rel="noopener noreferrer"
-                className="text-sm font-medium text-foreground hover:text-primary transition-colors flex items-center gap-2"
+                className="hidden sm:flex relative text-sm font-medium text-foreground transition-all duration-300 items-center gap-2 px-3 py-1.5 rounded-lg hover:bg-primary/10 group animate-cyberpunk overflow-hidden border border-red-500/30 hover:border-blue-500/60"
               >
-                <Smartphone className="w-4 h-4" />
-                Get App
+                <Smartphone className="w-4 h-4 transition-transform duration-300 group-hover:scale-110 group-hover:rotate-12 relative z-10" />
+                <span className="relative z-10 font-bold group-hover:animate-glitch">
+                  Get App
+                </span>
               </a>
             ) : (
               <Link
                 to="/get-app"
-                className="text-sm font-medium text-foreground hover:text-primary transition-colors flex items-center gap-2"
+                className="hidden sm:flex relative text-sm font-medium text-foreground transition-all duration-300 items-center gap-2 px-3 py-1.5 rounded-lg hover:bg-primary/10 group animate-cyberpunk overflow-hidden border border-red-500/30 hover:border-blue-500/60"
               >
-                <Smartphone className="w-4 h-4" />
-                Get App
+                <Smartphone className="w-4 h-4 transition-transform duration-300 group-hover:scale-110 group-hover:rotate-12 relative z-10" />
+                <span className="relative z-10 font-bold group-hover:animate-glitch">
+                  Get App
+                </span>
+              </Link>
+            )}
+            {/* Earnings - Currency Drop Animation - Only show if logged in */}
+            {isLoggedIn && (
+              <Link
+                to="/earnings"
+                className="hidden sm:flex relative text-sm font-medium text-foreground hover:text-primary transition-all duration-300 items-center gap-2 px-3 py-1.5 rounded-lg hover:bg-primary/10 group overflow-hidden currency-drop-container"
+              >
+                {/* Currency symbols dropping */}
+                <span className="currency-symbol">₿</span>
+                <span className="currency-symbol">৳</span>
+                <span className="currency-symbol">₿</span>
+                <span className="currency-symbol">৳</span>
+                
+                <div className="absolute inset-0 bg-gradient-to-r from-transparent via-yellow-400/20 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000"></div>
+                <DollarSign className="w-4 h-4 transition-all duration-300 group-hover:scale-110 group-hover:text-yellow-500 relative z-10" />
+                <span className="relative z-10 font-semibold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent group-hover:from-yellow-500 group-hover:to-yellow-400 transition-all duration-300">
+                  Earnings
+                </span>
               </Link>
             )}
             {/* Theme Toggle */}
@@ -241,6 +264,48 @@ export default function Header() {
         {/* Mobile Navigation */}
         {isMenuOpen && (
           <nav className="md:hidden pb-4 border-t border-border space-y-1">
+            {/* Get App - Mobile - Glitch/Cyberpunk Style */}
+            {appSettings?.downloadEnabled && (appSettings.apkUrl || appSettings.xapkUrl || appSettings.playStoreUrl || appSettings.appStoreUrl) ? (
+              <a
+                href={appSettings.apkUrl || appSettings.xapkUrl || appSettings.playStoreUrl || appSettings.appStoreUrl || "#"}
+                target="_blank"
+                rel="noopener noreferrer"
+                onClick={() => setIsMenuOpen(false)}
+                className="block px-4 py-2 text-sm font-medium hover:bg-primary/10 transition-all duration-300 flex items-center gap-2 border-b border-border group relative animate-cyberpunk overflow-hidden border-l-2 border-r-2 border-l-red-500/50 border-r-blue-500/50"
+              >
+                <Smartphone className="w-4 h-4 transition-transform duration-300 group-hover:scale-110 group-hover:rotate-12 relative z-10" />
+                <span className="relative z-10 font-bold group-hover:animate-glitch">Get App</span>
+              </a>
+            ) : (
+              <Link
+                to="/get-app"
+                onClick={() => setIsMenuOpen(false)}
+                className="block px-4 py-2 text-sm font-medium hover:bg-primary/10 transition-all duration-300 flex items-center gap-2 border-b border-border group relative animate-cyberpunk overflow-hidden border-l-2 border-r-2 border-l-red-500/50 border-r-blue-500/50"
+              >
+                <Smartphone className="w-4 h-4 transition-transform duration-300 group-hover:scale-110 group-hover:rotate-12 relative z-10" />
+                <span className="relative z-10 font-bold group-hover:animate-glitch">Get App</span>
+              </Link>
+            )}
+            {/* Earnings - Mobile - Currency Drop Animation - Only show if logged in */}
+            {isLoggedIn && (
+              <Link
+                to="/earnings"
+                onClick={() => setIsMenuOpen(false)}
+                className="block px-4 py-2 text-sm font-medium hover:bg-primary/10 transition-all duration-300 flex items-center gap-2 border-b border-border group relative overflow-hidden currency-drop-container"
+              >
+                {/* Currency symbols dropping */}
+                <span className="currency-symbol">₿</span>
+                <span className="currency-symbol">৳</span>
+                <span className="currency-symbol">₿</span>
+                <span className="currency-symbol">৳</span>
+                
+                <div className="absolute inset-0 bg-gradient-to-r from-transparent via-yellow-400/20 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000"></div>
+                <DollarSign className="w-4 h-4 transition-all duration-300 group-hover:scale-110 group-hover:text-yellow-500 relative z-10" />
+                <span className="relative z-10 font-semibold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent group-hover:from-yellow-500 group-hover:to-yellow-400 transition-all duration-300">
+                  Earnings
+                </span>
+              </Link>
+            )}
             {/* Mobile Theme Toggle */}
             <div className="px-4 py-2 border-b border-border">
               <div className="flex items-center justify-between">
@@ -248,28 +313,6 @@ export default function Header() {
                 <ThemeToggle />
               </div>
             </div>
-            {/* Get App - Mobile */}
-            {appSettings?.downloadEnabled && (appSettings.apkUrl || appSettings.xapkUrl || appSettings.playStoreUrl || appSettings.appStoreUrl) ? (
-              <a
-                href={appSettings.apkUrl || appSettings.xapkUrl || appSettings.playStoreUrl || appSettings.appStoreUrl || "#"}
-                target="_blank"
-                rel="noopener noreferrer"
-                onClick={() => setIsMenuOpen(false)}
-                className="block px-4 py-2 text-sm font-medium hover:bg-secondary/10 transition-colors flex items-center gap-2 border-b border-border"
-              >
-                <Smartphone className="w-4 h-4" />
-                Get App
-              </a>
-            ) : (
-              <Link
-                to="/get-app"
-                onClick={() => setIsMenuOpen(false)}
-                className="block px-4 py-2 text-sm font-medium hover:bg-secondary/10 transition-colors flex items-center gap-2 border-b border-border"
-              >
-                <Smartphone className="w-4 h-4" />
-                Get App
-              </Link>
-            )}
             <Link
               to="/browse"
               onClick={() => setIsMenuOpen(false)}

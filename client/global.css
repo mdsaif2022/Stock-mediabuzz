@@ -5,6 +5,278 @@
 @tailwind components;
 @tailwind utilities;
 
+/* Button animations */
+@keyframes pulse-glow {
+  0%, 100% {
+    opacity: 1;
+    box-shadow: 0 0 0 0 rgba(139, 92, 246, 0.4);
+  }
+  50% {
+    opacity: 0.9;
+    box-shadow: 0 0 0 4px rgba(139, 92, 246, 0);
+  }
+}
+
+@keyframes shine {
+  0% {
+    background-position: -200% center;
+  }
+  100% {
+    background-position: 200% center;
+  }
+}
+
+@keyframes icon-bounce {
+  0%, 100% {
+    transform: translateY(0);
+  }
+  50% {
+    transform: translateY(-2px);
+  }
+}
+
+/* Glitch/Cyberpunk animations for Get App button */
+@keyframes glitch {
+  0% {
+    transform: translate(0);
+    text-shadow: 0 0 5px rgba(139, 92, 246, 0.8), 0 0 10px rgba(139, 92, 246, 0.6);
+    color: inherit;
+  }
+  10% {
+    transform: translate(-1px, 1px);
+    text-shadow: 
+      2px 0 0 rgba(255, 0, 0, 0.9),
+      -2px 0 0 rgba(0, 150, 255, 0.9),
+      0 0 10px rgba(255, 255, 0, 0.8);
+    color: rgba(255, 0, 0, 0.9);
+  }
+  20% {
+    transform: translate(1px, -1px);
+    text-shadow: 
+      -2px 0 0 rgba(255, 0, 0, 0.9),
+      2px 0 0 rgba(0, 150, 255, 0.9),
+      0 0 10px rgba(255, 255, 0, 0.8);
+    color: rgba(0, 150, 255, 0.9);
+  }
+  30% {
+    transform: translate(-1px, -1px);
+    text-shadow: 
+      1px 0 0 rgba(255, 0, 0, 0.9),
+      -1px 0 0 rgba(0, 150, 255, 0.9),
+      0 0 15px rgba(255, 255, 0, 0.9);
+    color: rgba(255, 255, 0, 0.9);
+  }
+  40% {
+    transform: translate(1px, 1px);
+    text-shadow: 
+      -1px 0 0 rgba(255, 0, 0, 0.9),
+      1px 0 0 rgba(0, 150, 255, 0.9),
+      0 0 10px rgba(255, 255, 0, 0.8);
+    color: rgba(255, 0, 0, 0.9);
+  }
+  50% {
+    transform: translate(-2px, 0);
+    text-shadow: 
+      3px 0 0 rgba(255, 0, 0, 1),
+      -3px 0 0 rgba(0, 150, 255, 1),
+      0 0 20px rgba(255, 255, 0, 1);
+    color: rgba(0, 150, 255, 1);
+  }
+  60% {
+    transform: translate(2px, 0);
+    text-shadow: 
+      -3px 0 0 rgba(255, 0, 0, 1),
+      3px 0 0 rgba(0, 150, 255, 1),
+      0 0 20px rgba(255, 255, 0, 1);
+    color: rgba(255, 255, 0, 1);
+  }
+  70% {
+    transform: translate(-1px, 1px);
+    text-shadow: 
+      2px 0 0 rgba(255, 0, 0, 0.9),
+      -2px 0 0 rgba(0, 150, 255, 0.9),
+      0 0 15px rgba(255, 255, 0, 0.9);
+    color: rgba(255, 0, 0, 0.9);
+  }
+  80% {
+    transform: translate(1px, -1px);
+    text-shadow: 
+      -2px 0 0 rgba(255, 0, 0, 0.9),
+      2px 0 0 rgba(0, 150, 255, 0.9),
+      0 0 10px rgba(255, 255, 0, 0.8);
+    color: rgba(0, 150, 255, 0.9);
+  }
+  90% {
+    transform: translate(0, 0);
+    text-shadow: 
+      1px 0 0 rgba(255, 0, 0, 0.8),
+      -1px 0 0 rgba(0, 150, 255, 0.8),
+      0 0 8px rgba(255, 255, 0, 0.7);
+    color: rgba(255, 255, 0, 0.8);
+  }
+  100% {
+    transform: translate(0);
+    text-shadow: 0 0 5px rgba(139, 92, 246, 0.8), 0 0 10px rgba(139, 92, 246, 0.6);
+    color: inherit;
+  }
+}
+
+@keyframes cyberpunk-scan {
+  0% {
+    transform: translateY(-100%);
+    opacity: 0;
+  }
+  50% {
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(200%);
+    opacity: 0;
+  }
+}
+
+@keyframes neon-flicker {
+  0%, 100% {
+    opacity: 1;
+    filter: 
+      drop-shadow(0 0 3px rgba(255, 0, 0, 0.8))
+      drop-shadow(0 0 5px rgba(0, 150, 255, 0.8))
+      drop-shadow(0 0 7px rgba(255, 255, 0, 0.6));
+  }
+  25% {
+    opacity: 0.9;
+    filter: 
+      drop-shadow(0 0 2px rgba(255, 0, 0, 0.6))
+      drop-shadow(0 0 4px rgba(0, 150, 255, 0.6))
+      drop-shadow(0 0 6px rgba(255, 255, 0, 0.5));
+  }
+  50% {
+    opacity: 0.8;
+    filter: 
+      drop-shadow(0 0 1px rgba(255, 0, 0, 0.4))
+      drop-shadow(0 0 3px rgba(0, 150, 255, 0.4))
+      drop-shadow(0 0 5px rgba(255, 255, 0, 0.4));
+  }
+  75% {
+    opacity: 1;
+    filter: 
+      drop-shadow(0 0 4px rgba(255, 0, 0, 1))
+      drop-shadow(0 0 6px rgba(0, 150, 255, 1))
+      drop-shadow(0 0 8px rgba(255, 255, 0, 0.8));
+  }
+}
+
+/* Currency drop animation for Earnings button */
+@keyframes coin-drop {
+  0% {
+    transform: translateY(-100%) rotate(0deg);
+    opacity: 1;
+  }
+  100% {
+    transform: translateY(200%) rotate(360deg);
+    opacity: 0;
+  }
+}
+
+@keyframes taka-drop {
+  0% {
+    transform: translateY(-100%) rotate(0deg);
+    opacity: 1;
+  }
+  50% {
+    opacity: 0.8;
+  }
+  100% {
+    transform: translateY(200%) rotate(-180deg);
+    opacity: 0;
+  }
+}
+
+.animate-pulse-glow {
+  animation: pulse-glow 2s cubic-bezier(0.4, 0, 0.6, 1) infinite;
+}
+
+.animate-glitch {
+  animation: glitch 0.3s infinite;
+}
+
+.animate-cyberpunk {
+  position: relative;
+  animation: neon-flicker 2s ease-in-out infinite;
+}
+
+.animate-cyberpunk::before {
+  content: '';
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  height: 2px;
+  background: linear-gradient(90deg, transparent, rgba(139, 92, 246, 0.8), transparent);
+  animation: cyberpunk-scan 2s linear infinite;
+  pointer-events: none;
+}
+
+.currency-drop-container {
+  position: relative;
+  overflow: hidden;
+}
+
+.currency-drop-container::before,
+.currency-drop-container::after {
+  content: '₿';
+  position: absolute;
+  top: -20px;
+  left: 50%;
+  font-size: 12px;
+  color: #f59e0b;
+  font-weight: bold;
+  opacity: 0;
+  animation: coin-drop 3s infinite;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.currency-drop-container::after {
+  content: '৳';
+  animation: taka-drop 3s infinite 1.5s;
+  color: #10b981;
+}
+
+.currency-drop-container .currency-symbol {
+  position: absolute;
+  top: -20px;
+  font-size: 12px;
+  font-weight: bold;
+  opacity: 0;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.currency-drop-container .currency-symbol:nth-child(1) {
+  left: 20%;
+  animation: coin-drop 3s infinite 0.5s;
+  color: #f59e0b;
+}
+
+.currency-drop-container .currency-symbol:nth-child(2) {
+  left: 40%;
+  animation: taka-drop 3s infinite 1s;
+  color: #10b981;
+}
+
+.currency-drop-container .currency-symbol:nth-child(3) {
+  left: 60%;
+  animation: coin-drop 3s infinite 1.5s;
+  color: #f59e0b;
+}
+
+.currency-drop-container .currency-symbol:nth-child(4) {
+  left: 80%;
+  animation: taka-drop 3s infinite 2s;
+  color: #10b981;
+}
+
 @layer base {
   /**
    * Tailwind CSS theme for FreeMediaBuzz

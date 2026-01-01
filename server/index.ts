@@ -417,6 +417,7 @@ export function createServer() {
   // Admin endpoints
   app.get("/api/admin/share-posts", referralRoutes.getAllSharePosts);
   app.post("/api/admin/share-posts", referralRoutes.createSharePost);
+  app.get("/api/share-posts/popup", referralRoutes.getActiveSharePostsForPopup);
   app.put("/api/admin/share-posts/:id", referralRoutes.updateSharePost);
   app.delete("/api/admin/share-posts/:id", referralRoutes.deleteSharePost);
   app.get("/api/admin/referrals", referralRoutes.getAllReferrals);

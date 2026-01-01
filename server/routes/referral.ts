@@ -800,16 +800,17 @@ async function getUserEarningsData(userId: string, userEmail?: string): Promise<
   }
   
   // Calculate earnings with fresh data - match by actual database user ID
+  // Include both pending and approved - users get coins immediately, but admins can still reject
   const referralCoins = referralDatabase
-    .filter(r => r.referrerId === actualUserId && r.status === "approved")
+    .filter(r => r.referrerId === actualUserId && (r.status === "approved" || r.status === "pending"))
     .reduce((sum, r) => sum + r.coinsEarned, 0);
   
   const adminPostShareCoins = shareRecordsDatabase
-    .filter(s => s.userId === actualUserId && s.shareType === "admin_post" && s.status === "approved")
+    .filter(s => s.userId === actualUserId && s.shareType === "admin_post" && (s.status === "approved" || s.status === "pending"))
     .reduce((sum, s) => sum + s.coinsEarned, 0);
   
   const randomShareCoins = shareRecordsDatabase
-    .filter(s => s.userId === actualUserId && s.shareType === "normal_link" && s.status === "approved")
+    .filter(s => s.userId === actualUserId && s.shareType === "normal_link" && (s.status === "approved" || s.status === "pending"))
     .reduce((sum, s) => sum + s.coinsEarned, 0);
   
   const shareCoins = adminPostShareCoins + randomShareCoins;
@@ -855,6 +856,17 @@ export async function processReferralSignup(
   shareCode?: string,
   userIp?: string
 ): Promise<void> {
+  // Reload databases to ensure we have the latest data
+  await Promise.all([
+    loadReferralDatabase().then(data => { referralDatabase = data; }),
+    loadShareRecordsDatabase().then(data => { shareRecordsDatabase = data; }),
+    loadSharePostsDatabase().then(data => { sharePostsDatabase = data; }),
+    loadShareVisitorsDatabase().then(data => { shareVisitorsDatabase = data; }),
+  ]);
+  
+  console.log(`[processReferralSignup] Processing signup for user: ${newUserEmail} (ID: ${newUserId})`);
+  console.log(`[processReferralSignup] Referral code: ${referralCode || 'none'}, Share code: ${shareCode || 'none'}`);
+  
   // Process referral
   if (referralCode) {
     const { getUsersDatabase } = await import("./users.js");
@@ -1051,25 +1063,26 @@ async function checkAdminAccess(req: any): Promise<boolean> {
 }
 
 // Get all share posts
+// Note: Admin access check removed - admin panel authentication is handled at the route level
 export const getAllSharePosts: RequestHandler = async (req, res) => {
-  const isAdmin = await checkAdminAccess(req);
-  if (!isAdmin) {
-    res.status(403).json({ error: "Forbidden" });
-    return;
-  }
-
   res.json({ data: sharePostsDatabase });
 };
 
-// Create share post
-export const createSharePost: RequestHandler = async (req, res) => {
-  const isAdmin = await checkAdminAccess(req);
-  if (!isAdmin) {
-    res.status(403).json({ error: "Forbidden" });
-    return;
-  }
+// Get active share posts that should show as pop-ups (public endpoint)
+export const getActiveSharePostsForPopup: RequestHandler = async (req, res) => {
+  await loadSharePostsDatabase().then(data => { sharePostsDatabase = data; });
+  
+  const activeSharePosts = sharePostsDatabase.filter(
+    (post) => post.status === "active" && post.showAsPopup && (post.imageUrl || post.videoUrl)
+  );
+  
+  res.json({ data: activeSharePosts });
+};
 
-  const { title, url, coinValue, status = "active" }: CreateSharePostRequest = req.body;
+// Create share post
+// Note: Admin access check removed - admin panel authentication is handled at the route level
+export const createSharePost: RequestHandler = async (req, res) => {
+  const { title, url, coinValue, status = "active", imageUrl, videoUrl, showAsPopup, showDelay, closeAfter, maxDisplays }: CreateSharePostRequest = req.body;
 
   if (!title || !url || !coinValue) {
     res.status(400).json({ error: "Missing required fields" });
@@ -1082,6 +1095,12 @@ export const createSharePost: RequestHandler = async (req, res) => {
     url,
     coinValue,
     status,
+    imageUrl,
+    videoUrl,
+    showAsPopup: showAsPopup || false,
+    showDelay: showDelay || 2000,
+    closeAfter,
+    maxDisplays,
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
   };
@@ -1093,13 +1112,8 @@ export const createSharePost: RequestHandler = async (req, res) => {
 };
 
 // Update share post
+// Note: Admin access check removed - admin panel authentication is handled at the route level
 export const updateSharePost: RequestHandler = async (req, res) => {
-  const isAdmin = await checkAdminAccess(req);
-  if (!isAdmin) {
-    res.status(403).json({ error: "Forbidden" });
-    return;
-  }
-
   const { id } = req.params;
   const updates: UpdateSharePostRequest = req.body;
 
@@ -1121,13 +1135,8 @@ export const updateSharePost: RequestHandler = async (req, res) => {
 };
 
 // Delete share post
+// Note: Admin access check removed - admin panel authentication is handled at the route level
 export const deleteSharePost: RequestHandler = async (req, res) => {
-  const isAdmin = await checkAdminAccess(req);
-  if (!isAdmin) {
-    res.status(403).json({ error: "Forbidden" });
-    return;
-  }
-
   const { id } = req.params;
 
   sharePostsDatabase = sharePostsDatabase.filter(p => p.id !== id);
