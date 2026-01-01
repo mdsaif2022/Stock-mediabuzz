@@ -136,8 +136,6 @@ export default function Header() {
 
           {/* Right Section */}
           <div className="flex items-center gap-4">
-            {/* Theme Toggle */}
-            <ThemeToggle />
             {/* Get App */}
             {appSettings?.downloadEnabled && (appSettings.apkUrl || appSettings.xapkUrl || appSettings.playStoreUrl || appSettings.appStoreUrl) ? (
               <a
@@ -158,6 +156,8 @@ export default function Header() {
                 Get App
               </Link>
             )}
+            {/* Theme Toggle */}
+            <ThemeToggle />
             {/* Desktop Auth Buttons */}
             {!isLoggedIn ? (
               <div className="hidden sm:flex gap-2">
