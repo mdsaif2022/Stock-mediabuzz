@@ -19,6 +19,8 @@ export const COLLECTIONS = {
   SHARE_RECORDS: 'share_records',
   SHARE_VISITORS: 'share_visitors',
   WITHDRAW_REQUESTS: 'withdraw_requests',
+  ADS: 'ads',
+  AD_VIEWS: 'ad_views',
 } as const;
 
 /**
@@ -107,6 +109,20 @@ export async function getShareVisitorsCollection() {
  */
 export async function getWithdrawRequestsCollection() {
   return getCollection(COLLECTIONS.WITHDRAW_REQUESTS);
+}
+
+/**
+ * Get Ads collection
+ */
+export async function getAdsCollection() {
+  return getCollection(COLLECTIONS.ADS);
+}
+
+/**
+ * Get Ad Views collection
+ */
+export async function getAdViewsCollection() {
+  return getCollection(COLLECTIONS.AD_VIEWS);
 }
 
 /**

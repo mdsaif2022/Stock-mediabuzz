@@ -1,8 +1,8 @@
 import AdminLayout from "@/components/AdminLayout";
 import { Plus, Edit, Trash2, Search, Copy, Upload, X, Image as ImageIcon, Video, Link as LinkIcon, File, Loader2 } from "lucide-react";
 import { useState, useRef, useEffect } from "react";
-import { PopupAd, PopupAdCreateRequest } from "@shared/api";
 import { apiFetch } from "@/lib/api";
+import { PopupAd, PopupAdCreateRequest } from "@shared/api";
 import { useToast } from "@/hooks/use-toast";
 import { Button } from "@/components/ui/button";
 import { Checkbox } from "@/components/ui/checkbox";
@@ -20,9 +20,9 @@ interface Ad {
   targetUrl?: string;
 }
 
-const ads: Ad[] = [];
-
 export default function AdminAds() {
+  const [ads, setAds] = useState<Ad[]>([]);
+  const [loadingAds, setLoadingAds] = useState(true);
   const [showAddForm, setShowAddForm] = useState(false);
   const [uploadMethod, setUploadMethod] = useState<'file' | 'url'>('url');
   const [selectedFile, setSelectedFile] = useState<File | null>(null);
@@ -37,6 +37,38 @@ export default function AdminAds() {
     active: true,
   });
   const fileInputRef = useRef<HTMLInputElement>(null);
+
+  useEffect(() => {
+    fetchAds();
+  }, []);
+
+  const fetchAds = async () => {
+    try {
+      setLoadingAds(true);
+      const response = await apiFetch("/api/popup-ads");
+      const data = await response.json();
+      
+      // Transform pop-up ads to Ad format
+      const transformedAds: Ad[] = (data.data || []).map((ad: any, index: number) => ({
+        id: index + 1,
+        title: ad.title,
+        type: "Custom" as const,
+        placement: ad.targetPages?.join(", ") || "All Pages",
+        status: ad.isActive ? "active" as const : "inactive" as const,
+        clicks: ad.clicks || 0,
+        impressions: ad.impressions || 0,
+        mediaUrl: ad.mediaUrl,
+        mediaType: ad.mediaType === "video" ? "video" as const : "image" as const,
+        targetUrl: ad.buttonLink,
+      }));
+      
+      setAds(transformedAds);
+    } catch (error) {
+      console.error("Failed to fetch ads:", error);
+    } finally {
+      setLoadingAds(false);
+    }
+  };
 
   const handleFileSelect = (file: File | null) => {
     if (!file) return;
@@ -392,21 +424,31 @@ export default function AdminAds() {
 
         {/* Ads Table */}
         <div className="bg-white dark:bg-slate-900 rounded-lg border border-border overflow-hidden">
-          <table className="w-full">
-            <thead className="border-b border-border bg-slate-50 dark:bg-slate-800">
-              <tr>
-                <th className="px-6 py-3 text-left text-sm font-semibold">Title</th>
-                <th className="px-6 py-3 text-left text-sm font-semibold">Type</th>
-                <th className="px-6 py-3 text-left text-sm font-semibold">Placement</th>
-                <th className="px-6 py-3 text-left text-sm font-semibold">Status</th>
-                <th className="px-6 py-3 text-left text-sm font-semibold">Clicks</th>
-                <th className="px-6 py-3 text-left text-sm font-semibold">Impressions</th>
-                <th className="px-6 py-3 text-left text-sm font-semibold">CTR</th>
-                <th className="px-6 py-3 text-left text-sm font-semibold">Actions</th>
-              </tr>
-            </thead>
-            <tbody className="divide-y divide-border">
-              {ads.map((ad) => {
+          {loadingAds ? (
+            <div className="p-8 text-center text-muted-foreground">
+              <Loader2 className="w-6 h-6 animate-spin mx-auto mb-2" />
+              Loading ads...
+            </div>
+          ) : ads.length === 0 ? (
+            <div className="p-8 text-center text-muted-foreground">
+              No ads found. Create pop-up ads to see them here.
+            </div>
+          ) : (
+            <table className="w-full">
+              <thead className="border-b border-border bg-slate-50 dark:bg-slate-800">
+                <tr>
+                  <th className="px-6 py-3 text-left text-sm font-semibold">Title</th>
+                  <th className="px-6 py-3 text-left text-sm font-semibold">Type</th>
+                  <th className="px-6 py-3 text-left text-sm font-semibold">Placement</th>
+                  <th className="px-6 py-3 text-left text-sm font-semibold">Status</th>
+                  <th className="px-6 py-3 text-left text-sm font-semibold">Clicks</th>
+                  <th className="px-6 py-3 text-left text-sm font-semibold">Impressions</th>
+                  <th className="px-6 py-3 text-left text-sm font-semibold">CTR</th>
+                  <th className="px-6 py-3 text-left text-sm font-semibold">Actions</th>
+                </tr>
+              </thead>
+              <tbody className="divide-y divide-border">
+                {ads.map((ad) => {
                 const ctr =
                   ad.impressions > 0
                     ? ((ad.clicks / ad.impressions) * 100).toFixed(2)
@@ -456,8 +498,9 @@ export default function AdminAds() {
                   </tr>
                 );
               })}
-            </tbody>
-          </table>
+              </tbody>
+            </table>
+          )}
         </div>
 
         {/* Pop-up Ads Section */}

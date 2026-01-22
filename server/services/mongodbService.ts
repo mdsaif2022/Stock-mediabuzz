@@ -16,6 +16,8 @@ import {
   getShareRecordsCollection,
   getShareVisitorsCollection,
   getWithdrawRequestsCollection,
+  getAdsCollection,
+  getAdViewsCollection,
 } from '../models/mongodb.js';
 
 // Re-export collection getters for convenience
@@ -31,6 +33,8 @@ export {
   getShareRecordsCollection,
   getShareVisitorsCollection,
   getWithdrawRequestsCollection,
+  getAdsCollection,
+  getAdViewsCollection,
 };
 
 // ==================== USERS ====================
@@ -496,5 +500,60 @@ export async function deleteWithdrawRequest(id: string) {
     : { id };
   
   return collection.deleteOne(filter);
+}
+
+// ==================== ADS ====================
+
+export async function createAd(adData: any) {
+  const collection = await getAdsCollection();
+  if (!collection) throw new Error('MongoDB not connected');
+  
+  const result = await collection.insertOne({
+    ...adData,
+    createdAt: new Date(),
+    updatedAt: new Date(),
+  });
+  return result.insertedId;
+}
+
+export async function getAllAds() {
+  const collection = await getAdsCollection();
+  if (!collection) throw new Error('MongoDB not connected');
+  
+  return collection.find({}).toArray();
+}
+
+export async function deleteAllAds() {
+  const collection = await getAdsCollection();
+  if (!collection) throw new Error('MongoDB not connected');
+  
+  return collection.deleteMany({});
+}
+
+// ==================== AD VIEWS ====================
+
+export async function createAdView(viewData: any) {
+  const collection = await getAdViewsCollection();
+  if (!collection) throw new Error('MongoDB not connected');
+  
+  const result = await collection.insertOne({
+    ...viewData,
+    createdAt: new Date(),
+  });
+  return result.insertedId;
+}
+
+export async function getAllAdViews() {
+  const collection = await getAdViewsCollection();
+  if (!collection) throw new Error('MongoDB not connected');
+  
+  return collection.find({}).toArray();
+}
+
+export async function deleteAllAdViews() {
+  const collection = await getAdViewsCollection();
+  if (!collection) throw new Error('MongoDB not connected');
+  
+  return collection.deleteMany({});
 }
 

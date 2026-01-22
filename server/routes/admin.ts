@@ -13,6 +13,7 @@ export const getDashboardStats: RequestHandler = async (req, res) => {
     const { getMediaDatabase } = await import("./media.js");
     const { getUsersDatabase } = await import("./users.js");
     const { loadCreatorsDatabase } = await import("./creators.js");
+    const { downloadLog } = await import("./downloads.js");
     
     const media = await getMediaDatabase();
     const users = await getUsersDatabase();
@@ -21,14 +22,62 @@ export const getDashboardStats: RequestHandler = async (req, res) => {
     // Calculate real stats
     const totalUsers = users.length;
     const totalMedia = media.length;
-    const totalDownloads = 0; // TODO: Implement download tracking
-    const activeUsers = 0; // TODO: Implement active user tracking
+    const totalDownloads = downloadLog.length;
     
-    // Get top downloads (if download tracking exists)
-    const topDownloads: any[] = [];
+    // Calculate active users (users who downloaded in last 7 days)
+    const sevenDaysAgo = new Date();
+    sevenDaysAgo.setDate(sevenDaysAgo.getDate() - 7);
+    const recentDownloadUserIds = new Set(
+      downloadLog
+        .filter((d) => new Date(d.timestamp) >= sevenDaysAgo)
+        .map((d) => d.userId)
+    );
+    const activeUsers = recentDownloadUserIds.size;
     
-    // Get top users (if download tracking exists)
-    const topUsers: any[] = [];
+    // Get top downloads by media ID
+    const downloadCounts: Record<string, number> = {};
+    downloadLog.forEach((d) => {
+      downloadCounts[d.mediaId] = (downloadCounts[d.mediaId] || 0) + 1;
+    });
+    
+    const topDownloads = Object.entries(downloadCounts)
+      .map(([mediaId, downloads]) => {
+        const mediaItem = media.find((m) => m.id === mediaId);
+        if (!mediaItem) return null;
+        return {
+          id: mediaItem.id,
+          title: mediaItem.title,
+          category: mediaItem.category,
+          type: mediaItem.type,
+          downloads: downloads,
+        };
+      })
+      .filter((item): item is NonNullable<typeof item> => item !== null)
+      .sort((a, b) => b.downloads - a.downloads)
+      .slice(0, 10);
+    
+    // Get top users by download count
+    const userDownloadCounts: Record<string, number> = {};
+    downloadLog.forEach((d) => {
+      if (d.userId && d.userId !== "anonymous") {
+        userDownloadCounts[d.userId] = (userDownloadCounts[d.userId] || 0) + 1;
+      }
+    });
+    
+    const topUsers = Object.entries(userDownloadCounts)
+      .map(([userId, downloads]) => {
+        const user = users.find((u) => u.id === userId || u.firebaseUid === userId);
+        if (!user) return null;
+        return {
+          id: user.id,
+          name: user.name || user.email || "Unknown",
+          email: user.email || "",
+          downloads: downloads,
+        };
+      })
+      .filter((item): item is NonNullable<typeof item> => item !== null)
+      .sort((a, b) => b.downloads - a.downloads)
+      .slice(0, 10);
     
     const stats: AdminStats = {
       totalUsers,

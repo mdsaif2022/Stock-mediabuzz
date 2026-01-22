@@ -4,6 +4,7 @@ import { Link, useNavigate } from "react-router-dom";
 import { useState, useEffect } from "react";
 import { useAuth } from "@/contexts/AuthContext";
 import { updateProfile, updateEmail } from "firebase/auth";
+import ChangePasswordDialog from "@/components/ChangePasswordDialog";
 
 export default function Profile() {
   const { currentUser, logout } = useAuth();
@@ -11,6 +12,7 @@ export default function Profile() {
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
   const [success, setSuccess] = useState("");
+  const [isChangePasswordOpen, setIsChangePasswordOpen] = useState(false);
   const [formData, setFormData] = useState({
     displayName: "",
     email: "",
@@ -308,9 +310,24 @@ export default function Profile() {
                 </div>
               </div>
             </div>
+
+            {/* Security Settings */}
+            <div className="mt-6 sm:mt-8 pt-6 sm:pt-8 border-t border-border">
+              <h3 className="text-base sm:text-lg font-bold mb-3 sm:mb-4">Security</h3>
+              <button
+                onClick={() => setIsChangePasswordOpen(true)}
+                className="w-full sm:w-auto px-4 py-2 bg-primary text-white rounded-lg font-semibold hover:bg-primary/90 transition-colors text-sm sm:text-base"
+              >
+                Change Password
+              </button>
+            </div>
           </div>
         </div>
       </div>
+      <ChangePasswordDialog 
+        open={isChangePasswordOpen} 
+        onOpenChange={setIsChangePasswordOpen} 
+      />
     </Layout>
   );
 }

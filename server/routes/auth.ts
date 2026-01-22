@@ -78,9 +78,9 @@ export const login: RequestHandler = (req, res) => {
   }
 
   // Special admin credentials bypass
-  const adminEmail = process.env.ADMIN_EMAIL || "mediabuzz@local";
-  const adminUsername = process.env.ADMIN_USERNAME || "mediabuzz";
-  const adminPassword = process.env.ADMIN_PASSWORD || "buzz@2025>";
+  const adminEmail = process.env.ADMIN_EMAIL || "admin@freemediabuzz.com";
+  const adminUsername = process.env.ADMIN_USERNAME || "admin";
+  const adminPassword = process.env.ADMIN_PASSWORD || "669522";
 
   if (
     mode === "admin" &&

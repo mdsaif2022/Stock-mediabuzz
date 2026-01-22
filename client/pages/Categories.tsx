@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { Loader2, ArrowRight, Play, Image as ImageIcon, Music, Smartphone, FileText } from "lucide-react";
+import { Loader2, ArrowRight, Play, Image as ImageIcon, Music, Smartphone, FileText, Sparkles } from "lucide-react";
 import Layout from "@/components/Layout";
 import { apiFetch } from "@/lib/api";
 
@@ -18,6 +18,7 @@ const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
   audio: Music,
   template: FileText,
   apk: Smartphone,
+  aivideogenerator: Sparkles,
 };
 
 export default function Categories() {
@@ -41,6 +42,7 @@ export default function Categories() {
 
   const formatLabel = (category: string) => {
     if (category === "apk") return "APK / App";
+    if (category === "aivideogenerator") return "AI Video Generator";
     return category.charAt(0).toUpperCase() + category.slice(1);
   };
 
@@ -85,53 +87,109 @@ export default function Categories() {
                       <ArrowRight className="w-5 h-5 text-muted-foreground" />
                     </div>
                     <div className="h-36 rounded-lg overflow-hidden bg-slate-100 dark:bg-slate-800 relative group">
-                      {category.previewUrl && (() => {
-                        // Check if previewUrl is a video file that can't be displayed as an image
-                        const isDirectVideoFile = category.previewUrl.match(/\.(mp4|webm|mov|avi|ogg)$/i) && 
-                                                 !category.previewUrl.includes('/video/upload/so_') &&
-                                                 !category.previewUrl.includes('/image/') &&
-                                                 !category.previewUrl.includes('cloudinary.com/video/upload');
-                        
-                        // If it's a direct video file (not a thumbnail), don't try to display it as an image
-                        if (isDirectVideoFile) {
+                      {(() => {
+                        // Always show default theme for audio category
+                        if (category.category === "audio") {
                           return (
-                            <div className="w-full h-full flex items-center justify-center text-muted-foreground relative">
-                              <Icon className="w-10 h-10" />
-                              <div className="absolute inset-0 flex items-center justify-center">
-                                <div className="w-16 h-16 rounded-full bg-black/30 dark:bg-white/10 flex items-center justify-center">
-                                  <Play className="w-8 h-8 text-white ml-1" />
-                                </div>
+                            <div className="w-full h-full bg-gradient-to-br from-purple-400 via-pink-500 to-cyan-500 dark:from-purple-600 dark:via-pink-600 dark:to-cyan-600 flex items-center justify-center relative overflow-hidden">
+                              {/* Animated background pattern */}
+                              <div className="absolute inset-0 opacity-20">
+                                <div className="absolute top-0 left-0 w-32 h-32 bg-white rounded-full blur-3xl"></div>
+                                <div className="absolute bottom-0 right-0 w-40 h-40 bg-white rounded-full blur-3xl"></div>
                               </div>
+                              <Music className="w-16 h-16 text-white relative z-10 drop-shadow-lg" />
                             </div>
                           );
                         }
                         
-                        // For images and thumbnails, display normally
-                        return (
-                          <>
-                            <img
-                              src={category.previewUrl}
-                              alt={category.latestTitle ?? "Preview"}
-                              className="w-full h-full object-cover transition-transform duration-300 group-hover:scale-105"
-                              loading="lazy"
-                              onError={(e) => {
-                                e.currentTarget.style.display = "none";
-                                // Show fallback icon if image fails to load
-                                const fallback = e.currentTarget.nextElementSibling as HTMLElement;
-                                if (fallback) fallback.style.display = "flex";
-                              }}
-                            />
-                            <div className="hidden w-full h-full items-center justify-center text-muted-foreground">
-                              <Icon className="w-10 h-10" />
+                        // Always show default theme for APK category
+                        if (category.category === "apk") {
+                          return (
+                            <div className="w-full h-full bg-gradient-to-br from-indigo-500 via-purple-500 to-pink-500 dark:from-indigo-600 dark:via-purple-600 dark:to-pink-600 relative overflow-hidden p-3">
+                              {/* Grid of app icons */}
+                              <div className="grid grid-cols-3 gap-2 h-full">
+                                {[...Array(9)].map((_, i) => (
+                                  <div
+                                    key={i}
+                                    className="bg-white/20 dark:bg-white/10 backdrop-blur-sm rounded-lg flex items-center justify-center border border-white/30 dark:border-white/20 shadow-lg"
+                                  >
+                                    <Smartphone 
+                                      className={`w-6 h-6 text-white ${
+                                        i % 3 === 0 ? "rotate-[-5deg]" : i % 3 === 2 ? "rotate-[5deg]" : ""
+                                      }`}
+                                    />
+                                  </div>
+                                ))}
+                              </div>
+                              {/* Overlay gradient */}
+                              <div className="absolute inset-0 bg-gradient-to-t from-black/20 via-transparent to-transparent"></div>
                             </div>
-                          </>
+                          );
+                        }
+                        
+                        // Always show default theme for template category
+                        if (category.category === "template") {
+                          return (
+                            <div className="w-full h-full bg-gradient-to-br from-green-400 via-blue-500 to-indigo-600 dark:from-green-600 dark:via-blue-600 dark:to-indigo-700 flex items-center justify-center relative overflow-hidden">
+                              {/* Animated background pattern */}
+                              <div className="absolute inset-0 opacity-20">
+                                <div className="absolute top-0 right-0 w-32 h-32 bg-white rounded-full blur-3xl"></div>
+                                <div className="absolute bottom-0 left-0 w-40 h-40 bg-white rounded-full blur-3xl"></div>
+                              </div>
+                              <FileText className="w-16 h-16 text-white relative z-10 drop-shadow-lg" />
+                            </div>
+                          );
+                        }
+                        
+                        // Always show default theme for video category
+                        if (category.category === "video") {
+                          return (
+                            <div className="w-full h-full bg-gradient-to-br from-red-500 via-orange-500 to-yellow-500 dark:from-red-600 dark:via-orange-600 dark:to-yellow-600 flex items-center justify-center relative overflow-hidden">
+                              {/* Animated background pattern */}
+                              <div className="absolute inset-0 opacity-20">
+                                <div className="absolute top-0 left-0 w-32 h-32 bg-white rounded-full blur-3xl"></div>
+                                <div className="absolute bottom-0 right-0 w-40 h-40 bg-white rounded-full blur-3xl"></div>
+                              </div>
+                              <Play className="w-16 h-16 text-white relative z-10 drop-shadow-lg" />
+                            </div>
+                          );
+                        }
+                        
+                        // Always show default theme for image category
+                        if (category.category === "image") {
+                          return (
+                            <div className="w-full h-full bg-gradient-to-br from-blue-400 via-purple-500 to-pink-500 dark:from-blue-600 dark:via-purple-600 dark:to-pink-600 flex items-center justify-center relative overflow-hidden">
+                              {/* Animated background pattern */}
+                              <div className="absolute inset-0 opacity-20">
+                                <div className="absolute top-0 left-0 w-32 h-32 bg-white rounded-full blur-3xl"></div>
+                                <div className="absolute bottom-0 right-0 w-40 h-40 bg-white rounded-full blur-3xl"></div>
+                              </div>
+                              <ImageIcon className="w-16 h-16 text-white relative z-10 drop-shadow-lg" />
+                            </div>
+                          );
+                        }
+                        
+                        // Always show default theme for AI Video Generator category
+                        if (category.category === "aivideogenerator") {
+                          return (
+                            <div className="w-full h-full bg-gradient-to-br from-cyan-400 via-blue-500 to-purple-500 dark:from-cyan-600 dark:via-blue-600 dark:to-purple-600 flex items-center justify-center relative overflow-hidden">
+                              {/* Animated background pattern */}
+                              <div className="absolute inset-0 opacity-20">
+                                <div className="absolute top-0 left-0 w-32 h-32 bg-white rounded-full blur-3xl"></div>
+                                <div className="absolute bottom-0 right-0 w-40 h-40 bg-white rounded-full blur-3xl"></div>
+                              </div>
+                              <Sparkles className="w-16 h-16 text-white relative z-10 drop-shadow-lg" />
+                            </div>
+                          );
+                        }
+                        
+                        // Default fallback for unknown categories
+                        return (
+                          <div className="w-full h-full flex items-center justify-center text-muted-foreground">
+                            <Icon className="w-10 h-10" />
+                          </div>
                         );
                       })()}
-                      {!category.previewUrl && (
-                        <div className="w-full h-full flex items-center justify-center text-muted-foreground">
-                          <Icon className="w-10 h-10" />
-                        </div>
-                      )}
                       {category.latestTitle && (
                         <div className="absolute bottom-0 inset-x-0 bg-gradient-to-t from-black/80 via-black/60 to-transparent text-white p-3 text-sm">
                           <p className="font-medium line-clamp-1">{category.latestTitle}</p>

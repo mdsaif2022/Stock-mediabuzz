@@ -2,10 +2,39 @@ import Layout from "@/components/Layout";
 import { User, Download, Star, Settings, LogOut, Sparkles, Loader2, DollarSign } from "lucide-react";
 import { Link, useNavigate } from "react-router-dom";
 import { useAuth } from "@/contexts/AuthContext";
+import { useState, useEffect } from "react";
+import { apiFetch } from "@/lib/api";
+import ChangePasswordDialog from "@/components/ChangePasswordDialog";
 
 export default function Dashboard() {
   const { currentUser, logout, creatorProfile } = useAuth();
   const navigate = useNavigate();
+  const [totalDownloads, setTotalDownloads] = useState(0);
+  const [isLoadingDownloads, setIsLoadingDownloads] = useState(true);
+  const [isChangePasswordOpen, setIsChangePasswordOpen] = useState(false);
+
+  useEffect(() => {
+    const fetchDownloadCount = async () => {
+      if (!currentUser) {
+        setIsLoadingDownloads(false);
+        return;
+      }
+
+      try {
+        const response = await apiFetch("/api/download/history");
+        if (response.ok) {
+          const data = await response.json();
+          setTotalDownloads(data.totalDownloads || 0);
+        }
+      } catch (error) {
+        console.error("Failed to fetch download count:", error);
+      } finally {
+        setIsLoadingDownloads(false);
+      }
+    };
+
+    fetchDownloadCount();
+  }, [currentUser]);
 
   const handleLogout = async () => {
     try {
@@ -106,7 +135,13 @@ export default function Dashboard() {
               <div className="flex justify-between items-start mb-3 sm:mb-4">
                 <div className="flex-1 min-w-0">
                   <p className="text-muted-foreground text-xs sm:text-sm">Total Downloads</p>
-                  <p className="text-2xl sm:text-3xl font-bold mt-1 sm:mt-2">0</p>
+                  <p className="text-2xl sm:text-3xl font-bold mt-1 sm:mt-2">
+                    {isLoadingDownloads ? (
+                      <Loader2 className="w-5 h-5 animate-spin inline-block" />
+                    ) : (
+                      totalDownloads
+                    )}
+                  </p>
                 </div>
                 <Download className="w-6 h-6 sm:w-8 sm:h-8 text-primary flex-shrink-0 ml-2" />
               </div>
@@ -165,7 +200,10 @@ export default function Dashboard() {
                   >
                     Edit Profile
                   </Link>
-                  <button className="w-full text-left px-3 py-2 rounded text-xs sm:text-sm hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors touch-manipulation">
+                  <button 
+                    onClick={() => setIsChangePasswordOpen(true)}
+                    className="w-full text-left px-3 py-2 rounded text-xs sm:text-sm hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors touch-manipulation"
+                  >
                     Change Password
                   </button>
                   <button className="w-full text-left px-3 py-2 rounded text-xs sm:text-sm hover:bg-slate-50 dark:hover:bg-slate-800 transition-colors touch-manipulation">
@@ -187,6 +225,10 @@ export default function Dashboard() {
           </div>
         </div>
       </div>
+      <ChangePasswordDialog 
+        open={isChangePasswordOpen} 
+        onOpenChange={setIsChangePasswordOpen} 
+      />
     </Layout>
   );
 }

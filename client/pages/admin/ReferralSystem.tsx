@@ -2,16 +2,29 @@ import AdminLayout from "@/components/AdminLayout";
 import { useState, useEffect, useCallback, useRef } from "react";
 import { createPortal } from "react-dom";
 import { apiFetch } from "@/lib/api";
-import { SharePost, ReferralRecord, ShareRecord, WithdrawRequest } from "@shared/api";
+import { SharePost, ReferralRecord, ShareRecord, WithdrawRequest, Ad, AdViewRecord, CreateAdRequest } from "@shared/api";
 import { Plus, Edit, Trash2, Check, X, DollarSign, Users, Share2, ExternalLink, Copy, CheckCircle, XCircle, Clock, Image as ImageIcon, Video, Upload, X as XIcon } from "lucide-react";
 import { cn } from "@/lib/utils";
 
 export default function AdminReferralSystem() {
-  const [activeTab, setActiveTab] = useState<"share-posts" | "referrals" | "shares" | "withdraws">("share-posts");
+  const [activeTab, setActiveTab] = useState<"share-posts" | "referrals" | "shares" | "withdraws" | "ads">("share-posts");
   const [sharePosts, setSharePosts] = useState<SharePost[]>([]);
   const [referrals, setReferrals] = useState<ReferralRecord[]>([]);
   const [shareRecords, setShareRecords] = useState<ShareRecord[]>([]);
   const [withdrawRequests, setWithdrawRequests] = useState<WithdrawRequest[]>([]);
+  const [ads, setAds] = useState<Ad[]>([]);
+  const [adViews, setAdViews] = useState<AdViewRecord[]>([]);
+  const [showAddAdModal, setShowAddAdModal] = useState(false);
+  const [editingAd, setEditingAd] = useState<Ad | null>(null);
+  const [adFormData, setAdFormData] = useState<CreateAdRequest>({
+    title: "",
+    adType: "collaboration",
+    adUrl: "",
+    status: "active",
+    minCoins: 1,
+    maxCoins: 50,
+    watchDuration: 15,
+  });
   const [loading, setLoading] = useState(true);
   const [showAddPostModal, setShowAddPostModal] = useState(false);
   const [editingPost, setEditingPost] = useState<SharePost | null>(null);
@@ -60,6 +73,15 @@ export default function AdminReferralSystem() {
         const data = await res.json();
         console.log("Withdraw requests data:", data);
         setWithdrawRequests(data.data || []);
+      } else if (activeTab === "ads") {
+        const [adsRes, viewsRes] = await Promise.all([
+          apiFetch("/api/admin/ads"),
+          apiFetch("/api/admin/ad-views"),
+        ]);
+        const adsData = await adsRes.json();
+        const viewsData = await viewsRes.json();
+        setAds(adsData.data || []);
+        setAdViews(viewsData.data || []);
       }
     } catch (error: any) {
       console.error("Failed to fetch data:", error);
@@ -374,6 +396,17 @@ export default function AdminReferralSystem() {
             )}
           >
             Withdraw Requests
+          </button>
+          <button
+            onClick={() => setActiveTab("ads")}
+            className={cn(
+              "px-4 py-2 font-medium transition-colors",
+              activeTab === "ads"
+                ? "border-b-2 border-primary text-primary"
+                : "text-muted-foreground hover:text-foreground"
+            )}
+          >
+            Ads
           </button>
         </div>
 
@@ -727,6 +760,331 @@ export default function AdminReferralSystem() {
               </div>
             )}
           </div>
+        )}
+
+        {/* Ads Tab */}
+        {activeTab === "ads" && (
+          <div className="space-y-4">
+            <div className="flex justify-end">
+              <button
+                onClick={() => {
+                  setEditingAd(null);
+                  setAdFormData({
+                    title: "",
+                    adType: "collaboration",
+                    adUrl: "",
+                    status: "active",
+                    minCoins: 1,
+                    maxCoins: 50,
+                    watchDuration: 15,
+                  });
+                  setShowAddAdModal(true);
+                }}
+                className="flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90"
+              >
+                <Plus className="w-4 h-4" />
+                Add Ad
+              </button>
+            </div>
+
+            {loading ? (
+              <div className="text-center py-8">Loading...</div>
+            ) : (
+              <>
+                <div className="bg-card border border-border rounded-lg p-6">
+                  <h2 className="text-xl font-bold mb-4">Ads</h2>
+                  {ads.length === 0 ? (
+                    <div className="text-center py-8 text-muted-foreground">No ads found</div>
+                  ) : (
+                    <div className="overflow-x-auto">
+                      <table className="w-full">
+                        <thead>
+                          <tr className="border-b border-border">
+                            <th className="px-4 py-3 text-left">Title</th>
+                            <th className="px-4 py-3 text-left">Type</th>
+                            <th className="px-4 py-3 text-left">Coins</th>
+                            <th className="px-4 py-3 text-left">Duration</th>
+                            <th className="px-4 py-3 text-left">Status</th>
+                            <th className="px-4 py-3 text-right">Actions</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {ads.map((ad) => (
+                            <tr key={ad.id} className="border-b border-border">
+                              <td className="px-4 py-3">{ad.title}</td>
+                              <td className="px-4 py-3">
+                                <span className={cn(
+                                  "px-2 py-1 rounded-full text-xs",
+                                  ad.adType === "adsterra"
+                                    ? "bg-blue-100 text-blue-800 dark:bg-blue-900 dark:text-blue-200"
+                                    : "bg-purple-100 text-purple-800 dark:bg-purple-900 dark:text-purple-200"
+                                )}>
+                                  {ad.adType}
+                                </span>
+                              </td>
+                              <td className="px-4 py-3">{ad.minCoins}-{ad.maxCoins}</td>
+                              <td className="px-4 py-3">{ad.watchDuration}s</td>
+                              <td className="px-4 py-3">
+                                <span className={cn(
+                                  "px-2 py-1 rounded-full text-xs",
+                                  ad.status === "active"
+                                    ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200"
+                                    : "bg-gray-100 text-gray-800 dark:bg-gray-900 dark:text-gray-200"
+                                )}>
+                                  {ad.status}
+                                </span>
+                              </td>
+                              <td className="px-4 py-3 text-right">
+                                <div className="flex justify-end gap-2">
+                                  <button
+                                    onClick={() => {
+                                      setEditingAd(ad);
+                                      setAdFormData({
+                                        title: ad.title,
+                                        adType: ad.adType,
+                                        adUrl: ad.adUrl,
+                                        adsterraId: ad.adsterraId,
+                                        status: ad.status,
+                                        minCoins: ad.minCoins,
+                                        maxCoins: ad.maxCoins,
+                                        watchDuration: ad.watchDuration,
+                                      });
+                                      setShowAddAdModal(true);
+                                    }}
+                                    className="p-2 hover:bg-slate-100 dark:hover:bg-slate-800 rounded"
+                                  >
+                                    <Edit className="w-4 h-4" />
+                                  </button>
+                                  <button
+                                    onClick={async () => {
+                                      if (!confirm("Are you sure you want to delete this ad?")) return;
+                                      try {
+                                        const res = await apiFetch(`/api/admin/ads/${ad.id}`, { method: "DELETE" });
+                                        if (res.ok) {
+                                          alert("Ad deleted successfully!");
+                                          fetchData();
+                                        } else {
+                                          const error = await res.json();
+                                          alert(error.error || "Failed to delete ad");
+                                        }
+                                      } catch (error: any) {
+                                        alert(error.message || "Failed to delete ad");
+                                      }
+                                    }}
+                                    className="p-2 hover:bg-red-100 dark:hover:bg-red-900 rounded text-red-600 dark:text-red-400"
+                                  >
+                                    <Trash2 className="w-4 h-4" />
+                                  </button>
+                                </div>
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+
+                <div className="bg-card border border-border rounded-lg p-6">
+                  <h2 className="text-xl font-bold mb-4">Ad Views</h2>
+                  {adViews.length === 0 ? (
+                    <div className="text-center py-8 text-muted-foreground">No ad views found</div>
+                  ) : (
+                    <div className="overflow-x-auto">
+                      <table className="w-full">
+                        <thead>
+                          <tr className="border-b border-border">
+                            <th className="px-4 py-3 text-left">User</th>
+                            <th className="px-4 py-3 text-left">Ad</th>
+                            <th className="px-4 py-3 text-left">Coins</th>
+                            <th className="px-4 py-3 text-left">Duration</th>
+                            <th className="px-4 py-3 text-left">Status</th>
+                            <th className="px-4 py-3 text-left">Date</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {adViews.map((view: any) => (
+                            <tr key={view.id} className="border-b border-border">
+                              <td className="px-4 py-3">{view.userName || view.userId}</td>
+                              <td className="px-4 py-3">{view.adTitle || view.adId}</td>
+                              <td className="px-4 py-3">{view.coinsEarned}</td>
+                              <td className="px-4 py-3">{view.watchDuration}s</td>
+                              <td className="px-4 py-3">
+                                <span className={cn(
+                                  "px-2 py-1 rounded-full text-xs",
+                                  view.status === "approved"
+                                    ? "bg-green-100 text-green-800 dark:bg-green-900 dark:text-green-200"
+                                    : view.status === "rejected"
+                                    ? "bg-red-100 text-red-800 dark:bg-red-900 dark:text-red-200"
+                                    : "bg-yellow-100 text-yellow-800 dark:bg-yellow-900 dark:text-yellow-200"
+                                )}>
+                                  {view.status}
+                                </span>
+                              </td>
+                              <td className="px-4 py-3">{new Date(view.createdAt).toLocaleDateString()}</td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  )}
+                </div>
+              </>
+            )}
+          </div>
+        )}
+
+        {/* Add/Edit Ad Modal */}
+        {showAddAdModal && typeof document !== 'undefined' && createPortal(
+          <div className="fixed inset-0 bg-black/50 z-[9999] overflow-y-auto" onClick={() => {
+            setShowAddAdModal(false);
+            setEditingAd(null);
+          }}>
+            <div className="min-h-full flex items-start justify-center p-4 pt-20" onClick={(e) => e.stopPropagation()}>
+              <div className="bg-white dark:bg-slate-900 rounded-lg p-6 w-full max-w-2xl my-8 relative z-[10000] shadow-2xl">
+                <div className="flex items-center justify-between mb-4">
+                  <h2 className="text-xl font-bold">{editingAd ? "Edit Ad" : "Add Ad"}</h2>
+                  <button
+                    onClick={() => {
+                      setShowAddAdModal(false);
+                      setEditingAd(null);
+                    }}
+                    className="p-1 hover:bg-slate-100 dark:hover:bg-slate-800 rounded-lg"
+                  >
+                    <XIcon className="w-5 h-5" />
+                  </button>
+                </div>
+                <div className="space-y-4">
+                  <div>
+                    <label className="block text-sm font-medium mb-1">Title</label>
+                    <input
+                      type="text"
+                      value={adFormData.title}
+                      onChange={(e) => setAdFormData({ ...adFormData, title: e.target.value })}
+                      className="w-full px-3 py-2 border border-border rounded-lg bg-white dark:bg-slate-800"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium mb-1">Ad Type</label>
+                    <select
+                      value={adFormData.adType}
+                      onChange={(e) => setAdFormData({ ...adFormData, adType: e.target.value as "adsterra" | "collaboration" })}
+                      className="w-full px-3 py-2 border border-border rounded-lg bg-white dark:bg-slate-800"
+                    >
+                      <option value="collaboration">Collaboration</option>
+                      <option value="adsterra">Adsterra</option>
+                    </select>
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium mb-1">Ad URL</label>
+                    <input
+                      type="url"
+                      value={adFormData.adUrl}
+                      onChange={(e) => setAdFormData({ ...adFormData, adUrl: e.target.value })}
+                      className="w-full px-3 py-2 border border-border rounded-lg bg-white dark:bg-slate-800"
+                    />
+                  </div>
+                  {adFormData.adType === "adsterra" && (
+                    <div>
+                      <label className="block text-sm font-medium mb-1">Adsterra ID (Optional)</label>
+                      <input
+                        type="text"
+                        value={adFormData.adsterraId || ""}
+                        onChange={(e) => setAdFormData({ ...adFormData, adsterraId: e.target.value })}
+                        className="w-full px-3 py-2 border border-border rounded-lg bg-white dark:bg-slate-800"
+                      />
+                    </div>
+                  )}
+                  <div className="grid grid-cols-2 gap-4">
+                    <div>
+                      <label className="block text-sm font-medium mb-1">
+                        Min Coins {adFormData.adType === "adsterra" ? "(Default: 20)" : "(Default: 10)"}
+                      </label>
+                      <input
+                        type="number"
+                        value={adFormData.minCoins}
+                        onChange={(e) => setAdFormData({ ...adFormData, minCoins: parseInt(e.target.value) || (adFormData.adType === "adsterra" ? 20 : 10) })}
+                        className="w-full px-3 py-2 border border-border rounded-lg bg-white dark:bg-slate-800"
+                      />
+                    </div>
+                    <div>
+                      <label className="block text-sm font-medium mb-1">Max Coins (Default: 80)</label>
+                      <input
+                        type="number"
+                        value={adFormData.maxCoins}
+                        onChange={(e) => setAdFormData({ ...adFormData, maxCoins: parseInt(e.target.value) || 80 })}
+                        className="w-full px-3 py-2 border border-border rounded-lg bg-white dark:bg-slate-800"
+                      />
+                    </div>
+                  </div>
+                  <p className="text-xs text-muted-foreground">
+                    {adFormData.adType === "adsterra" 
+                      ? "Adsterra ads: 20-80 coins randomly"
+                      : "Collaboration ads: 10-80 coins randomly"}
+                  </p>
+                  <div>
+                    <label className="block text-sm font-medium mb-1">Watch Duration (seconds)</label>
+                    <input
+                      type="number"
+                      value={adFormData.watchDuration}
+                      onChange={(e) => setAdFormData({ ...adFormData, watchDuration: parseInt(e.target.value) || 15 })}
+                      className="w-full px-3 py-2 border border-border rounded-lg bg-white dark:bg-slate-800"
+                    />
+                  </div>
+                  <div>
+                    <label className="block text-sm font-medium mb-1">Status</label>
+                    <select
+                      value={adFormData.status}
+                      onChange={(e) => setAdFormData({ ...adFormData, status: e.target.value as "active" | "inactive" })}
+                      className="w-full px-3 py-2 border border-border rounded-lg bg-white dark:bg-slate-800"
+                    >
+                      <option value="active">Active</option>
+                      <option value="inactive">Inactive</option>
+                    </select>
+                  </div>
+                  <div className="flex gap-2 justify-end">
+                    <button
+                      onClick={() => {
+                        setShowAddAdModal(false);
+                        setEditingAd(null);
+                      }}
+                      className="px-4 py-2 border border-border rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800"
+                    >
+                      Cancel
+                    </button>
+                    <button
+                      onClick={async () => {
+                        try {
+                          const endpoint = editingAd ? `/api/admin/ads/${editingAd.id}` : "/api/admin/ads";
+                          const method = editingAd ? "PUT" : "POST";
+                          const res = await apiFetch(endpoint, {
+                            method,
+                            headers: { "Content-Type": "application/json" },
+                            body: JSON.stringify(adFormData),
+                          });
+                          if (res.ok) {
+                            alert(editingAd ? "Ad updated successfully!" : "Ad created successfully!");
+                            setShowAddAdModal(false);
+                            setEditingAd(null);
+                            fetchData();
+                          } else {
+                            const error = await res.json();
+                            alert(error.error || "Failed to save ad");
+                          }
+                        } catch (error: any) {
+                          alert(error.message || "Failed to save ad");
+                        }
+                      }}
+                      className="px-4 py-2 bg-primary text-primary-foreground rounded-lg hover:bg-primary/90"
+                    >
+                      {editingAd ? "Update" : "Create"}
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>,
+          document.body
         )}
 
         {/* Add/Edit Post Modal - Using Portal to render outside AdminLayout */}

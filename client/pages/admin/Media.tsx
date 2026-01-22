@@ -1,5 +1,5 @@
 import AdminLayout from "@/components/AdminLayout";
-import { Plus, Edit, Search, Filter, Upload, X, File, Image as ImageIcon, Video, Music, FileText, CheckCircle2, Link as LinkIcon, Check, XCircle, AlertCircle, Trash2, Loader2, ExternalLink } from "lucide-react";
+import { Plus, Edit, Search, Filter, Upload, X, File, Image as ImageIcon, Video, Music, FileText, CheckCircle2, Link as LinkIcon, Check, XCircle, AlertCircle, Trash2, Loader2, ExternalLink, Sparkles } from "lucide-react";
 import { useState, useRef, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { apiFetch } from "@/lib/api";
@@ -224,6 +224,7 @@ export default function AdminMedia() {
     if (lower === "video") return Video;
     if (lower === "image") return ImageIcon;
     if (lower === "audio") return Music;
+    if (lower === "aivideogenerator" || lower === "ai video generator") return Sparkles;
     return FileText;
   };
 
@@ -234,6 +235,7 @@ export default function AdminMedia() {
       if (file.category === 'image') return ImageIcon;
       if (file.category === 'video') return Video;
       if (file.category === 'audio') return Music;
+      if (file.category === 'aivideogenerator') return Sparkles;
       return FileText;
     }
     
@@ -844,6 +846,7 @@ export default function AdminMedia() {
                   <option value="Audio">Audio</option>
                   <option value="Template">Template</option>
                   <option value="APK">APK (Android Apps)</option>
+                  <option value="AIVideoGenerator">AI Video Generator</option>
                 </select>
               </div>
               <div>

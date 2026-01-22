@@ -157,6 +157,7 @@ export const handleFileUpload: RequestHandler = async (req, res) => {
       if (normalized === "audio" || normalized === "audios" || normalized === "sound" || normalized === "music") return "audio";
       if (normalized === "template" || normalized === "templates") return "template";
       if (normalized === "apk" || normalized === "apks" || normalized === "android" || normalized === "app") return "apk";
+      if (normalized === "aivideogenerator" || normalized === "ai-video-generator" || normalized === "ai video generator" || normalized === "aivideo" || normalized === "aivideogen") return "aivideogenerator";
       return normalized; // Return as-is if unknown
     };
 
@@ -361,6 +362,7 @@ export const handleUrlUpload: RequestHandler = async (req, res) => {
       if (normalized === "audio" || normalized === "audios" || normalized === "sound" || normalized === "music") return "audio";
       if (normalized === "template" || normalized === "templates") return "template";
       if (normalized === "apk" || normalized === "apks" || normalized === "android" || normalized === "app") return "apk";
+      if (normalized === "aivideogenerator" || normalized === "ai-video-generator" || normalized === "ai video generator" || normalized === "aivideo" || normalized === "aivideogen") return "aivideogenerator";
       return normalized; // Return as-is if unknown
     };
 

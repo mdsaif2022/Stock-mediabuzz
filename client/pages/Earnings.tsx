@@ -16,6 +16,7 @@ export default function Earnings() {
     shareCoins: 0,
     adminPostShareCoins: 0,
     randomShareCoins: 0,
+    adViewCoins: 0,
     pendingWithdraw: 0,
     availableCoins: 0,
   });
@@ -64,6 +65,7 @@ export default function Earnings() {
         shareCoins: earningsData.shareCoins ?? 0,
         adminPostShareCoins: earningsData.adminPostShareCoins ?? 0,
         randomShareCoins: earningsData.randomShareCoins ?? 0,
+        adViewCoins: earningsData.adViewCoins ?? 0,
         pendingWithdraw: earningsData.pendingWithdraw ?? 0,
         availableCoins: earningsData.availableCoins ?? 0,
       });
@@ -298,6 +300,13 @@ export default function Earnings() {
               </div>
               <div className="bg-card border border-border rounded-lg p-6">
                 <div className="flex items-center justify-between mb-2">
+                  <span className="text-sm text-muted-foreground">Ad View Coins</span>
+                  <DollarSign className="w-5 h-5 text-primary" />
+                </div>
+                <div className="text-2xl font-bold">{(earnings.adViewCoins ?? 0).toLocaleString()}</div>
+              </div>
+              <div className="bg-card border border-border rounded-lg p-6">
+                <div className="flex items-center justify-between mb-2">
                   <span className="text-sm text-muted-foreground">Available Coins</span>
                   <TrendingUp className="w-5 h-5 text-primary" />
                 </div>
@@ -318,10 +327,29 @@ export default function Earnings() {
                   <span className="font-semibold">{(earnings.randomShareCoins ?? 0).toLocaleString()} coins</span>
                 </div>
                 <div className="flex justify-between">
+                  <span>Ad View Coins:</span>
+                  <span className="font-semibold">{(earnings.adViewCoins ?? 0).toLocaleString()} coins</span>
+                </div>
+                <div className="flex justify-between">
                   <span>Pending Withdraw:</span>
                   <span className="font-semibold text-yellow-600 dark:text-yellow-400">{(earnings.pendingWithdraw ?? 0).toLocaleString()} coins</span>
                 </div>
               </div>
+            </div>
+
+            {/* Watch Ads Section */}
+            <div className="bg-card border border-border rounded-lg p-6">
+              <h2 className="text-xl font-bold mb-4">Watch Ads & Earn</h2>
+              <p className="text-muted-foreground mb-4">
+                Watch ads for 15 seconds to earn 1-50 coins randomly. You must watch the full duration to earn coins.
+              </p>
+              <Link
+                to="/ads"
+                className="inline-flex items-center gap-2 px-4 py-2 bg-primary text-primary-foreground rounded-lg font-semibold hover:bg-primary/90 transition-colors"
+              >
+                <DollarSign className="w-4 h-4" />
+                Watch Ads Now
+              </Link>
             </div>
           </div>
         )}

@@ -48,7 +48,7 @@ export interface Media {
   id: string;
   title: string;
   description: string;
-  category: "video" | "image" | "audio" | "template" | "apk";
+  category: "video" | "image" | "audio" | "template" | "apk" | "aivideogenerator";
   type: string;
   fileSize: string;
   duration?: string;
@@ -73,7 +73,7 @@ export interface Media {
 export interface MediaUploadRequest {
   title: string;
   description: string;
-  category: "video" | "image" | "audio" | "template" | "apk";
+  category: "video" | "image" | "audio" | "template" | "apk" | "aivideogenerator";
   type: string;
   tags: string[];
   isPremium: boolean;
@@ -316,6 +316,7 @@ export interface UserEarnings {
   shareCoins: number;
   adminPostShareCoins: number;
   randomShareCoins: number;
+  adViewCoins: number;
   pendingWithdraw: number;
   availableCoins: number;
 }
@@ -407,6 +408,120 @@ export interface PopupAdResponse {
   total: number;
 }
 
+// Ad Watching System Types
+export interface Ad {
+  id: string;
+  title: string;
+  adType: "adsterra" | "collaboration";
+  adUrl: string;
+  adsterraId?: string; // For Adsterra ads
+  status: "active" | "inactive";
+  minCoins: number; // Minimum coins (1)
+  maxCoins: number; // Maximum coins (50)
+  watchDuration: number; // Required watch duration in seconds (15)
+  createdAt: string;
+  updatedAt: string;
+  isWatched?: boolean; // Whether user has watched this ad in last 24 hours
+  canWatch?: boolean; // Whether user can watch this ad now
+}
+
+export interface AdViewRecord {
+  id: string;
+  userId: string;
+  adId: string;
+  coinsEarned: number;
+  watchDuration: number; // Actual watch duration in seconds
+  completed: boolean; // Whether user watched full 15 seconds
+  clicked: boolean; // Whether user clicked (required for Adsterra ads)
+  createdAt: string;
+  status: "pending" | "approved" | "rejected";
+  adminNote?: string;
+}
+
+export interface CreateAdRequest {
+  title: string;
+  adType: "adsterra" | "collaboration";
+  adUrl: string;
+  adsterraId?: string;
+  status?: "active" | "inactive";
+  minCoins?: number;
+  maxCoins?: number;
+  watchDuration?: number;
+}
+
+export interface UpdateAdRequest {
+  title?: string;
+  adType?: "adsterra" | "collaboration";
+  adUrl?: string;
+  adsterraId?: string;
+  status?: "active" | "inactive";
+  minCoins?: number;
+  maxCoins?: number;
+  watchDuration?: number;
+}
+
+export interface StartAdWatchRequest {
+  adId: string;
+}
+
+export interface StartAdWatchResponse {
+  watchId: string;
+  ad: Ad;
+  message: string;
+}
+
+export interface CompleteAdWatchRequest {
+  watchId: string;
+  watchDuration: number; // Actual watch duration in seconds
+  clicked?: boolean; // Whether user clicked (required for Adsterra ads)
+}
+
+export interface CompleteAdWatchResponse {
+  success: boolean;
+  coinsEarned: number;
+  message: string;
+}
+
 export interface PopupAdImpressionRequest {
   adId: string;
+}
+
+// AI Video Generation Types
+export interface AIVideoGenerateRequest {
+  prompt: string;
+  duration?: number;
+  style?: string;
+  aspectRatio?: string;
+}
+
+export interface AIVideoGenerateResponse {
+  success: boolean;
+  video: AIGeneratedVideo;
+  message: string;
+}
+
+export interface AIGeneratedVideo {
+  id: string;
+  userId?: string;
+  prompt: string;
+  videoUrl?: string;
+  thumbnailUrl?: string;
+  status: "processing" | "completed" | "failed";
+  duration?: number;
+  style?: string;
+  aspectRatio?: string;
+  createdAt: string;
+  updatedAt: string;
+  errorMessage?: string;
+}
+
+export interface AIVideoStatusResponse {
+  success: boolean;
+  video: AIGeneratedVideo;
+}
+
+export interface AIVideoHistoryResponse {
+  success: boolean;
+  videos: AIGeneratedVideo[];
+  total: number;
 }

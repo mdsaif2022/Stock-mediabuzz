@@ -13,31 +13,46 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
   const [isSidebarOpen, setIsSidebarOpen] = useState(false);
   const [isMobile, setIsMobile] = useState(false);
   const [hasAdminSession, setHasAdminSession] = useState(false);
+  const [isMounted, setIsMounted] = useState(false);
   const location = useLocation();
   const navigate = useNavigate();
   const { currentUser, logout } = useAuth();
 
+  // Set mounted flag immediately to prevent hydration mismatch
   useEffect(() => {
+    setIsMounted(true);
+  }, []);
+
+  // Prevent hydration mismatch by only checking client-side
+  useEffect(() => {
+    if (!isMounted) return;
+
     const adminSession = sessionStorage.getItem("adminSession") === "true";
     setHasAdminSession(adminSession);
 
-    if (adminSession) {
-      return;
+    // Check authentication after mount to avoid hydration issues
+    if (!adminSession) {
+      if (currentUser && currentUser.email === (import.meta.env.VITE_ADMIN_EMAIL || "admin@freemediabuzz.com")) {
+        return;
+      }
+
+      if ((currentUser as any)?.role === "admin") {
+        return;
+      }
+
+      // Delay navigation to avoid hydration issues
+      const timeoutId = setTimeout(() => {
+        navigate("/login?role=admin");
+      }, 100);
+
+      return () => clearTimeout(timeoutId);
     }
+  }, [currentUser, navigate, isMounted]);
 
-    if (currentUser && currentUser.email === (import.meta.env.VITE_ADMIN_EMAIL || "mediabuzz@local")) {
-      return;
-    }
-
-    if ((currentUser as any)?.role === "admin") {
-      return;
-    }
-
-    navigate("/login?role=admin");
-  }, [currentUser, navigate]);
-
-  // Detect mobile screen size
+  // Detect mobile screen size - only after mount
   useEffect(() => {
+    if (!isMounted) return;
+
     const checkMobile = () => {
       setIsMobile(window.innerWidth < 1024);
       if (window.innerWidth >= 1024) {
@@ -50,7 +65,7 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
     checkMobile();
     window.addEventListener("resize", checkMobile);
     return () => window.removeEventListener("resize", checkMobile);
-  }, []);
+  }, [isMounted]);
 
   const isActive = (path: string) => location.pathname === path;
 
@@ -69,6 +84,19 @@ export default function AdminLayout({ children }: AdminLayoutProps) {
       setIsSidebarOpen(false);
     }
   };
+
+  // Don't render content until mounted to prevent hydration mismatch
+  // But we still render the container div to ensure hooks are always called
+  if (!isMounted) {
+    return (
+      <div className="flex h-screen bg-slate-50 dark:bg-slate-950 items-center justify-center">
+        <div className="text-center">
+          <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-primary mx-auto mb-4"></div>
+          <p className="text-sm text-muted-foreground">Loading admin panel...</p>
+        </div>
+      </div>
+    );
+  }
 
   return (
     <div className="flex h-screen bg-slate-50 dark:bg-slate-950">

@@ -122,7 +122,7 @@ export default function Header() {
           </Link>
 
           {/* Desktop Navigation */}
-          <nav className="hidden md:flex items-center gap-8">
+          <nav className="hidden lg:flex items-center gap-8">
             <Link to="/browse" className="text-sm font-medium text-foreground hover:text-primary transition-colors">
               {t("nav.browse")}
             </Link>
@@ -258,7 +258,7 @@ export default function Header() {
             {/* Mobile Menu Button - Always visible on mobile */}
             <button
               onClick={() => setIsMenuOpen(!isMenuOpen)}
-              className="md:hidden flex-shrink-0"
+              className="lg:hidden flex-shrink-0"
             >
               {isMenuOpen ? (
                 <X className="w-5 h-5" />
@@ -271,7 +271,7 @@ export default function Header() {
 
         {/* Mobile Navigation */}
         {isMenuOpen && (
-          <nav className="md:hidden pb-4 border-t border-border space-y-1">
+          <nav className="lg:hidden pb-4 border-t border-border space-y-1">
             {/* Mobile Theme Toggle */}
             <div className="px-4 py-2 border-b border-border">
               <div className="flex items-center justify-between">

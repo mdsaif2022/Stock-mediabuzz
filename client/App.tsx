@@ -5,6 +5,7 @@ import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
 import { AuthProvider } from "@/contexts/AuthContext";
 import { ThemeProvider } from "@/contexts/ThemeContext";
+import { LanguageProvider } from "@/contexts/LanguageContext";
 import { ErrorBoundary } from "@/components/ErrorBoundary";
 import { ThemeAnimationWrapper } from "@/components/ThemeAnimationWrapper";
 import Index from "./pages/Index";
@@ -17,10 +18,13 @@ import Login from "./pages/Login";
 import Signup from "./pages/Signup";
 import Dashboard from "./pages/Dashboard";
 import Earnings from "./pages/Earnings";
+import AdEarnings from "./pages/AdEarnings";
 import CreatorDashboard from "./pages/CreatorDashboard";
 import Profile from "./pages/Profile";
 import MediaDetail from "./pages/MediaDetail";
+import UserManual from "./pages/UserManual";
 import NavigationDemo from "./pages/NavigationDemo";
+import AIVideoGenerator from "./pages/AIVideoGenerator";
 import AdminDashboard from "./pages/admin/Dashboard";
 import AdminMedia from "./pages/admin/Media";
 import AdminAds from "./pages/admin/Ads";
@@ -58,10 +62,13 @@ function AppRoutes() {
         <Route path="/categories" element={<Categories />} />
         <Route path="/get-app" element={<GetApp />} />
         <Route path="/contact" element={<Contact />} />
+        <Route path="/user-manual" element={<UserManual />} />
+        <Route path="/ai-video-generator" element={<AIVideoGenerator />} />
         <Route path="/login" element={<Login />} />
         <Route path="/signup" element={<Signup />} />
         <Route path="/dashboard" element={<Dashboard />} />
         <Route path="/earnings" element={<Earnings />} />
+        <Route path="/ads" element={<AdEarnings />} />
         <Route path="/creator" element={<CreatorDashboard />} />
         <Route path="/profile" element={<Profile />} />
         <Route path="/navigation-demo" element={<NavigationDemo />} />
@@ -106,22 +113,24 @@ export default function App() {
 
   return (
     <ErrorBoundary>
-      <ThemeProvider>
-        <QueryClientProvider client={queryClient}>
-          <AuthProvider>
-            <TooltipProvider>
-              <Toaster />
-              <Sonner />
-              <BrowserRouter>
-                <ThemeAnimationWrapper />
-                <AdBlockerDetector />
-                <AdScripts />
-                <AppRoutes />
-              </BrowserRouter>
-            </TooltipProvider>
-          </AuthProvider>
-        </QueryClientProvider>
-      </ThemeProvider>
+      <LanguageProvider>
+        <ThemeProvider>
+          <QueryClientProvider client={queryClient}>
+            <AuthProvider>
+              <TooltipProvider>
+                <Toaster />
+                <Sonner />
+                <BrowserRouter>
+                  <ThemeAnimationWrapper />
+                  <AdBlockerDetector />
+                  <AdScripts />
+                  <AppRoutes />
+                </BrowserRouter>
+              </TooltipProvider>
+            </AuthProvider>
+          </QueryClientProvider>
+        </ThemeProvider>
+      </LanguageProvider>
     </ErrorBoundary>
   );
 }

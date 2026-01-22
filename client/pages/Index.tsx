@@ -1,5 +1,5 @@
 import { Link, useNavigate } from "react-router-dom";
-import { ArrowRight, Search, Download, Play, Music, Image as ImageIcon, Zap, Shield, Smile, Smartphone } from "lucide-react";
+import { ArrowRight, Search, Download, Play, Music, Image as ImageIcon, Zap, Shield, Smile, Smartphone, Sparkles } from "lucide-react";
 import Layout from "@/components/Layout";
 import { useEffect, useState } from "react";
 import { Media } from "@shared/api";
@@ -7,8 +7,10 @@ import { apiFetch } from "@/lib/api";
 import { VideoCard } from "@/components/media/VideoCard";
 import { AudioCard } from "@/components/media/AudioCard";
 import { getMediaDisplayStats } from "@/lib/mediaUtils";
+import { useLanguage } from "@/contexts/LanguageContext";
 
 export default function Index() {
+  const { t } = useLanguage();
   const navigate = useNavigate();
   const [trendingMedia, setTrendingMedia] = useState<Media[]>([]);
   const [isLoading, setIsLoading] = useState(true);
@@ -56,6 +58,7 @@ export default function Index() {
       audio: ["from-purple-400 to-pink-600", "from-cyan-400 to-blue-500"],
       template: ["from-green-400 to-blue-600", "from-indigo-400 to-purple-600"],
       apk: ["from-indigo-400 to-purple-500", "from-purple-500 to-pink-600"],
+      aivideogenerator: ["from-cyan-400 to-blue-500", "from-purple-400 to-pink-500"],
     };
     const categoryKey = category.toLowerCase() as keyof typeof colors;
     return colors[categoryKey]?.[index % colors[categoryKey].length] || "from-slate-400 to-slate-600";
@@ -63,7 +66,7 @@ export default function Index() {
 
   const displayTrendingMedia =
     trendingMedia.length > 0
-      ? trendingMedia.slice(0, 7).map((media, index) => ({
+      ? trendingMedia.slice(0, 9).map((media, index) => ({
           media,
           gradient: getThumbnailBg(media.category, index),
         }))
@@ -72,38 +75,51 @@ export default function Index() {
   const categories = [
     {
       id: 1,
-      name: "Video",
+      name: t("home.category.video"),
+      nameKey: "video",
       icon: Play,
       count: "2.4M",
       color: "from-purple-500 to-pink-500",
     },
     {
       id: 2,
-      name: "Images",
+      name: t("home.category.images"),
+      nameKey: "image",
       icon: ImageIcon,
       count: "3.1M",
       color: "from-blue-500 to-cyan-500",
     },
     {
       id: 3,
-      name: "Audio",
+      name: t("home.category.audio"),
+      nameKey: "audio",
       icon: Music,
       count: "2.2M",
       color: "from-orange-500 to-red-500",
     },
     {
       id: 4,
-      name: "Templates",
+      name: t("home.category.templates"),
+      nameKey: "template",
       icon: Zap,
       count: "2.7M",
       color: "from-green-500 to-emerald-500",
     },
     {
       id: 5,
-      name: "APK",
+      name: t("home.category.apk"),
+      nameKey: "apk",
       icon: Smartphone,
       count: "2.9M",
       color: "from-indigo-500 to-purple-500",
+    },
+    {
+      id: 6,
+      name: t("home.category.aivideogenerator"),
+      nameKey: "ai-video-generator",
+      icon: Sparkles,
+      count: "1.2M",
+      color: "from-cyan-500 to-blue-500",
     },
   ];
 
@@ -114,23 +130,23 @@ export default function Index() {
   const features = [
     {
       icon: Download,
-      title: "Unlimited Downloads",
-      description: "Download as many files as you want, completely free. No restrictions, no limits.",
+      title: t("home.unlimitedDownloads"),
+      description: t("home.unlimitedDownloadsDesc"),
     },
     {
       icon: Shield,
-      title: "100% Free & Open",
-      description: "All media is free to use for personal and commercial projects. No subscriptions needed.",
+      title: t("home.freeOpen"),
+      description: t("home.freeOpenDesc"),
     },
     {
       icon: Smile,
-      title: "High Quality",
-      description: "Professional-grade videos, images, audio, and templates from creators worldwide.",
+      title: t("home.highQuality"),
+      description: t("home.highQualityDesc"),
     },
     {
       icon: Zap,
-      title: "Easy to Find",
-      description: "Powerful search with filters by category, format, resolution, and more.",
+      title: t("home.easyToFind"),
+      description: t("home.easyToFindDesc"),
     },
   ];
 
@@ -148,19 +164,19 @@ export default function Index() {
           <div className="max-w-4xl mx-auto text-center">
             <div className="inline-flex items-center gap-2 px-3 sm:px-4 py-1.5 sm:py-2 rounded-full bg-gradient-to-r from-primary/10 to-accent/10 border border-primary/20 mb-4 sm:mb-6">
               <Zap className="w-3.5 h-3.5 sm:w-4 sm:h-4 text-primary flex-shrink-0" />
-              <span className="text-xs sm:text-sm font-medium text-primary">Join 3.4M+ creators using FreeMediaBuzz</span>
+              <span className="text-xs sm:text-sm font-medium text-primary">{t("home.joinCreators")}</span>
             </div>
 
             <h1 className="text-3xl sm:text-4xl md:text-5xl lg:text-6xl font-bold leading-tight mb-4 sm:mb-6 animate-fade-in px-2">
               <span className="bg-gradient-to-r from-primary via-secondary to-accent bg-clip-text text-transparent">
-                Free Stock Media
+                {t("home.title")}
               </span>
               <br />
-              <span className="text-foreground">For Everyone</span>
+              <span className="text-foreground">{t("home.subtitle")}</span>
             </h1>
 
             <p className="text-base sm:text-lg md:text-xl text-muted-foreground mb-6 sm:mb-8 max-w-2xl mx-auto leading-relaxed px-2">
-              Download unlimited videos, images, audio tracks, and templates completely free. No subscriptions, no watermarks, no restrictions.
+              {t("home.description")}
             </p>
 
             {/* Search Bar */}
@@ -179,7 +195,7 @@ export default function Index() {
                 <Search className="absolute left-3 sm:left-4 top-1/2 -translate-y-1/2 w-4 h-4 sm:w-5 sm:h-5 text-muted-foreground" />
                 <input
                   type="text"
-                  placeholder="Search videos, images, audio..."
+                  placeholder={t("home.searchPlaceholder")}
                   value={searchQuery}
                   onChange={(e) => setSearchQuery(e.target.value)}
                   className="w-full pl-10 sm:pl-12 pr-4 py-2.5 sm:py-3 rounded-lg border border-border bg-white dark:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-primary text-sm sm:text-base"
@@ -195,7 +211,7 @@ export default function Index() {
                 }}
                 className="px-5 sm:px-6 py-2.5 sm:py-3 bg-gradient-to-r from-primary to-accent text-white rounded-lg font-semibold hover:shadow-lg transition-all inline-flex items-center justify-center gap-2 text-sm sm:text-base touch-manipulation"
               >
-                Explore
+                {t("home.explore")}
                 <ArrowRight className="w-4 h-4 flex-shrink-0" />
               </button>
             </div>
@@ -204,19 +220,19 @@ export default function Index() {
             <div className="grid grid-cols-2 md:grid-cols-4 gap-4 sm:gap-6 pt-6 sm:pt-8 border-t border-border px-2">
               <div className="animate-slide-up" style={{ animationDelay: "0.1s" }}>
                 <p className="text-2xl sm:text-3xl md:text-4xl font-bold text-primary">12.8M+</p>
-                <p className="text-xs sm:text-sm text-muted-foreground mt-1">Media Files</p>
+                <p className="text-xs sm:text-sm text-muted-foreground mt-1">{t("home.mediaFiles")}</p>
               </div>
               <div className="animate-slide-up" style={{ animationDelay: "0.2s" }}>
                 <p className="text-2xl sm:text-3xl md:text-4xl font-bold text-secondary">3.4M+</p>
-                <p className="text-xs sm:text-sm text-muted-foreground mt-1">Active Users</p>
+                <p className="text-xs sm:text-sm text-muted-foreground mt-1">{t("home.activeUsers")}</p>
               </div>
               <div className="animate-slide-up" style={{ animationDelay: "0.3s" }}>
                 <p className="text-2xl sm:text-3xl md:text-4xl font-bold text-accent">48.6M+</p>
-                <p className="text-xs sm:text-sm text-muted-foreground mt-1">Downloads</p>
+                <p className="text-xs sm:text-sm text-muted-foreground mt-1">{t("home.downloads")}</p>
               </div>
               <div className="animate-slide-up" style={{ animationDelay: "0.4s" }}>
                 <p className="text-2xl sm:text-3xl md:text-4xl font-bold text-primary">100%</p>
-                <p className="text-xs sm:text-sm text-muted-foreground mt-1">Free Forever</p>
+                <p className="text-xs sm:text-sm text-muted-foreground mt-1">{t("home.freeForever")}</p>
               </div>
             </div>
           </div>
@@ -227,8 +243,8 @@ export default function Index() {
       <section id="categories" className="py-12 sm:py-16 md:py-24 bg-white dark:bg-slate-950 scroll-mt-20">
         <div className="container mx-auto px-4 sm:px-6">
           <div className="text-center mb-8 sm:mb-12">
-            <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold mb-2 sm:mb-4">Explore by Category</h2>
-            <p className="text-base sm:text-lg text-muted-foreground">Find exactly what you're looking for</p>
+            <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold mb-2 sm:mb-4">{t("home.exploreByCategory")}</h2>
+            <p className="text-base sm:text-lg text-muted-foreground">{t("home.findExactly")}</p>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
@@ -237,7 +253,7 @@ export default function Index() {
               return (
                 <Link
                   key={category.id}
-                  to={`/browse/${category.name === "Images" ? "image" : category.name.toLowerCase()}`}
+                  to={category.nameKey === "ai-video-generator" ? `/${category.nameKey}` : `/browse/${category.nameKey}`}
                   className="group animate-slide-up touch-manipulation"
                   style={{ animationDelay: `${index * 0.1}s` }}
                 >
@@ -248,7 +264,7 @@ export default function Index() {
                         <Icon className="w-6 h-6 sm:w-8 sm:h-8 text-white" />
                       </div>
                       <h3 className="text-lg sm:text-xl font-bold mb-1 sm:mb-2">{category.name}</h3>
-                      <p className="text-xs sm:text-sm text-muted-foreground">{category.count} files</p>
+                      <p className="text-xs sm:text-sm text-muted-foreground">{category.count} {t("home.category.files")}</p>
                     </div>
                   </div>
                 </Link>
@@ -263,21 +279,21 @@ export default function Index() {
         <div className="container mx-auto px-4 sm:px-6">
           <div className="flex flex-col sm:flex-row justify-between items-start sm:items-center mb-8 sm:mb-12 gap-4">
             <div>
-              <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold mb-2 sm:mb-4">Trending Now</h2>
-              <p className="text-base sm:text-lg text-muted-foreground">Most downloaded this week</p>
+              <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold mb-2 sm:mb-4">{t("home.trending")}</h2>
+              <p className="text-base sm:text-lg text-muted-foreground">{t("home.trendingSubtitle")}</p>
             </div>
             <Link
               to="/browse"
               className="hidden sm:flex items-center gap-2 text-primary hover:text-accent transition-colors font-semibold"
             >
-              View All <ArrowRight className="w-4 h-4" />
+              {t("home.viewAll")} <ArrowRight className="w-4 h-4" />
             </Link>
           </div>
 
           {isLoading ? (
             <div className="text-center py-12">
               <div className="inline-block animate-spin rounded-full h-8 w-8 border-b-2 border-primary"></div>
-              <p className="mt-4 text-muted-foreground">Loading trending media...</p>
+              <p className="mt-4 text-muted-foreground">{t("home.loadingTrending")}</p>
             </div>
           ) : hasLiveTrending ? (
             <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4 sm:gap-6">
@@ -306,6 +322,7 @@ export default function Index() {
                   if (categoryLower === "video") return Play;
                   if (categoryLower === "image") return ImageIcon;
                   if (categoryLower === "audio") return Music;
+                  if (categoryLower === "aivideogenerator") return Sparkles;
                   return Zap;
                 };
                 const Icon = getIcon(media.category);
@@ -323,6 +340,9 @@ export default function Index() {
                             src={media.previewUrl}
                             alt={media.title}
                             className="w-full h-full object-cover"
+                            loading="lazy"
+                            decoding="async"
+                            fetchPriority="low"
                             onError={(e) => {
                               const target = e.target as HTMLImageElement;
                               target.style.display = "none";
@@ -378,7 +398,7 @@ export default function Index() {
             </div>
           ) : (
             <div className="text-center py-12">
-              <p className="text-muted-foreground">No trending media available</p>
+              <p className="text-muted-foreground">{t("home.noTrending")}</p>
             </div>
           )}
 
@@ -387,7 +407,7 @@ export default function Index() {
               to="/browse"
               className="inline-flex items-center gap-2 text-primary hover:text-accent transition-colors font-semibold"
             >
-              View All <ArrowRight className="w-4 h-4" />
+              {t("home.viewAll")} <ArrowRight className="w-4 h-4" />
             </Link>
           </div>
         </div>
@@ -397,8 +417,8 @@ export default function Index() {
       <section className="py-12 sm:py-16 md:py-24 bg-white dark:bg-slate-950">
         <div className="container mx-auto px-4 sm:px-6">
           <div className="text-center mb-10 sm:mb-16">
-            <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold mb-2 sm:mb-4">Why Choose FreeMediaBuzz?</h2>
-            <p className="text-base sm:text-lg text-muted-foreground">Everything you need, absolutely free</p>
+            <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold mb-2 sm:mb-4">{t("home.whyChoose")}</h2>
+            <p className="text-base sm:text-lg text-muted-foreground">{t("home.whyChooseSubtitle")}</p>
           </div>
 
           <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-6 sm:gap-8">
@@ -426,26 +446,26 @@ export default function Index() {
       <section id="how-it-works" className="py-12 sm:py-16 md:py-24 bg-gradient-to-br from-slate-50 to-slate-100 dark:from-slate-900 dark:to-slate-950 scroll-mt-20">
         <div className="container mx-auto px-4 sm:px-6">
           <div className="text-center mb-10 sm:mb-16">
-            <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold mb-2 sm:mb-4">How It Works</h2>
-            <p className="text-base sm:text-lg text-muted-foreground">Get your media in 3 simple steps</p>
+            <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold mb-2 sm:mb-4">{t("home.howItWorks")}</h2>
+            <p className="text-base sm:text-lg text-muted-foreground">{t("home.howItWorksSubtitle")}</p>
           </div>
 
           <div className="grid grid-cols-1 md:grid-cols-3 gap-6 sm:gap-8 max-w-4xl mx-auto">
             {[
               {
                 step: 1,
-                title: "Sign Up",
-                description: "Create a free account in seconds. No credit card required.",
+                title: t("home.step1"),
+                description: t("home.step1Desc"),
               },
               {
                 step: 2,
-                title: "Browse & Search",
-                description: "Explore our collection of videos, images, audio, and templates.",
+                title: t("home.step2"),
+                description: t("home.step2Desc"),
               },
               {
                 step: 3,
-                title: "Download & Use",
-                description: "Download what you need and use it freely in your projects.",
+                title: t("home.step3"),
+                description: t("home.step3Desc"),
               },
             ].map((item, index) => (
               <div key={index} className="relative animate-slide-up" style={{ animationDelay: `${index * 0.1}s` }}>
@@ -479,16 +499,16 @@ export default function Index() {
                   <span className="text-xs sm:text-sm font-medium text-white">Featured Promotion</span>
                 </div>
                 <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold text-white mb-3 sm:mb-4">
-                  Become a Content Creator
+                  {t("home.becomeCreator")}
                 </h2>
                 <p className="text-base sm:text-lg text-white/90 mb-4 sm:mb-6">
-                  Join our community of creators and contribute your own media. Earn money through promotions and grow your portfolio.
+                  {t("home.becomeCreatorDesc")}
                 </p>
                 <Link
                   to="/signup"
                   className="inline-flex items-center gap-2 px-5 sm:px-6 py-2.5 sm:py-3 bg-white text-primary font-semibold rounded-lg hover:shadow-lg transition-all text-sm sm:text-base touch-manipulation"
                 >
-                  Start Creating
+                  {t("home.startCreating")}
                   <ArrowRight className="w-4 h-4 flex-shrink-0" />
                 </Link>
               </div>
@@ -505,24 +525,24 @@ export default function Index() {
         <div className="container mx-auto px-4 sm:px-6">
           <div className="max-w-3xl mx-auto text-center text-white">
             <h2 className="text-2xl sm:text-3xl md:text-4xl font-bold mb-4 sm:mb-6">
-              Ready to find your perfect media?
+              {t("home.readyToFind")}
             </h2>
             <p className="text-base sm:text-lg text-slate-300 mb-6 sm:mb-8">
-              Start exploring our collection of premium-quality free media today.
+              {t("home.startExploring")}
             </p>
             <div className="flex flex-col sm:flex-row gap-3 sm:gap-4 justify-center">
               <Link
                 to="/browse"
                 className="px-6 sm:px-8 py-2.5 sm:py-3 bg-gradient-to-r from-primary to-accent text-white rounded-lg font-semibold hover:shadow-lg transition-all inline-flex items-center justify-center gap-2 text-sm sm:text-base touch-manipulation"
               >
-                Browse Media
+                {t("home.browseMedia")}
                 <ArrowRight className="w-4 h-4 flex-shrink-0" />
               </Link>
               <Link
                 to="/signup"
                 className="px-6 sm:px-8 py-2.5 sm:py-3 border border-white/20 text-white rounded-lg font-semibold hover:bg-white/5 transition-all text-sm sm:text-base touch-manipulation"
               >
-                Create Account
+                {t("home.createAccount")}
               </Link>
             </div>
           </div>

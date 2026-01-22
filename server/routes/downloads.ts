@@ -3,7 +3,7 @@ import { DownloadResponse } from "@shared/api";
 import { mediaDatabase } from "./media.js";
 
 // Track downloads
-const downloadLog: Array<{ mediaId: string; userId: string; timestamp: string }> = [];
+export const downloadLog: Array<{ mediaId: string; userId: string; timestamp: string }> = [];
 
 // Proxy download file to bypass CORS
 export const proxyDownload: RequestHandler = async (req, res) => {
