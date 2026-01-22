@@ -270,6 +270,12 @@ export default function Earnings() {
           >
             Withdraw
           </button>
+          <Link
+            to="/ads"
+            className="px-3 sm:px-4 py-2 font-medium transition-colors whitespace-nowrap flex-shrink-0 text-muted-foreground hover:text-foreground"
+          >
+            Watch Ads Now
+          </Link>
         </div>
 
         {/* Overview Tab */}
@@ -341,7 +347,7 @@ export default function Earnings() {
             <div className="bg-card border border-border rounded-lg p-6">
               <h2 className="text-xl font-bold mb-4">Watch Ads & Earn</h2>
               <p className="text-muted-foreground mb-4">
-                Watch ads for 15 seconds to earn 1-50 coins randomly. You must watch the full duration to earn coins.
+                Watch ads for 15 seconds to earn 100 coins. You must watch the full duration to earn coins.
               </p>
               <Link
                 to="/ads"

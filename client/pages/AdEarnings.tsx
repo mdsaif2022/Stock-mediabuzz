@@ -22,7 +22,7 @@ export default function AdEarnings() {
   const [startingWatch, setStartingWatch] = useState(false);
   const [completingWatch, setCompletingWatch] = useState(false);
   const [dailyCount, setDailyCount] = useState(0);
-  const [dailyLimit, setDailyLimit] = useState(25);
+  const [dailyLimit, setDailyLimit] = useState(0);
   const [todayCoinsEarned, setTodayCoinsEarned] = useState(0);
   const [adClicked, setAdClicked] = useState(false);
   
@@ -33,6 +33,7 @@ export default function AdEarnings() {
   const handleCompleteWatchRef = useRef<() => Promise<void>>();
 
   const REQUIRED_DURATION = 15; // 15 seconds
+  const FIXED_AD_COINS = 50;
 
   useEffect(() => {
     if (!authLoading && !currentUser) {
@@ -118,7 +119,7 @@ export default function AdEarnings() {
         // Still set the data if available (server might return ads even with error)
         setAds(data.data || []);
         setDailyCount(data.dailyCount || 0);
-        setDailyLimit(data.dailyLimit || 25);
+        setDailyLimit(data.dailyLimit || 0);
         setTodayCoinsEarned(data.todayCoinsEarned || 0);
         
         // Only show error if no ads are available
@@ -132,7 +133,7 @@ export default function AdEarnings() {
         }
         setAds(data.data || []);
         setDailyCount(data.dailyCount || 0);
-        setDailyLimit(data.dailyLimit || 25);
+        setDailyLimit(data.dailyLimit || 0);
         setTodayCoinsEarned(data.todayCoinsEarned || 0);
       } else {
         // Success
@@ -144,7 +145,7 @@ export default function AdEarnings() {
         });
         setAds(data.data || []);
         setDailyCount(data.dailyCount || 0);
-        setDailyLimit(data.dailyLimit || 25);
+        setDailyLimit(data.dailyLimit || 0);
         setTodayCoinsEarned(data.todayCoinsEarned || 0);
       }
     } catch (error: any) {
@@ -153,7 +154,7 @@ export default function AdEarnings() {
       // Set empty arrays to prevent crashes
       setAds([]);
       setDailyCount(0);
-      setDailyLimit(25);
+      setDailyLimit(0);
       setTodayCoinsEarned(0);
     } finally {
       setLoading(false);
@@ -336,12 +337,16 @@ export default function AdEarnings() {
           <div className="flex flex-wrap items-center gap-4 mb-4">
             <div className="bg-card border border-border rounded-lg px-4 py-2">
               <span className="text-muted-foreground">Daily Limit: </span>
-              <span className={cn(
-                "font-semibold",
-                dailyCount >= dailyLimit ? "text-red-600 dark:text-red-400" : "text-primary"
-              )}>
-                {dailyCount} / {dailyLimit} ads
-              </span>
+              {dailyLimit === 0 ? (
+                <span className="font-semibold text-primary">Unlimited</span>
+              ) : (
+                <span className={cn(
+                  "font-semibold",
+                  dailyCount >= dailyLimit ? "text-red-600 dark:text-red-400" : "text-primary"
+                )}>
+                  {dailyCount} / {dailyLimit} ads
+                </span>
+              )}
             </div>
             <div className="bg-gradient-to-r from-yellow-50 to-yellow-100 dark:from-yellow-900/20 dark:to-yellow-800/20 border-2 border-yellow-300 dark:border-yellow-600 rounded-lg px-4 py-2 flex items-center gap-2">
               <Coins className="w-5 h-5 text-yellow-600 dark:text-yellow-400" />
@@ -352,7 +357,7 @@ export default function AdEarnings() {
                 </span>
               </div>
             </div>
-            {dailyCount >= dailyLimit && (
+            {dailyLimit > 0 && dailyCount >= dailyLimit && (
               <div className="text-red-600 dark:text-red-400 font-semibold">
                 Daily limit reached! Come back tomorrow.
               </div>
@@ -499,7 +504,7 @@ export default function AdEarnings() {
                   <div className="flex items-center gap-4 text-sm">
                     <div className="flex items-center gap-1">
                       <Coins className="w-4 h-4 text-yellow-600 dark:text-yellow-400" />
-                      <span>{ad.minCoins}-{ad.maxCoins} coins</span>
+                      <span>{FIXED_AD_COINS} coins</span>
                     </div>
                     <div className="flex items-center gap-1">
                       <Clock className="w-4 h-4" />
@@ -527,7 +532,7 @@ export default function AdEarnings() {
                 ) : (
                   <button
                     onClick={() => handleStartWatch(ad)}
-                    disabled={startingWatch || isWatching || dailyCount >= dailyLimit || !ad.canWatch}
+                    disabled={startingWatch || isWatching || (dailyLimit > 0 && dailyCount >= dailyLimit) || !ad.canWatch}
                     className={cn(
                       "w-full px-4 py-2 rounded-lg font-semibold transition-colors flex items-center justify-center gap-2",
                       "bg-primary text-primary-foreground hover:bg-primary/90",
@@ -539,7 +544,7 @@ export default function AdEarnings() {
                         <Loader2 className="w-4 h-4 animate-spin" />
                         Starting...
                       </>
-                    ) : dailyCount >= dailyLimit ? (
+                    ) : dailyLimit > 0 && dailyCount >= dailyLimit ? (
                       <>
                         Daily Limit Reached
                       </>
@@ -561,12 +566,11 @@ export default function AdEarnings() {
             <strong>How it works:</strong>
           </p>
           <ul className="text-sm text-blue-800 dark:text-blue-200 space-y-1 list-disc list-inside">
-            <li>You can watch up to {dailyLimit} ads per day</li>
+            <li>You can watch unlimited ads per day</li>
             <li>Watch each ad for {REQUIRED_DURATION} seconds to earn coins</li>
             <li>For Adsterra ads: You must also click once in the ad</li>
-            <li>Adsterra ads: 20-80 coins</li>
-            <li>Collaboration ads: 10-80 coins</li>
-            <li>Daily limit resets at midnight</li>
+            <li>Adsterra ads: {FIXED_AD_COINS} coins</li>
+            <li>Collaboration ads: {FIXED_AD_COINS} coins</li>
           </ul>
         </div>
       </div>

@@ -23,6 +23,9 @@ const AD_VIEWS_DB_FILE = join(DATA_DIR, "ad-views-database.json");
 let adsDatabase: Ad[] = [];
 let adViewsDatabase: AdViewRecord[] = [];
 
+const DAILY_AD_LIMIT = 0; // 0 = unlimited
+const FIXED_AD_COINS = 50;
+
 // Active watch sessions (temporary, in-memory only)
 interface WatchSession {
   watchId: string;
@@ -32,12 +35,6 @@ interface WatchSession {
 }
 
 const activeWatchSessions = new Map<string, WatchSession>();
-
-// Helper: Generate random coins between min and max
-function generateRandomCoins(min: number, max: number): number {
-  return Math.floor(Math.random() * (max - min + 1)) + min;
-}
-
 
 // Adsterra directlink ads list (for ad watching earning system)
 const ADSTERRA_DIRECTLINKS = [
@@ -71,8 +68,8 @@ function createAdsterraAds(): Ad[] {
     adType: "adsterra" as const,
     adUrl: url,
     status: "active" as const,
-    minCoins: 20,
-    maxCoins: 80,
+    minCoins: FIXED_AD_COINS,
+    maxCoins: FIXED_AD_COINS,
     watchDuration: 15,
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
@@ -583,12 +580,14 @@ export const getAvailableAds: RequestHandler = async (req, res) => {
     
     // Check daily limit and today's earnings (with error handling)
     let dailyCount = 0;
-    let dailyLimit = 25;
+    let dailyLimit = DAILY_AD_LIMIT;
     let todayCoinsEarned = 0;
     if (userId) {
       try {
         console.log(`[getAvailableAds] User: ${userId}, Email: ${userEmail || 'N/A'}`);
-        dailyCount = await getDailyAdViewCount(userId, userEmail);
+        if (DAILY_AD_LIMIT > 0) {
+          dailyCount = await getDailyAdViewCount(userId, userEmail);
+        }
         todayCoinsEarned = await getTodayAdCoinsEarned(userId, userEmail);
         console.log(`[getAvailableAds] Daily count: ${dailyCount}, Today coins earned: ${todayCoinsEarned}`);
       } catch (earningsError) {
@@ -603,7 +602,7 @@ export const getAvailableAds: RequestHandler = async (req, res) => {
       dailyCount,
       dailyLimit,
       todayCoinsEarned,
-      canWatchMore: dailyCount < dailyLimit
+      canWatchMore: DAILY_AD_LIMIT === 0 ? true : dailyCount < dailyLimit
     };
     console.log(`[getAvailableAds] Success: Returning ${availableAds.length} ads`);
     console.log(`[getAvailableAds] Response data:`, JSON.stringify(responseData, null, 2));
@@ -626,7 +625,7 @@ export const getAvailableAds: RequestHandler = async (req, res) => {
         })), 
         total: adsterraAds.length,
         dailyCount: 0,
-        dailyLimit: 25,
+        dailyLimit: DAILY_AD_LIMIT,
         todayCoinsEarned: 0,
         canWatchMore: true
       });
@@ -639,7 +638,7 @@ export const getAvailableAds: RequestHandler = async (req, res) => {
         data: [], 
         total: 0,
         dailyCount: 0,
-        dailyLimit: 25,
+        dailyLimit: DAILY_AD_LIMIT,
         todayCoinsEarned: 0,
         canWatchMore: true
       });
@@ -672,10 +671,12 @@ export const startAdWatch: RequestHandler = async (req, res) => {
     const actualUserId = dbUser?.id || userId;
 
     // Check daily limit (use actualUserId for consistency)
-    const dailyCount = await getDailyAdViewCount(actualUserId);
-    if (dailyCount >= 25) {
-      res.status(400).json({ error: "Daily limit reached. You can watch 25 ads per day. Please come back tomorrow." });
-      return;
+    if (DAILY_AD_LIMIT > 0) {
+      const dailyCount = await getDailyAdViewCount(actualUserId);
+      if (dailyCount >= DAILY_AD_LIMIT) {
+        res.status(400).json({ error: "Daily limit reached. Please come back tomorrow." });
+        return;
+      }
     }
 
     const { adId }: StartAdWatchRequest = req.body;
@@ -765,10 +766,12 @@ export const completeAdWatch: RequestHandler = async (req, res) => {
     }
 
     // Check daily limit (use actualUserId for consistency)
-    const dailyCount = await getDailyAdViewCount(actualUserId);
-    if (dailyCount >= 25) {
-      res.status(400).json({ error: "Daily limit reached. You can watch 25 ads per day. Please come back tomorrow." });
-      return;
+    if (DAILY_AD_LIMIT > 0) {
+      const dailyCount = await getDailyAdViewCount(actualUserId);
+      if (dailyCount >= DAILY_AD_LIMIT) {
+        res.status(400).json({ error: "Daily limit reached. Please come back tomorrow." });
+        return;
+      }
     }
 
     const { watchId, watchDuration, clicked }: CompleteAdWatchRequest = req.body;
@@ -845,10 +848,8 @@ export const completeAdWatch: RequestHandler = async (req, res) => {
 
     let coinsEarned = 0;
     if (completed) {
-      // Generate random coins: Adsterra direct link ads 20-80, Collaboration 10-80
-      const minCoins = ad.adType === "adsterra" ? 20 : (ad.minCoins || 10);
-      const maxCoins = ad.maxCoins || 80;
-      coinsEarned = generateRandomCoins(minCoins, maxCoins);
+      // Fixed coins for all ad types
+      coinsEarned = FIXED_AD_COINS;
     }
 
     // Create ad view record - use actualUserId (database ID) for proper matching
@@ -993,8 +994,8 @@ export const createAd: RequestHandler = async (req, res) => {
       adType: payload.adType || "collaboration",
       adUrl: payload.adUrl,
       status: payload.status || "active",
-      minCoins: payload.minCoins || 1,
-      maxCoins: payload.maxCoins || 50,
+      minCoins: payload.minCoins || FIXED_AD_COINS,
+      maxCoins: payload.maxCoins || FIXED_AD_COINS,
       watchDuration: payload.watchDuration || 15,
       createdAt: new Date().toISOString(),
       updatedAt: new Date().toISOString(),

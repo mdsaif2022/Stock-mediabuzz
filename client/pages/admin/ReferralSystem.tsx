@@ -21,7 +21,7 @@ export default function AdminReferralSystem() {
     adType: "collaboration",
     adUrl: "",
     status: "active",
-    minCoins: 1,
+    minCoins: 50,
     maxCoins: 50,
     watchDuration: 15,
   });
@@ -31,7 +31,7 @@ export default function AdminReferralSystem() {
   const [formData, setFormData] = useState({ 
     title: "", 
     url: "", 
-    coinValue: 100, 
+    coinValue: 50, 
     status: "active" as "active" | "inactive", 
     imageUrl: "", 
     videoUrl: "",
@@ -201,7 +201,7 @@ export default function AdminReferralSystem() {
     setFormData({ 
       title: "", 
       url: "", 
-      coinValue: 100, 
+      coinValue: 50, 
       status: "active" as "active" | "inactive", 
       imageUrl: "", 
       videoUrl: "",
@@ -774,7 +774,7 @@ export default function AdminReferralSystem() {
                     adType: "collaboration",
                     adUrl: "",
                     status: "active",
-                    minCoins: 1,
+                    minCoins: 50,
                     maxCoins: 50,
                     watchDuration: 15,
                   });
@@ -998,29 +998,29 @@ export default function AdminReferralSystem() {
                   <div className="grid grid-cols-2 gap-4">
                     <div>
                       <label className="block text-sm font-medium mb-1">
-                        Min Coins {adFormData.adType === "adsterra" ? "(Default: 20)" : "(Default: 10)"}
+                        Min Coins (Default: 50)
                       </label>
                       <input
                         type="number"
                         value={adFormData.minCoins}
-                        onChange={(e) => setAdFormData({ ...adFormData, minCoins: parseInt(e.target.value) || (adFormData.adType === "adsterra" ? 20 : 10) })}
+                        onChange={(e) => setAdFormData({ ...adFormData, minCoins: parseInt(e.target.value) || 100 })}
                         className="w-full px-3 py-2 border border-border rounded-lg bg-white dark:bg-slate-800"
                       />
                     </div>
                     <div>
-                      <label className="block text-sm font-medium mb-1">Max Coins (Default: 80)</label>
+                      <label className="block text-sm font-medium mb-1">Max Coins (Default: 50)</label>
                       <input
                         type="number"
                         value={adFormData.maxCoins}
-                        onChange={(e) => setAdFormData({ ...adFormData, maxCoins: parseInt(e.target.value) || 80 })}
+                        onChange={(e) => setAdFormData({ ...adFormData, maxCoins: parseInt(e.target.value) || 100 })}
                         className="w-full px-3 py-2 border border-border rounded-lg bg-white dark:bg-slate-800"
                       />
                     </div>
                   </div>
                   <p className="text-xs text-muted-foreground">
                     {adFormData.adType === "adsterra" 
-                      ? "Adsterra ads: 20-80 coins randomly"
-                      : "Collaboration ads: 10-80 coins randomly"}
+                      ? "Adsterra ads: 50 coins fixed"
+                      : "Collaboration ads: 50 coins fixed"}
                   </p>
                   <div>
                     <label className="block text-sm font-medium mb-1">Watch Duration (seconds)</label>
