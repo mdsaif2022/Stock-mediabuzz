@@ -43,6 +43,7 @@ export default function Login() {
   const [searchParams] = useSearchParams();
   const isAdminMode = searchParams.get("role") === "admin";
   const showVerifyBanner = searchParams.get("verifyEmail") === "1";
+  const [referralApplied, setReferralApplied] = useState(false);
   const [accountType, setAccountType] = useState<"user" | "creator" | "admin">(isAdminMode ? "admin" : "user");
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
@@ -59,6 +60,15 @@ export default function Login() {
       setAccountType("admin");
     }
   }, [isAdminMode]);
+
+  useEffect(() => {
+    if (!showVerifyBanner) return;
+    const applied = sessionStorage.getItem("referralApplied") === "true";
+    setReferralApplied(applied);
+    if (applied) {
+      sessionStorage.removeItem("referralApplied");
+    }
+  }, [showVerifyBanner]);
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -83,8 +93,19 @@ export default function Login() {
           throw new Error(data?.error || "Incorrect admin credentials. Please try again.");
         }
 
+        const data = await response.json().catch(() => ({}));
+        
+        // Store admin session and token
         sessionStorage.setItem("adminSession", "true");
-        navigate(ADMIN_BASE_PATH);
+        if (data.token) {
+          sessionStorage.setItem("adminToken", data.token);
+        }
+        if (data.user) {
+          sessionStorage.setItem("adminUser", JSON.stringify(data.user));
+        }
+        
+        // Use window.location for navigation to avoid hydration issues
+        window.location.href = ADMIN_BASE_PATH;
         return;
       }
 
@@ -197,6 +218,11 @@ export default function Login() {
             {showVerifyBanner && (
               <div className="mb-4 p-3 bg-amber-50 dark:bg-amber-900/20 border border-amber-200 dark:border-amber-500/40 text-amber-800 dark:text-amber-200 rounded-lg text-sm">
                 Please verify your email using the link we sent before signing in.
+              </div>
+            )}
+            {showVerifyBanner && referralApplied && (
+              <div className="mb-4 p-3 bg-green-50 dark:bg-green-900/20 border border-green-200 dark:border-green-600/40 text-green-700 dark:text-green-300 rounded-lg text-sm">
+                Referral code applied. Your referrer will receive coins after your account is verified.
               </div>
             )}
             {error && (

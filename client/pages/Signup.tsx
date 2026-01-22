@@ -15,9 +15,14 @@ export default function Signup() {
     password: "",
     confirmPassword: "",
     acceptTerms: false,
+    referralCode: "",
   });
   const [isLoading, setIsLoading] = useState(false);
   const [error, setError] = useState("");
+  const [referralStatus, setReferralStatus] = useState<{
+    state: "idle" | "checking" | "valid" | "invalid";
+    message: string;
+  }>({ state: "idle", message: "" });
   const { signup, loginWithGoogle } = useAuth();
   const navigate = useNavigate();
   const isCreatorAccount = accountType === "creator";
@@ -26,6 +31,15 @@ export default function Signup() {
   const referralCode = searchParams.get("ref");
   const shareCode = searchParams.get("share");
 
+  useEffect(() => {
+    if (referralCode) {
+      setFormData((prev) => ({ ...prev, referralCode: referralCode.toUpperCase() }));
+    }
+    if (shareCode) {
+      sessionStorage.setItem("pendingShareCode", shareCode);
+    }
+  }, [referralCode, shareCode]);
+
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     const { name, value, type, checked } = e.target;
     setFormData((prev) => ({
@@ -33,6 +47,50 @@ export default function Signup() {
       [name]: type === "checkbox" ? checked : value,
     }));
   };
+
+  const handleReferralInputChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+    const value = e.target.value.toUpperCase().trim();
+    if (value) {
+      setFormData((prev) => ({ ...prev, referralCode: value }));
+    } else {
+      setFormData((prev) => ({ ...prev, referralCode: "" }));
+    }
+  };
+
+  useEffect(() => {
+    const code = formData.referralCode.trim().toUpperCase();
+    if (!code) {
+      setReferralStatus({ state: "idle", message: "" });
+      sessionStorage.removeItem("pendingReferralCode");
+      return;
+    }
+
+    setReferralStatus({ state: "checking", message: "Checking referral code..." });
+    const timeoutId = setTimeout(async () => {
+      try {
+        const response = await apiFetch(`/api/referral/validate?code=${encodeURIComponent(code)}`);
+        const data = await response.json().catch(() => ({}));
+        if (response.ok && data?.valid) {
+          setReferralStatus({
+            state: "valid",
+            message: `Referral code valid (${data.referrerName || data.referrerEmail || "referrer found"}).`,
+          });
+          sessionStorage.setItem("pendingReferralCode", code);
+          sessionStorage.setItem("referralApplied", "true");
+        } else {
+          setReferralStatus({ state: "invalid", message: data?.error || "Invalid referral code." });
+          sessionStorage.removeItem("pendingReferralCode");
+          sessionStorage.removeItem("referralApplied");
+        }
+      } catch (err) {
+        setReferralStatus({ state: "invalid", message: "Could not validate referral code." });
+        sessionStorage.removeItem("pendingReferralCode");
+        sessionStorage.removeItem("referralApplied");
+      }
+    }, 400);
+
+    return () => clearTimeout(timeoutId);
+  }, [formData.referralCode]);
 
   const registerCreatorProfile = async (name: string, email: string) => {
     try {
@@ -74,13 +132,15 @@ export default function Signup() {
     setIsLoading(true);
 
     try {
+      if (formData.referralCode && referralStatus.state === "valid") {
+        sessionStorage.setItem("pendingReferralCode", formData.referralCode);
+        sessionStorage.setItem("referralApplied", "true");
+      }
+      if (shareCode) sessionStorage.setItem("pendingShareCode", shareCode);
       await signup(formData.email, formData.password, formData.name, accountType);
       if (isCreatorAccount) {
         await registerCreatorProfile(formData.name, formData.email);
       }
-      // Store referral/share codes in sessionStorage to pass to registration
-      if (referralCode) sessionStorage.setItem("pendingReferralCode", referralCode);
-      if (shareCode) sessionStorage.setItem("pendingShareCode", shareCode);
       navigate("/login?verifyEmail=1", { replace: true });
     } catch (err: any) {
       setError(err.message || "Failed to create account. Please try again.");
@@ -93,6 +153,8 @@ export default function Signup() {
     setError("");
     setIsLoading(true);
     try {
+      if (referralCode) sessionStorage.setItem("pendingReferralCode", referralCode);
+      if (shareCode) sessionStorage.setItem("pendingShareCode", shareCode);
       await loginWithGoogle(accountType);
       if (isCreatorAccount && auth.currentUser?.email) {
         await registerCreatorProfile(auth.currentUser.displayName || auth.currentUser.email, auth.currentUser.email);
@@ -240,6 +302,32 @@ export default function Signup() {
                         className="w-full pl-10 pr-4 py-2 rounded-lg border border-border bg-slate-50 dark:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-primary"
                       />
                     </div>
+                  </div>
+
+                  {/* Referral Code */}
+                  <div>
+                    <label className="block text-sm font-medium mb-2">Referral Code (optional)</label>
+                    <div className="relative">
+                      <input
+                        type="text"
+                        name="referralCode"
+                        value={formData.referralCode}
+                        onChange={handleReferralInputChange}
+                        placeholder="REFXXXXXX"
+                        className="w-full pl-4 pr-4 py-2 rounded-lg border border-border bg-slate-50 dark:bg-slate-800 focus:outline-none focus:ring-2 focus:ring-primary uppercase"
+                      />
+                    </div>
+                    {referralStatus.state === "checking" ? (
+                      <p className="text-xs text-muted-foreground mt-1">{referralStatus.message}</p>
+                    ) : referralStatus.state === "valid" ? (
+                      <p className="text-xs text-green-600 mt-1">{referralStatus.message}</p>
+                    ) : referralStatus.state === "invalid" ? (
+                      <p className="text-xs text-destructive mt-1">{referralStatus.message}</p>
+                    ) : (
+                      <p className="text-xs text-muted-foreground mt-1">
+                        Enter a referral code to help your referrer earn coins.
+                      </p>
+                    )}
                   </div>
 
 

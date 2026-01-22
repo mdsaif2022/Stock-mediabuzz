@@ -345,7 +345,12 @@ export const getUserReferralInfo: RequestHandler = async (req, res) => {
   let referralCode = (user as any)?.referralCode;
   if (!referralCode) {
     referralCode = generateReferralCode(userId, email);
-    // Update user with referral code (would need to update users route)
+    try {
+      const { setUserReferralCode } = await import("./users.js");
+      await setUserReferralCode(userId, email, referralCode);
+    } catch (error) {
+      console.error("Failed to persist referral code:", error);
+    }
   }
 
   // Return just the referral code - client will construct the full URL using current origin
@@ -354,6 +359,33 @@ export const getUserReferralInfo: RequestHandler = async (req, res) => {
     referralCode,
     referralLink: `/signup?ref=${referralCode}`, // Relative path - client will prepend origin
   });
+};
+
+// Validate referral code
+export const validateReferralCode: RequestHandler = async (req, res) => {
+  const code = typeof req.query.code === "string" ? req.query.code.trim().toUpperCase() : "";
+  if (!code) {
+    res.status(400).json({ valid: false, error: "Referral code is required" });
+    return;
+  }
+
+  try {
+    const { getUsersDatabase } = await import("./users.js");
+    const users = await getUsersDatabase();
+    const referrer = users.find((u: any) => String(u.referralCode || "").toUpperCase() === code);
+    if (!referrer) {
+      res.json({ valid: false, error: "Invalid referral code" });
+      return;
+    }
+    res.json({
+      valid: true,
+      referrerName: referrer.name,
+      referrerEmail: referrer.email,
+    });
+  } catch (error) {
+    console.error("Failed to validate referral code:", error);
+    res.status(500).json({ valid: false, error: "Failed to validate referral code" });
+  }
 };
 
 // Get user earnings
@@ -368,102 +400,32 @@ export const getUserEarnings: RequestHandler = async (req, res) => {
   
   console.log(`[getUserEarnings] Request from user: ${userEmail} (ID: ${userId})`);
   
-  // Reload databases to ensure we have the latest data (important after admin adds coins)
-  await Promise.all([
-    loadReferralDatabase().then(data => { referralDatabase = data; }),
-    loadShareRecordsDatabase().then(data => { shareRecordsDatabase = data; }),
-    loadWithdrawRequestsDatabase().then(data => { withdrawRequestsDatabase = data; }),
-  ]);
-  
-  // Find the actual user in database to get their database ID (might be different from Firebase UID)
-  const { getUsersDatabase } = await import("./users.js");
-  const users = await getUsersDatabase();
-  const dbUser = users.find(u => {
-    const dbEmail = u.email?.toLowerCase();
-    return (
-      u.id === userId || 
-      u.firebaseUid === userId ||
-      (userEmail && dbEmail === userEmail)
-    );
-  });
-  
-  const actualUserId = dbUser?.id || userId;
-  
-  if (dbUser && dbUser.id !== userId) {
-    console.log(`[getUserEarnings] User ID mismatch - Firebase UID: ${userId}, Database ID: ${dbUser.id}, using database ID`);
-  }
-  
-  // Calculate earnings with fresh data - match by actual database user ID
-  const referralCoins = referralDatabase
-    .filter(r => r.referrerId === actualUserId && r.status === "approved")
-    .reduce((sum, r) => sum + r.coinsEarned, 0);
-  
-  const adminPostShareCoins = shareRecordsDatabase
-    .filter(s => s.userId === actualUserId && s.shareType === "admin_post" && s.status === "approved")
-    .reduce((sum, s) => sum + s.coinsEarned, 0);
-  
-  const randomShareCoins = shareRecordsDatabase
-    .filter(s => s.userId === actualUserId && s.shareType === "normal_link" && s.status === "approved")
-    .reduce((sum, s) => sum + s.coinsEarned, 0);
-  
-  const shareCoins = adminPostShareCoins + randomShareCoins;
-  const totalCoins = referralCoins + shareCoins;
-  
-  // CRITICAL: Match withdrawals by database ID OR Firebase UID to handle migration issues
-  // Some withdrawals might be saved with Firebase UID, others with database ID
-  const userWithdrawRequests = withdrawRequestsDatabase.filter(w => {
-    const matchesDatabaseId = w.userId === actualUserId;
-    const matchesFirebaseUid = w.userId === userId && userId !== actualUserId;
-    return matchesDatabaseId || matchesFirebaseUid;
-  });
-  
-  console.log(`[getUserEarnings] Found ${userWithdrawRequests.length} total withdraw requests for user (database ID: ${actualUserId}, Firebase UID: ${userId})`);
-  userWithdrawRequests.forEach(w => {
-    console.log(`  - Request ${w.id}: ${w.coins} coins, status: ${w.status}, userId: ${w.userId}`);
-  });
-  
-  const pendingWithdraw = userWithdrawRequests
-    .filter(w => w.status === "pending")
-    .reduce((sum, w) => sum + w.coins, 0);
-  
-  // CRITICAL: Subtract both pending AND approved withdrawals from available coins
-  // Approved withdrawals should permanently reduce available balance
-  const approvedWithdraw = userWithdrawRequests
-    .filter(w => w.status === "approved")
-    .reduce((sum, w) => sum + w.coins, 0);
-  
-  const rejectedWithdraw = userWithdrawRequests
-    .filter(w => w.status === "rejected")
-    .reduce((sum, w) => sum + w.coins, 0);
-  
-  const totalWithdrawn = pendingWithdraw + approvedWithdraw;
-  const availableCoins = totalCoins - totalWithdrawn;
+  // Use the centralized getUserEarningsData function for consistent calculation
+  const earnings = await getUserEarningsData(userId, userEmail);
   
   console.log(`[getUserEarnings] Calculated earnings for ${userEmail}:`, {
-    actualUserId,
-    firebaseUid: userId,
-    adminPostShareCoins,
-    randomShareCoins,
-    totalCoins,
-    pendingWithdraw,
-    approvedWithdraw,
-    rejectedWithdraw,
-    totalWithdrawn,
-    availableCoins,
-    matchingShareRecords: shareRecordsDatabase.filter(s => s.userId === actualUserId && s.status === "approved").length
+    totalCoins: earnings.totalCoins,
+    referralCoins: earnings.referralCoins,
+    shareCoins: earnings.shareCoins,
+    adminPostShareCoins: earnings.adminPostShareCoins,
+    randomShareCoins: earnings.randomShareCoins,
+    adViewCoins: earnings.adViewCoins,
+    pendingWithdraw: earnings.pendingWithdraw,
+    availableCoins: earnings.availableCoins,
   });
 
-  const earnings: UserEarnings = {
-    totalCoins,
-    referralCoins,
-    shareCoins,
-    adminPostShareCoins,
-    randomShareCoins,
-    pendingWithdraw,
-    availableCoins,
+  const earningsResponse: UserEarnings = {
+    totalCoins: earnings.totalCoins,
+    referralCoins: earnings.referralCoins,
+    shareCoins: earnings.shareCoins,
+    adminPostShareCoins: earnings.adminPostShareCoins,
+    randomShareCoins: earnings.randomShareCoins,
+    adViewCoins: earnings.adViewCoins,
+    pendingWithdraw: earnings.pendingWithdraw,
+    availableCoins: earnings.availableCoins,
   };
 
-  res.json(earnings);
+  res.json(earningsResponse);
 };
 
 // Get active share posts
@@ -814,7 +776,79 @@ async function getUserEarningsData(userId: string, userEmail?: string): Promise<
     .reduce((sum, s) => sum + s.coinsEarned, 0);
   
   const shareCoins = adminPostShareCoins + randomShareCoins;
-  const totalCoins = referralCoins + shareCoins;
+  
+  // Load ad views database and calculate ad view coins
+  let adViewCoins = 0;
+  try {
+    const adsModule = await import("./ads.js");
+    const adViewsDatabase = await adsModule.loadAdViewsDatabase();
+    
+    console.log(`[Earnings] Checking ad views for user ${actualUserId}${userId !== actualUserId ? ` (Firebase: ${userId})` : ''}, email: ${userEmail || 'N/A'}`);
+    console.log(`[Earnings] Total ad views in database: ${adViewsDatabase.length}`);
+    
+    // More flexible matching: check database ID, Firebase UID, or find user by the userId in record
+    const matchingViews = adViewsDatabase.filter(v => {
+      const vUserId = String(v.userId || '').trim();
+      
+      // Match by database ID (exact match)
+      const matchesDatabaseId = vUserId === actualUserId;
+      
+      // Match by Firebase UID (if different from database ID)
+      const matchesFirebaseUid = vUserId === userId && userId !== actualUserId;
+      
+      // Try to find the user by the userId stored in the record
+      // This handles cases where old records might have Firebase UID or other formats
+      let matchesByUserLookup = false;
+      if (!matchesDatabaseId && !matchesFirebaseUid) {
+        const recordUser = users.find(u => 
+          String(u.id) === vUserId || 
+          String(u.firebaseUid || '') === vUserId ||
+          (userEmail && u.email?.toLowerCase() === userEmail?.toLowerCase() && String(u.id) === vUserId)
+        );
+        matchesByUserLookup = recordUser?.id === actualUserId;
+      }
+      
+      const matches = matchesDatabaseId || matchesFirebaseUid || matchesByUserLookup;
+      
+      // Accept approved, pending, or "true" status (for backward compatibility)
+      const hasValidStatus = v.status === "approved" || v.status === "pending" || v.status === "true" || v.status === true;
+      
+      // Also check if completed is true (some old records might only have completed flag)
+      const isCompleted = v.completed === true || v.completed === "true" || String(v.completed).toLowerCase() === 'true';
+      
+      // Only count if matches user AND (has valid status OR is completed)
+      const shouldCount = matches && (hasValidStatus || isCompleted) && (v.coinsEarned || 0) > 0;
+      
+      if (shouldCount) {
+        console.log(`[Earnings] ✓ Found matching ad view: recordUserId=${vUserId}, coins=${v.coinsEarned}, status=${v.status}, completed=${v.completed}, adId=${v.adId}`);
+      } else if (matches) {
+        console.log(`[Earnings] ✗ Ad view matches user but not counted: recordUserId=${vUserId}, coins=${v.coinsEarned}, status=${v.status}, completed=${v.completed}`);
+      }
+      
+      return shouldCount;
+    });
+    
+    adViewCoins = matchingViews.reduce((sum, v) => sum + (v.coinsEarned || 0), 0);
+    
+    console.log(`[Earnings] User ${actualUserId}${userId !== actualUserId ? ` (Firebase: ${userId})` : ''} - Ad view coins: ${adViewCoins} from ${matchingViews.length} matching records out of ${adViewsDatabase.length} total`);
+    
+    // Debug: Show all ad views for this user (any format) for troubleshooting
+    const allPossibleMatches = adViewsDatabase.filter(v => {
+      const vUserId = String(v.userId || '').trim();
+      return vUserId === actualUserId || vUserId === userId || 
+             (userEmail && users.some(u => String(u.id) === vUserId && u.email?.toLowerCase() === userEmail?.toLowerCase()));
+    });
+    if (allPossibleMatches.length > matchingViews.length) {
+      console.log(`[Earnings] ⚠️  Found ${allPossibleMatches.length} ad views that might belong to this user, but only ${matchingViews.length} are being counted.`);
+      allPossibleMatches.forEach(v => {
+        console.log(`[Earnings]   - Record: userId=${v.userId}, coins=${v.coinsEarned}, status=${v.status}, completed=${v.completed}`);
+      });
+    }
+  } catch (error) {
+    console.error("Error loading ad views for earnings:", error);
+  }
+  
+  const totalCoins = referralCoins + shareCoins + adViewCoins;
   
   // CRITICAL: Match withdrawals by database ID OR Firebase UID to handle migration issues
   // Some withdrawals might be saved with Firebase UID, others with database ID
@@ -843,6 +877,7 @@ async function getUserEarningsData(userId: string, userEmail?: string): Promise<
     shareCoins,
     adminPostShareCoins,
     randomShareCoins,
+    adViewCoins,
     pendingWithdraw,
     availableCoins,
   };
@@ -907,12 +942,12 @@ export async function processReferralSignup(
       referredId: newUserId,
       coinsEarned: 100, // Fixed 100 coins
       createdAt: new Date().toISOString(),
-      status: "pending", // Admin can approve/reject
+      status: "approved", // Automatically approved - coins added immediately
     };
 
     referralDatabase.push(referralRecord);
     await saveReferralDatabase(referralDatabase);
-    console.log(`[Referral] ✅ Created referral record: ${referralRecord.id} for referrer ${referrer.id}, referred user ${newUserId}`);
+    console.log(`[Referral] ✅ Created and approved referral record: ${referralRecord.id} for referrer ${referrer.id}, referred user ${newUserId}. 100 coins added to referrer.`);
   }
 
   // Process share

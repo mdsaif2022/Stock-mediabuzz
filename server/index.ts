@@ -411,6 +411,7 @@ export function createServer() {
   app.get("/api/referral/info", referralRoutes.getUserReferralInfo);
   app.get("/api/referral/earnings", referralRoutes.getUserEarnings);
   app.get("/api/referral/history", referralRoutes.getReferralHistory);
+  app.get("/api/referral/validate", referralRoutes.validateReferralCode);
   app.get("/api/share/posts", referralRoutes.getActiveSharePosts);
   app.post("/api/share/link", referralRoutes.createShareLink);
   app.get("/api/share/history", referralRoutes.getShareHistory);
@@ -432,6 +433,7 @@ export function createServer() {
   app.put("/api/admin/withdraw-requests/:id", referralRoutes.updateWithdrawRequestStatus);
   app.get("/api/admin/share-visitors", referralRoutes.getAllShareVisitors);
   app.post("/api/admin/add-coins", referralRoutes.addUserCoins);
+  app.post("/api/admin/referrals/backfill", usersRoutes.backfillReferralCodes);
 
   // Ad Watching System routes
   // User endpoints

@@ -58,6 +58,45 @@ async function saveUsersDatabase(data: PlatformUser[]): Promise<void> {
   await fs.writeFile(USERS_DB_FILE, JSON.stringify(data, null, 2), "utf-8");
 }
 
+export async function setUserReferralCode(userId: string, email: string, referralCode: string): Promise<void> {
+  const emailLower = email.toLowerCase();
+  const useMongo = await isMongoDBAvailable();
+
+  // Ensure in-memory users are up to date
+  if (!usersDatabase.length) {
+    usersDatabase = await getUsersDatabase();
+  }
+
+  const userIndex = usersDatabase.findIndex(
+    (u) => u.id === userId || u.email.toLowerCase() === emailLower
+  );
+  if (userIndex !== -1) {
+    usersDatabase[userIndex] = {
+      ...usersDatabase[userIndex],
+      referralCode,
+      updatedAt: new Date().toISOString(),
+    } as PlatformUser;
+  }
+
+  if (useMongo) {
+    try {
+      const existingUser = await mongoService.getUserByEmail(emailLower);
+      if (existingUser) {
+        await mongoService.updateUser(existingUser._id.toString(), {
+          referralCode,
+          updatedAt: new Date(),
+        });
+      }
+      return;
+    } catch (error) {
+      console.error("❌ Error updating referral code in MongoDB:", error);
+      // Fall back to file storage
+    }
+  }
+
+  await saveUsersDatabase(usersDatabase);
+}
+
 async function seedUsers(): Promise<PlatformUser[]> {
   await saveUsersDatabase(DEFAULT_USERS);
   console.log(`Seeded ${DEFAULT_USERS.length} default platform users`);
@@ -139,8 +178,35 @@ function generateReferralCode(userId: string, email: string): string {
   return code;
 }
 
+function ensureUniqueReferralCode(code: string, existingCodes: Set<string>): string {
+  let candidate = code;
+  let attempts = 0;
+  while (existingCodes.has(candidate) && attempts < 5) {
+    const suffix = Math.random().toString(36).slice(2, 6).toUpperCase();
+    candidate = `${code}${suffix}`;
+    attempts += 1;
+  }
+  existingCodes.add(candidate);
+  return candidate;
+}
+
 export const registerUser: RequestHandler = async (req, res) => {
-  const { email, name, accountType, emailVerified = false, firebaseUid, referralCode, shareCode }: RegisterUserPayload = req.body;
+  const {
+    email,
+    name,
+    accountType,
+    emailVerified = false,
+    firebaseUid,
+    referralCode: bodyReferralCode,
+    shareCode: bodyShareCode,
+  }: RegisterUserPayload = req.body;
+
+  const referralCode =
+    bodyReferralCode ||
+    (typeof req.query.ref === "string" ? req.query.ref : undefined);
+  const shareCode =
+    bodyShareCode ||
+    (typeof req.query.share === "string" ? req.query.share : undefined);
 
   if (!email || !name) {
     res.status(400).json({ error: "Name and email are required" });
@@ -260,6 +326,69 @@ export const registerUser: RequestHandler = async (req, res) => {
   } catch (error) {
     console.error("Failed to save platform user:", error);
     res.status(500).json({ error: "Failed to save user profile" });
+  }
+};
+
+export const backfillReferralCodes: RequestHandler = async (req, res) => {
+  const requesterEmail = req.user?.email?.toLowerCase();
+  const adminEmail = (process.env.ADMIN_EMAIL || "admin@freemediabuzz.com").toLowerCase();
+
+  if (!requesterEmail || requesterEmail !== adminEmail) {
+    res.status(403).json({ error: "Admin access required" });
+    return;
+  }
+
+  try {
+    usersDatabase = await getUsersDatabase();
+    const existingCodes = new Set<string>(
+      usersDatabase
+        .map((u) => (u as any).referralCode)
+        .filter((code): code is string => typeof code === "string" && code.trim() !== "")
+    );
+
+    const updatedUsers: PlatformUser[] = [];
+    const useMongo = await isMongoDBAvailable();
+    let updatedCount = 0;
+
+    for (const user of usersDatabase) {
+      const currentCode = (user as any).referralCode;
+      if (currentCode && typeof currentCode === "string" && currentCode.trim() !== "") {
+        continue;
+      }
+      const baseCode = generateReferralCode(user.id, user.email);
+      const newCode = ensureUniqueReferralCode(baseCode, existingCodes);
+      (user as any).referralCode = newCode;
+      user.updatedAt = new Date().toISOString();
+      updatedUsers.push(user);
+      updatedCount += 1;
+    }
+
+    if (useMongo) {
+      for (const user of updatedUsers) {
+        try {
+          const existingUser = await mongoService.getUserByEmail(user.email.toLowerCase());
+          if (existingUser) {
+            await mongoService.updateUser(existingUser._id.toString(), {
+              referralCode: (user as any).referralCode,
+              updatedAt: new Date(user.updatedAt),
+            });
+          }
+        } catch (error) {
+          console.error("❌ Error updating referral code in MongoDB:", error);
+        }
+      }
+    } else {
+      await saveUsersDatabase(usersDatabase);
+    }
+
+    res.json({
+      success: true,
+      updatedCount,
+      totalUsers: usersDatabase.length,
+    });
+  } catch (error: any) {
+    console.error("Failed to backfill referral codes:", error);
+    res.status(500).json({ error: "Failed to backfill referral codes" });
   }
 };
 
