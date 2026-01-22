@@ -30,6 +30,7 @@ const categoryOptions = [
   { label: "Audio", value: "audio" },
   { label: "Template", value: "template" },
   { label: "APK / App", value: "apk" },
+  { label: "AI Video Generator", value: "aivideogenerator" },
 ];
 
 type UploadCategory = typeof categoryOptions[number]["value"];
@@ -63,7 +64,6 @@ export default function CreatorDashboard() {
   const [purchaseError, setPurchaseError] = useState("");
   const [selectedPlanGb, setSelectedPlanGb] = useState(1);
   const [selectedMonths, setSelectedMonths] = useState(2);
-  const [paymentMethod, setPaymentMethod] = useState<"auto" | "manual">("auto");
   const [manualTxnId, setManualTxnId] = useState("");
   const [manualSender, setManualSender] = useState("");
   const [statsLoading, setStatsLoading] = useState(false);
@@ -162,6 +162,7 @@ export default function CreatorDashboard() {
         // ignore errors, keep defaults
       });
   }, []);
+
 
   const handleCreatorAccessRequest = async () => {
     if (!currentUser?.email) return;
@@ -282,39 +283,24 @@ export default function CreatorDashboard() {
     setPurchaseError("");
     setPurchaseSuccess("");
     try {
-      let response: Response;
-      if (paymentMethod === "manual") {
-        if (!manualSender || !manualTxnId) {
-          setPurchaseError("Enter the bKash number you sent from and the transaction ID.");
-          setPurchaseLoading(false);
-          return;
-        }
-        response = await apiFetch("/api/creators/storage/purchase/manual", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            creatorId: creatorProfile.id,
-            gb: selectedPlanGb,
-            months: selectedMonths,
-            senderNumber: manualSender,
-            transactionId: manualTxnId,
-          }),
-        });
-      } else {
-        response = await apiFetch("/api/creators/storage/purchase", {
-          method: "POST",
-          headers: {
-            "Content-Type": "application/json",
-          },
-          body: JSON.stringify({
-            creatorId: creatorProfile.id,
-            gb: selectedPlanGb,
-            months: selectedMonths,
-          }),
-        });
+      if (!manualSender || !manualTxnId) {
+        setPurchaseError("Enter the bKash number you sent from and the transaction ID.");
+        setPurchaseLoading(false);
+        return;
       }
+      const response = await apiFetch("/api/creators/storage/purchase/manual", {
+        method: "POST",
+        headers: {
+          "Content-Type": "application/json",
+        },
+        body: JSON.stringify({
+          creatorId: creatorProfile.id,
+          gb: selectedPlanGb,
+          months: selectedMonths,
+          senderNumber: manualSender,
+          transactionId: manualTxnId,
+        }),
+      });
 
       if (!response.ok) {
         const errorData = await response.json().catch(() => ({}));
@@ -324,16 +310,11 @@ export default function CreatorDashboard() {
       const plan = STORAGE_PLANS.find((p) => p.gb === selectedPlanGb);
       const total = plan ? plan.price * selectedMonths : 0;
 
-      if (paymentMethod === "manual") {
-        setPurchaseSuccess(
-          `Manual payment submitted (৳${total}). Storage will activate after admin verifies your bKash transaction.`
-        );
-        setManualSender("");
-        setManualTxnId("");
-      } else {
-        setPurchaseSuccess(`Storage upgraded: +${selectedPlanGb} GB for ${selectedMonths} months (৳${total}).`);
-        await refreshCreatorProfile(currentUser?.email);
-      }
+      setPurchaseSuccess(
+        `Manual payment submitted (৳${total}). Storage will activate after admin verifies your bKash transaction.`
+      );
+      setManualSender("");
+      setManualTxnId("");
     } catch (error: any) {
       setPurchaseError(error.message || "Failed to update storage plan.");
     } finally {
@@ -736,34 +717,6 @@ export default function CreatorDashboard() {
                   </span>
                 </div>
 
-                <div className="space-y-2">
-                  <p className="text-sm font-medium">Payment method</p>
-                  <div className="flex flex-wrap gap-2">
-                    <button
-                      type="button"
-                      onClick={() => setPaymentMethod("auto")}
-                      className={`px-3 py-1.5 rounded-lg border text-sm font-semibold ${
-                        paymentMethod === "auto"
-                          ? "border-primary bg-primary/10 text-primary"
-                          : "border-border hover:border-primary/40"
-                      }`}
-                    >
-                      Auto (merchant {paymentSettings.bkashMerchant})
-                    </button>
-                    <button
-                      type="button"
-                      onClick={() => setPaymentMethod("manual")}
-                      className={`px-3 py-1.5 rounded-lg border text-sm font-semibold ${
-                        paymentMethod === "manual"
-                          ? "border-primary bg-primary/10 text-primary"
-                          : "border-border hover:border-primary/40"
-                      }`}
-                    >
-                      Manual send money ({paymentSettings.bkashPersonal})
-                    </button>
-                  </div>
-                </div>
-
                 <div className="grid grid-cols-1 md:grid-cols-3 gap-3">
                   <label className="text-sm font-medium flex flex-col gap-2">
                     Plan
@@ -805,47 +758,40 @@ export default function CreatorDashboard() {
                   </div>
                 </div>
 
-                {paymentMethod === "auto" ? (
-                  <div className="rounded-lg border border-primary/20 bg-primary/5 p-3 text-xs text-primary">
-                    Pay with bKash merchant number <span className="font-semibold">{paymentSettings.bkashMerchant}</span>. This
-                    option is processed immediately.
+                <div className="rounded-lg border border-amber-300 bg-amber-50/60 dark:bg-amber-900/20 p-3 text-xs text-amber-800 dark:text-amber-100 space-y-2">
+                  <p className="font-semibold">Manual payment steps</p>
+                  <ol className="list-decimal list-inside space-y-1">
+                    <li>
+                      Send <span className="font-semibold">৳{(STORAGE_PLANS.find((p) => p.gb === selectedPlanGb)?.price || 0) * selectedMonths}</span>{" "}
+                      via <strong>Send Money</strong> to personal bKash number{" "}
+                      <span className="font-semibold">{paymentSettings.bkashPersonal}</span>.
+                    </li>
+                    <li>Enter the bKash number you sent from and the transaction ID below.</li>
+                    <li>Admin will verify the payment and activate the extra storage.</li>
+                  </ol>
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-2">
+                    <label className="text-sm font-medium flex flex-col gap-1">
+                      Your bKash number
+                      <input
+                        type="tel"
+                        value={manualSender}
+                        onChange={(e) => setManualSender(e.target.value)}
+                        placeholder="e.g., 01XXXXXXXXX"
+                        className="rounded-lg border border-border px-3 py-2 text-sm bg-white dark:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-primary"
+                      />
+                    </label>
+                    <label className="text-sm font-medium flex flex-col gap-1">
+                      Transaction ID
+                      <input
+                        type="text"
+                        value={manualTxnId}
+                        onChange={(e) => setManualTxnId(e.target.value)}
+                        placeholder="e.g., B9X123ABC"
+                        className="rounded-lg border border-border px-3 py-2 text-sm bg-white dark:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-primary uppercase"
+                      />
+                    </label>
                   </div>
-                ) : (
-                  <div className="rounded-lg border border-amber-300 bg-amber-50/60 dark:bg-amber-900/20 p-3 text-xs text-amber-800 dark:text-amber-100 space-y-2">
-                    <p className="font-semibold">Manual payment steps</p>
-                    <ol className="list-decimal list-inside space-y-1">
-                      <li>
-                        Send <span className="font-semibold">৳{(STORAGE_PLANS.find((p) => p.gb === selectedPlanGb)?.price || 0) * selectedMonths}</span>{" "}
-                        via <strong>Send Money</strong> to personal bKash number{" "}
-                        <span className="font-semibold">{paymentSettings.bkashPersonal}</span>.
-                      </li>
-                      <li>Enter the bKash number you sent from and the transaction ID below.</li>
-                      <li>Admin will verify the payment and activate the extra storage.</li>
-                    </ol>
-                    <div className="grid grid-cols-1 md:grid-cols-2 gap-3 mt-2">
-                      <label className="text-sm font-medium flex flex-col gap-1">
-                        Your bKash number
-                        <input
-                          type="tel"
-                          value={manualSender}
-                          onChange={(e) => setManualSender(e.target.value)}
-                          placeholder="e.g., 01XXXXXXXXX"
-                          className="rounded-lg border border-border px-3 py-2 text-sm bg-white dark:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-primary"
-                        />
-                      </label>
-                      <label className="text-sm font-medium flex flex-col gap-1">
-                        Transaction ID
-                        <input
-                          type="text"
-                          value={manualTxnId}
-                          onChange={(e) => setManualTxnId(e.target.value)}
-                          placeholder="e.g., B9X123ABC"
-                          className="rounded-lg border border-border px-3 py-2 text-sm bg-white dark:bg-slate-900 focus:outline-none focus:ring-2 focus:ring-primary uppercase"
-                        />
-                      </label>
-                    </div>
-                  </div>
-                )}
+                </div>
 
                 {purchaseError && (
                   <p className="text-sm text-destructive bg-destructive/10 border border-destructive/20 rounded-lg px-3 py-2">

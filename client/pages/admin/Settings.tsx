@@ -39,7 +39,7 @@ export default function AdminSettings() {
   const [paymentSettings, setPaymentSettings] = useState({
     bkashPersonal: "",
     bkashMerchant: "",
-    autoPaymentEnabled: true,
+    autoPaymentEnabled: false,
   });
   const [paymentStatus, setPaymentStatus] = useState<"idle" | "saving" | "success" | "error">("idle");
   const [paymentMessage, setPaymentMessage] = useState("");
@@ -90,7 +90,7 @@ export default function AdminSettings() {
           setPaymentSettings({
             bkashPersonal: data?.bkashPersonal || "",
             bkashMerchant: data?.bkashMerchant || "",
-            autoPaymentEnabled: typeof data?.autoPaymentEnabled === "boolean" ? data.autoPaymentEnabled : true,
+            autoPaymentEnabled: typeof data?.autoPaymentEnabled === "boolean" ? data.autoPaymentEnabled : false,
           });
         } else {
           setPaymentMessage("Unable to load payment settings.");

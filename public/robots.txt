@@ -1,6 +1,12 @@
 User-agent: Googlebot
 Allow: /
 
+User-agent: Googlebot-Image
+Allow: /
+
+User-agent: Googlebot-Video
+Allow: /
+
 User-agent: Bingbot
 Allow: /
 
@@ -12,3 +18,5 @@ Allow: /
 
 User-agent: *
 Allow: /
+
+Sitemap: https://www.freemediabuzz.com/sitemap.xml

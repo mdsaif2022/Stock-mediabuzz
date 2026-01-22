@@ -6,6 +6,7 @@ import { Media, MediaResponse } from "@shared/api";
 import { apiFetch, API_BASE_URL } from "@/lib/api";
 import { DownloadVideoViewer } from "@/components/media/DownloadVideoViewer";
 import { VideoCard } from "@/components/media/VideoCard";
+import { AudioCard } from "@/components/media/AudioCard";
 import { AudioPlayer } from "@/components/media/AudioPlayer";
 import { Dialog, DialogContent, DialogHeader, DialogTitle } from "@/components/ui/dialog";
 import { isBackNavigationActive } from "@/utils/backNavigationDetector";
@@ -36,6 +37,19 @@ export default function MediaDetail() {
   const [mediaDuration, setMediaDuration] = useState<string>("N/A");
   const videoRef = useRef<HTMLVideoElement>(null);
   const audioRef = useRef<HTMLAudioElement>(null);
+  const seoStateRef = useRef<{
+    title: string;
+    meta: Map<string, string | null>;
+    created: Set<string>;
+    canonicalHref: string | null;
+    canonicalCreated: boolean;
+  }>({
+    title: "",
+    meta: new Map(),
+    created: new Set(),
+    canonicalHref: null,
+    canonicalCreated: false,
+  });
 
   // Track mount time on component mount
   useEffect(() => {
@@ -388,6 +402,135 @@ export default function MediaDetail() {
     previousLocationRef.current = currentLocation;
   }, [location.pathname, location.search, id, navigationType]);
 
+  // Update SEO meta tags for media detail (helps crawlers build rich previews)
+  useEffect(() => {
+    if (!media) return;
+
+    const origin = window.location.origin;
+    const categoryPath = media.category ? String(media.category).toLowerCase() : "all";
+    const canonicalUrl = `${origin}/browse/${categoryPath}/${media.id}`;
+    const title = `${media.title || "Media"} | FreeMediaBuzz`;
+    const description = media.description || "Download free media on FreeMediaBuzz.";
+    const imageUrl = media.previewUrl || media.iconUrl || "";
+    const isVideo = String(media.category || "").toLowerCase() === "video";
+
+    const setMeta = (key: string, value: string, attr: "name" | "property" = "name") => {
+      if (!value) return;
+      const selector = `meta[${attr}="${key}"]`;
+      let tag = document.querySelector(selector) as HTMLMetaElement | null;
+      const mapKey = `${attr}:${key}`;
+      if (!tag) {
+        tag = document.createElement("meta");
+        tag.setAttribute(attr, key);
+        document.head.appendChild(tag);
+        seoStateRef.current.created.add(mapKey);
+      }
+      if (!seoStateRef.current.meta.has(mapKey)) {
+        seoStateRef.current.meta.set(mapKey, tag.getAttribute("content"));
+      }
+      tag.setAttribute("content", value);
+    };
+
+    if (!seoStateRef.current.title) {
+      seoStateRef.current.title = document.title;
+    }
+    document.title = title;
+
+    let canonical = document.querySelector('link[rel="canonical"]') as HTMLLinkElement | null;
+    if (!canonical) {
+      canonical = document.createElement("link");
+      canonical.rel = "canonical";
+      document.head.appendChild(canonical);
+      seoStateRef.current.canonicalCreated = true;
+    }
+    if (!seoStateRef.current.canonicalHref) {
+      seoStateRef.current.canonicalHref = canonical.getAttribute("href");
+    }
+    canonical.setAttribute("href", canonicalUrl);
+
+    setMeta("description", description, "name");
+    setMeta("og:type", isVideo ? "video.other" : "website", "property");
+    setMeta("og:site_name", "FreeMediaBuzz", "property");
+    setMeta("og:title", media.title || "FreeMediaBuzz", "property");
+    setMeta("og:description", description, "property");
+    setMeta("og:url", canonicalUrl, "property");
+    if (imageUrl) {
+      setMeta("og:image", imageUrl, "property");
+    }
+    if (isVideo && media.fileUrl) {
+      setMeta("og:video", media.fileUrl, "property");
+    }
+    setMeta("twitter:card", imageUrl ? "summary_large_image" : "summary", "name");
+    setMeta("twitter:title", media.title || "FreeMediaBuzz", "name");
+    setMeta("twitter:description", description, "name");
+    if (imageUrl) {
+      setMeta("twitter:image", imageUrl, "name");
+    }
+
+    const jsonLdId = "media-jsonld";
+    let jsonLd = document.getElementById(jsonLdId) as HTMLScriptElement | null;
+    if (!jsonLd) {
+      jsonLd = document.createElement("script");
+      jsonLd.type = "application/ld+json";
+      jsonLd.id = jsonLdId;
+      document.head.appendChild(jsonLd);
+    }
+    const baseJson = {
+      "@context": "https://schema.org",
+      name: media.title || "FreeMediaBuzz Media",
+      description,
+      url: canonicalUrl,
+      uploadDate: media.uploadedDate || undefined,
+      thumbnailUrl: imageUrl || undefined,
+      contentUrl: media.fileUrl || undefined,
+      publisher: {
+        "@type": "Organization",
+        name: "FreeMediaBuzz",
+      },
+    };
+    const jsonLdPayload = isVideo
+      ? { "@type": "VideoObject", ...baseJson }
+      : String(media.category || "").toLowerCase() === "image"
+        ? { "@type": "ImageObject", ...baseJson }
+        : { "@type": "CreativeWork", ...baseJson };
+    jsonLd.textContent = JSON.stringify(jsonLdPayload);
+
+    return () => {
+      if (seoStateRef.current.title) {
+        document.title = seoStateRef.current.title;
+      }
+      seoStateRef.current.meta.forEach((prev, key) => {
+        const [attr, name] = key.split(":");
+        const selector = `meta[${attr}="${name}"]`;
+        const tag = document.querySelector(selector) as HTMLMetaElement | null;
+        if (!tag) return;
+        if (seoStateRef.current.created.has(key)) {
+          tag.remove();
+        } else if (prev !== null) {
+          tag.setAttribute("content", prev);
+        }
+      });
+      seoStateRef.current.meta.clear();
+      seoStateRef.current.created.clear();
+
+      const canonicalTag = document.querySelector('link[rel="canonical"]') as HTMLLinkElement | null;
+      if (canonicalTag) {
+        if (seoStateRef.current.canonicalCreated) {
+          canonicalTag.remove();
+        } else if (seoStateRef.current.canonicalHref) {
+          canonicalTag.setAttribute("href", seoStateRef.current.canonicalHref);
+        }
+      }
+      seoStateRef.current.canonicalCreated = false;
+      seoStateRef.current.canonicalHref = null;
+
+      const jsonLdTag = document.getElementById(jsonLdId);
+      if (jsonLdTag) {
+        jsonLdTag.remove();
+      }
+    };
+  }, [media]);
+
   useEffect(() => {
     if (!media) {
       setRelatedMedia([]);
@@ -398,8 +541,10 @@ export default function MediaDetail() {
     const fetchRelated = async () => {
       setIsRelatedLoading(true);
       try {
+        // Use the current media's category for related media
+        const currentCategory = media.category?.toLowerCase() || "all";
         const params = new URLSearchParams({
-          category: media.category,
+          category: currentCategory === "all" ? "" : currentCategory,
           page: "1",
           pageSize: "12",
           sort: "popular",
@@ -408,7 +553,11 @@ export default function MediaDetail() {
         if (response.ok) {
           const payload: MediaResponse = await response.json();
           const items = Array.isArray(payload?.data) ? payload.data : [];
-          const filtered = items.filter((item) => item.id !== media.id).slice(0, 4);
+          // Filter to only include items from the same category, excluding the current item
+          const filtered = items.filter((item) => {
+            const itemCategory = item.category?.toLowerCase() || "";
+            return item.id !== media.id && itemCategory === currentCategory;
+          }).slice(0, 12);
           setRelatedMedia(filtered);
         } else {
           setRelatedMedia([]);
@@ -442,7 +591,7 @@ export default function MediaDetail() {
       const cacheBuster = `?t=${Date.now()}`;
       const proxyUrl = API_BASE_URL ? `${API_BASE_URL}${proxyPath}${cacheBuster}` : `${proxyPath}${cacheBuster}`;
       
-      // Adsterra links - all 20 links
+      // Adsterra popup links - all 20 links
       const adsterraLinks = [
         "https://www.effectivegatecpm.com/hfy73qcy?key=e260bfac004e18965e13c7172696c1a3",
         "https://www.effectivegatecpm.com/ywhsa6yivz?key=bfec6a8bc15be21a9df294ff59815f8a",
@@ -472,10 +621,9 @@ export default function MediaDetail() {
       const currentAttempt = downloadAttemptsRef.current;
       setDownloadAttempts(currentAttempt);
       
-      // Show ads on download button clicks
-      // Ads are opened in new windows, so they don't interfere with navigation
+      // Show popup ads on download button clicks
       const isFirstClick = currentAttempt === 1;
-      const shouldShowAds = true; // Enable ads on download button clicks
+      const shouldShowAds = true; // Enable popup ads on download button clicks
       
       // Determine file extension for download attribute
       // Check category first (most reliable), then URL, then default
@@ -597,14 +745,14 @@ export default function MediaDetail() {
       };
       
       if (shouldShowAds) {
-        // Show ads: randomly select 1, 2, or 3 ads
+        // Show popup ads: randomly select 1, 2, or 3 ads
         const numAdsToShow = Math.floor(Math.random() * 3) + 1; // 1, 2, or 3
         
         // Shuffle array and pick random unique ads
         const shuffled = [...adsterraLinks].sort(() => Math.random() - 0.5);
         const selectedAds = shuffled.slice(0, numAdsToShow);
         
-        console.log(`Showing ${numAdsToShow} Adsteera ad(s) from ${adsterraLinks.length} total links`);
+        console.log(`Showing ${numAdsToShow} Adsterra popup ad(s) from ${adsterraLinks.length} total links`);
         
         // Open all selected ads synchronously within user gesture context
         // This is required to avoid popup blockers - browsers block popups opened outside direct user interaction
@@ -663,7 +811,7 @@ export default function MediaDetail() {
         } else {
           // Subsequent clicks: Show ads AND trigger download
           // User sees ads, but download also starts
-          console.log(`Showing ads and triggering download (attempt ${currentAttempt})`);
+          console.log(`Showing popup ads and triggering download (attempt ${currentAttempt})`);
           
           // Trigger download after a short delay to allow ads to open
           setTimeout(() => {
@@ -693,8 +841,8 @@ export default function MediaDetail() {
           }, 500); // Small delay to let ads open first
         }
       } else {
-        // Download directly without showing ads
-        console.log(`Downloading directly without ads (attempt ${currentAttempt})`);
+        // Download directly without showing popup ads
+        console.log(`Downloading directly without popup ads (attempt ${currentAttempt})`);
         triggerDownload()
           .then(() => {
             // Only reset attempts counter after successful download
@@ -1228,7 +1376,7 @@ export default function MediaDetail() {
             <h2 className="text-xl sm:text-2xl font-bold mb-4 sm:mb-6">Related Media</h2>
             {isRelatedLoading ? (
               <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-4 gap-4 sm:gap-6">
-                {Array.from({ length: 4 }).map((_, index) => (
+                {Array.from({ length: 12 }).map((_, index) => (
                   <div key={`related-skeleton-${index}`} className="animate-pulse space-y-3">
                     <div className="h-40 bg-slate-200 dark:bg-slate-800 rounded-lg" />
                     <div className="h-4 bg-slate-200 dark:bg-slate-800 rounded w-3/4" />
@@ -1241,6 +1389,8 @@ export default function MediaDetail() {
                 {relatedMedia.map((item) => {
                   const itemCategory = item.category?.toLowerCase() || "all";
                   const isVideoItem = itemCategory === "video";
+                  const isAudioItem = itemCategory === "audio";
+                  
                   if (isVideoItem) {
                     return (
                       <VideoCard
@@ -1248,6 +1398,18 @@ export default function MediaDetail() {
                         media={item}
                         to={`/browse/${itemCategory}/${item.id}`}
                         variant="compact"
+                      />
+                    );
+                  }
+
+                  if (isAudioItem) {
+                    return (
+                      <AudioCard
+                        key={item.id}
+                        media={item}
+                        to={`/browse/${itemCategory}/${item.id}`}
+                        variant="compact"
+                        theme="default"
                       />
                     );
                   }

@@ -43,7 +43,7 @@ const DEFAULT_SETTINGS: SettingsStore = {
   payment: {
     bkashPersonal: "01783083659",
     bkashMerchant: "01918998687",
-    autoPaymentEnabled: true,
+    autoPaymentEnabled: false,
   },
   branding: {
     faviconDataUrl: "",
@@ -65,7 +65,7 @@ const DEFAULT_SETTINGS: SettingsStore = {
   },
 };
 
-async function loadSettings(): Promise<SettingsStore> {
+export async function loadSettings(): Promise<SettingsStore> {
   try {
     await fs.mkdir(DATA_DIR, { recursive: true });
     const data = await fs.readFile(SETTINGS_FILE, "utf-8");

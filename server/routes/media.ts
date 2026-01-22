@@ -5,7 +5,27 @@ import { CloudinaryServer } from "../config/cloudinary.js";
 import { isMongoDBAvailable } from "../utils/mongodb.js";
 import * as mongoService from "../services/mongodbService.js";
 
-const CATEGORY_KEYS: Media["category"][] = ["video", "image", "audio", "template", "apk"];
+const CATEGORY_KEYS: Media["category"][] = ["video", "image", "audio", "template", "apk", "aivideogenerator"];
+const BRANDING_ASSET_MARKERS = ["site-assets/", "site-logo", "site-favicon"];
+
+const isBrandingAsset = (media: Media): boolean => {
+  const haystack = [
+    media.fileUrl,
+    media.previewUrl,
+    media.iconUrl,
+    media.title,
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+  return BRANDING_ASSET_MARKERS.some((marker) => haystack.includes(marker));
+};
+
+const isBrandingResource = (publicId?: string | null): boolean => {
+  if (!publicId) return false;
+  const normalized = publicId.toLowerCase();
+  return BRANDING_ASSET_MARKERS.some((marker) => normalized.includes(marker));
+};
 
 const normalizeCategoryValue = (cat?: string): Media["category"] | "" => {
   if (!cat) return "";
@@ -15,6 +35,7 @@ const normalizeCategoryValue = (cat?: string): Media["category"] | "" => {
   if (["audio", "audios", "sound", "music", "song", "songs"].includes(normalized)) return "audio";
   if (["template", "templates", "theme", "themes", "design"].includes(normalized)) return "template";
   if (["apk", "apks", "android", "app", "apps"].includes(normalized)) return "apk";
+  if (["aivideogenerator", "ai-video-generator", "ai video generator", "aivideo", "aivideogen"].includes(normalized)) return "aivideogenerator";
   return normalized as Media["category"] | "";
 };
 
@@ -132,24 +153,18 @@ async function saveMediaDatabase(data: Media[]): Promise<void> {
 // Export for use in upload handler and other modules
 export { mediaData as mediaDatabase, saveMediaDatabase, getMediaDatabase };
 
-// Get all media with pagination and filtering
-export const getMedia: RequestHandler = async (req, res) => {
-  const { page = 1, pageSize = 20, category, search, sort = "latest" } = req.query as {
-    page?: string | number;
-    pageSize?: string | number;
-    category?: string;
-    search?: string;
-    sort?: "latest" | "popular" | "views";
-  };
+// Cache for share posts and popup ads URLs to avoid loading on every request
+let cachedSharePostUrls: Set<string> | null = null;
+let cachedPopupAdUrls: Set<string> | null = null;
+let cacheTimestamp = 0;
+const CACHE_TTL = 60000; // Cache for 60 seconds
 
-  const mediaDatabase = await getMediaDatabase();
-  let filtered = [...mediaDatabase];
+async function getCachedAdUrls() {
+  const now = Date.now();
+  if (cachedSharePostUrls && cachedPopupAdUrls && (now - cacheTimestamp) < CACHE_TTL) {
+    return { sharePostUrls: cachedSharePostUrls, popupAdUrls: cachedPopupAdUrls };
+  }
 
-  // Filter by status: only show approved items to regular users (admin panel will show all)
-  // Items without status are considered approved for backward compatibility
-  filtered = filtered.filter((m) => !m.status || m.status === "approved");
-
-  // Exclude media URLs that are used in share posts or pop-up ads
   try {
     // Load share posts to get their media URLs
     const { loadSharePostsDatabase } = await import("./referral.js");
@@ -168,30 +183,48 @@ export const getMedia: RequestHandler = async (req, res) => {
       if (ad.mediaUrl) popupAdUrls.add(ad.mediaUrl);
     });
 
-    // Filter out media items whose URLs match share post or pop-up ad URLs
-    filtered = filtered.filter((m) => {
-      const fileUrl = m.fileUrl || "";
-      const previewUrl = m.previewUrl || "";
-      const iconUrl = m.iconUrl || "";
-      
-      // Check if any of the media URLs match share post or pop-up ad URLs
-      const isSharePostMedia = sharePostUrls.has(fileUrl) || sharePostUrls.has(previewUrl) || sharePostUrls.has(iconUrl);
-      const isPopupAdMedia = popupAdUrls.has(fileUrl) || popupAdUrls.has(previewUrl) || popupAdUrls.has(iconUrl);
-      
-      return !isSharePostMedia && !isPopupAdMedia;
-    });
+    cachedSharePostUrls = sharePostUrls;
+    cachedPopupAdUrls = popupAdUrls;
+    cacheTimestamp = now;
+    return { sharePostUrls, popupAdUrls };
   } catch (error) {
-    // If we can't load share posts or pop-up ads, continue without filtering
-    console.warn("Could not filter share post/pop-up ad media:", error);
+    console.warn("Could not load share post/pop-up ad URLs:", error);
+    return { sharePostUrls: new Set<string>(), popupAdUrls: new Set<string>() };
   }
+}
 
+// Get all media with pagination and filtering
+export const getMedia: RequestHandler = async (req, res) => {
+  const { page = 1, pageSize = 20, category, search, sort = "latest" } = req.query as {
+    page?: string | number;
+    pageSize?: string | number;
+    category?: string;
+    search?: string;
+    sort?: "latest" | "popular" | "views";
+  };
+
+  // Add cache headers for faster loading
+  res.setHeader('Cache-Control', 'public, max-age=30, stale-while-revalidate=60');
+  res.setHeader('X-Content-Type-Options', 'nosniff');
+  
+  const mediaDatabase = await getMediaDatabase();
+  let filtered = [...mediaDatabase];
+
+  // Filter by status first (fastest filter)
+  filtered = filtered.filter((m) => !m.status || m.status === "approved");
+
+  // Exclude branding assets (logo/favicon) from public media listings
+  filtered = filtered.filter((m) => !isBrandingAsset(m));
+
+  // Filter by category early (reduces data size before other operations)
   if (category) {
     const normalizedCategory = normalizeCategoryValue(category as string);
-    filtered = normalizedCategory
-      ? filtered.filter((m) => normalizeCategoryValue(m.category) === normalizedCategory)
-      : filtered;
+    if (normalizedCategory) {
+      filtered = filtered.filter((m) => normalizeCategoryValue(m.category) === normalizedCategory);
+    }
   }
 
+  // Filter by search (after category to work with smaller dataset)
   if (search) {
     const searchLower = (search as string).toLowerCase();
     filtered = filtered.filter(
@@ -202,6 +235,21 @@ export const getMedia: RequestHandler = async (req, res) => {
     );
   }
 
+  // Exclude media URLs that are used in share posts or pop-up ads (do this after other filters for performance)
+  const { sharePostUrls, popupAdUrls } = await getCachedAdUrls();
+  filtered = filtered.filter((m) => {
+    const fileUrl = m.fileUrl || "";
+    const previewUrl = m.previewUrl || "";
+    const iconUrl = m.iconUrl || "";
+    
+    // Check if any of the media URLs match share post or pop-up ad URLs
+    const isSharePostMedia = sharePostUrls.has(fileUrl) || sharePostUrls.has(previewUrl) || sharePostUrls.has(iconUrl);
+    const isPopupAdMedia = popupAdUrls.has(fileUrl) || popupAdUrls.has(previewUrl) || popupAdUrls.has(iconUrl);
+    
+    return !isSharePostMedia && !isPopupAdMedia;
+  });
+
+  // Sort after filtering for better performance
   const sortKey = typeof sort === "string" ? sort.toLowerCase() : "latest";
   filtered.sort((a, b) => {
     if (sortKey === "popular") {
@@ -221,9 +269,44 @@ export const getMedia: RequestHandler = async (req, res) => {
   const end = start + pageSizeNum;
 
   const paginatedData = filtered.slice(start, end);
+  
+  // Return only essential fields for list view to reduce payload size
+  const optimizedData = paginatedData.map(({ 
+    id, 
+    title, 
+    category, 
+    type, 
+    previewUrl, 
+    iconUrl,
+    fileUrl,
+    description,
+    tags,
+    uploadedDate,
+    downloads,
+    views,
+    fileSize,
+    isPremium,
+    duration
+  }) => ({
+    id,
+    title,
+    category,
+    type,
+    previewUrl,
+    iconUrl,
+    fileUrl,
+    description,
+    tags,
+    uploadedDate,
+    downloads,
+    views,
+    fileSize,
+    isPremium,
+    duration
+  }));
 
   const response: MediaResponse = {
-    data: paginatedData,
+    data: optimizedData,
     total: filtered.length,
     page: pageNum,
     pageSize: pageSizeNum,
@@ -238,7 +321,7 @@ export const getMediaById: RequestHandler = async (req, res) => {
   const mediaDatabase = await getMediaDatabase();
   const media = mediaDatabase.find((m) => m.id === id);
 
-  if (!media) {
+  if (!media || isBrandingAsset(media)) {
     res.status(404).json({ error: "Media not found" });
     return;
   }
@@ -576,6 +659,7 @@ export const getTrendingMedia: RequestHandler = async (req, res) => {
   
   // Filter out share post and pop-up ad media, then sort by downloads
   const filtered = mediaDatabase.filter((m) => {
+    if (isBrandingAsset(m)) return false;
     const fileUrl = m.fileUrl || "";
     const previewUrl = m.previewUrl || "";
     const iconUrl = m.iconUrl || "";
@@ -650,6 +734,7 @@ export const getCategorySummary: RequestHandler = async (_req, res) => {
     // Also exclude items used in share posts or pop-up ads
     const items = mediaDatabase.filter(
       (item) => {
+        if (isBrandingAsset(item)) return false;
         const matchesCategory = normalizeCategoryValue(item.category) === category;
         const isApproved = !item.status || item.status === "approved";
         const fileUrl = item.fileUrl || "";
@@ -1072,6 +1157,10 @@ export async function performCloudinarySync(): Promise<{
     
     console.log("🔄 Processing resources...");
     for (const { resource, server, account } of allResources) {
+      if (isBrandingResource(resource.public_id)) {
+        skipped++;
+        continue;
+      }
       // Skip if already in database
       if (existingUrls.has(resource.secure_url)) {
         skipped++;

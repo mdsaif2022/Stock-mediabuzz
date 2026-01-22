@@ -14,6 +14,7 @@ import { DATA_DIR } from "../utils/dataPath.js";
 import { isMongoDBAvailable } from "../utils/mongodb.js";
 import * as mongoService from "../services/mongodbService.js";
 import { generateDeviceFingerprint, getDeviceId } from "../utils/deviceFingerprint.js";
+import { loadSettings } from "./settings.js";
 
 // Lazy import email service to avoid loading nodemailer during Vite config evaluation
 async function sendAdminMail(subject: string, templateName: string, variables: any) {
@@ -842,6 +843,14 @@ export const purchaseCreatorStorage: RequestHandler = async (req, res) => {
     return;
   }
 
+  const settings = await loadSettings();
+  if (!settings.payment.autoPaymentEnabled) {
+    res.status(403).json({
+      error: "Auto payment is disabled. Please use manual payment and wait for admin approval.",
+    });
+    return;
+  }
+
   if (!STORAGE_PLAN_PRICING_TK[gb]) {
     res.status(400).json({ error: "Invalid storage plan selected" });
     return;
@@ -1010,10 +1019,41 @@ export const purchaseCreatorStorageManual: RequestHandler = async (req, res) => 
     return;
   }
 
-  const creator = getCreatorById(creatorId);
+  // Get creator - ensure we have the latest data from database
+  let creator = getCreatorById(creatorId);
   if (!creator) {
     res.status(404).json({ error: "Creator profile not found" });
     return;
+  }
+  
+  // CRITICAL: Reload fresh data from database to ensure we have ALL existing purchases
+  // This prevents losing previous purchases when adding a new one
+  const useMongo = await isMongoDBAvailable();
+  if (useMongo) {
+    try {
+      const allCreators = await mongoService.getAllCreators();
+      const dbCreator = allCreators.find((c: any) => c.id === creatorId || c.email === creator.email);
+      if (dbCreator) {
+        const { _id, ...rest } = dbCreator;
+        // Ensure purchase history is an array
+        if (!Array.isArray(rest.storagePurchaseHistory)) {
+          rest.storagePurchaseHistory = rest.storagePurchaseHistory ? [rest.storagePurchaseHistory] : [];
+        }
+        creator = refreshStorageState({ ...rest, id: rest.id || _id.toString() } as CreatorProfile);
+        // Update in-memory cache with fresh data
+        const index = creatorsDatabase.findIndex((c) => c.id === creatorId);
+        if (index !== -1) {
+          creatorsDatabase[index] = creator;
+        }
+      }
+    } catch (reloadError) {
+      console.error(`[Storage Purchase Manual] Error reloading from MongoDB before purchase:`, reloadError);
+    }
+  }
+  
+  // CRITICAL: Ensure purchase history array exists and is an array
+  if (!Array.isArray(creator.storagePurchaseHistory)) {
+    creator.storagePurchaseHistory = [];
   }
 
   const pricePerGb = STORAGE_PLAN_PRICING_TK[gb];
@@ -1021,25 +1061,53 @@ export const purchaseCreatorStorageManual: RequestHandler = async (req, res) => 
   const now = new Date();
 
   const purchase: CreatorStoragePurchase = {
-    id: `${Date.now()}`,
+    id: `${Date.now()}-${Math.random().toString(36).substr(2, 9)}`,
     gb,
     months,
     pricePerGbTk: pricePerGb,
     totalTk,
     purchasedAt: now.toISOString(),
-    expiresAt: now.toISOString(),
+    expiresAt: now.toISOString(), // Will be set when admin approves
     paymentMethod: "manual",
-    status: "pending",
+    status: "pending", // Requires admin approval
     reference: transactionId,
     senderNumber,
   };
 
-  creator.storagePurchaseHistory = creator.storagePurchaseHistory || [];
+  // Add purchase to history array - this is a separate entry, never overwrites existing ones
   creator.storagePurchaseHistory.push(purchase);
   creator.updatedAt = now.toISOString();
+  
+  // Update the creator in the in-memory database array
+  const index = creatorsDatabase.findIndex((c) => c.id === creatorId);
+  if (index !== -1) {
+    creatorsDatabase[index] = creator;
+  }
 
   try {
+    // Save to database
     await persistCreators();
+    
+    // Reload creator from database to ensure we have the latest data
+    // This is especially important for MongoDB to ensure data consistency
+    if (useMongo) {
+      try {
+        const reloadedCreators = await mongoService.getAllCreators();
+        const reloadedCreator = reloadedCreators.find((c: any) => c.id === creatorId || c.email === creator.email);
+        if (reloadedCreator) {
+          const { _id, ...rest } = reloadedCreator;
+          const refreshed = refreshStorageState({ ...rest, id: rest.id || _id.toString() } as CreatorProfile);
+          // Update in-memory cache
+          const index = creatorsDatabase.findIndex((c) => c.id === creatorId);
+          if (index !== -1) {
+            creatorsDatabase[index] = refreshed;
+            creator = refreshed;
+          }
+        }
+      } catch (reloadError) {
+        console.error(`[Storage Purchase Manual] Error reloading from MongoDB:`, reloadError);
+      }
+    }
     
     // Send email notification to admin for manual payment
     try {
@@ -1064,6 +1132,7 @@ export const purchaseCreatorStorageManual: RequestHandler = async (req, res) => 
           duration: months.toString(),
           paymentMethod: 'Manual (bKash)',
           transactionId: transactionId,
+          senderNumber: senderNumber,
           isManualPayment: true,
         }
       );
@@ -1072,8 +1141,9 @@ export const purchaseCreatorStorageManual: RequestHandler = async (req, res) => 
       // Don't fail the request if email fails
     }
     
+    // Return refreshed creator with correct storage totals calculated from all purchases
     res.json({
-      creator,
+      creator: refreshStorageState(creator),
       purchase,
       message: "Manual payment submitted. Admin review required before storage is added.",
     });

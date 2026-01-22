@@ -8,6 +8,8 @@ import { MongoClient, Db, Collection, ServerApiVersion } from 'mongodb';
 let mongoClient: MongoClient | null = null;
 let mongoDb: Db | null = null;
 let mongoInitialized = false;
+let mongoLastFailureAt: number | null = null;
+const MONGO_RETRY_COOLDOWN_MS = 60000;
 
 /**
  * Get MongoDB connection string from environment variables or use default
@@ -31,10 +33,15 @@ function getMongoUri(): string | null {
     return `mongodb+srv://${username}:${password}@${cluster}/?retryWrites=true&w=majority&appName=Cluster0`;
   }
   
-  // Default connection string (hardcoded as fallback)
-  const defaultUri = "mongodb+srv://mdh897046_db_user:bpRUzw0GmmJp7iFa@cluster0.cnqz5cm.mongodb.net/?appName=Cluster0";
-  console.log("📝 Using default MongoDB connection string");
-  return defaultUri;
+  // Default connection string (hardcoded as fallback) - dev only
+  const isProduction = process.env.NODE_ENV === "production";
+  if (!isProduction) {
+    const defaultUri = "mongodb+srv://mdh897046_db_user:bpRUzw0GmmJp7iFa@cluster0.cnqz5cm.mongodb.net/?appName=Cluster0";
+    console.log("📝 Using default MongoDB connection string");
+    return defaultUri;
+  }
+  
+  return null;
 }
 
 /**
@@ -44,6 +51,11 @@ export async function initializeMongoDB(): Promise<Db | null> {
   if (mongoInitialized) {
     return mongoDb;
   }
+
+  if (mongoLastFailureAt && (Date.now() - mongoLastFailureAt) < MONGO_RETRY_COOLDOWN_MS) {
+    return null;
+  }
+
   mongoInitialized = true;
   
   const uri = getMongoUri();
@@ -116,6 +128,7 @@ export async function initializeMongoDB(): Promise<Db | null> {
     mongoClient = null;
     mongoDb = null;
     mongoInitialized = false; // Reset so we can retry
+    mongoLastFailureAt = Date.now();
     return null;
   }
 }

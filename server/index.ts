@@ -7,9 +7,12 @@ import * as downloadRoutes from "./routes/downloads.js";
 import * as adminRoutes from "./routes/admin.js";
 import * as creatorRoutes from "./routes/creators.js";
 import * as settingsRoutes from "./routes/settings.js";
+import * as sitemapRoutes from "./routes/sitemap.js";
 import * as usersRoutes from "./routes/users.js";
 import * as popupAdsRoutes from "./routes/popup-ads.js";
 import * as referralRoutes from "./routes/referral.js";
+import * as adsRoutes from "./routes/ads.js";
+import * as aiVideoRoutes from "./routes/ai-video.js";
 import { handleFileUpload, handleUrlUpload, upload, handleAssetUpload } from "./routes/upload.js";
 import { recoverCreatorAccounts } from "./routes/creators-recovery.js";
 import { migrateStorageTo1GB } from "./routes/creators-migration.js";
@@ -361,7 +364,6 @@ export function createServer() {
   // Creator routes
   app.post("/api/creators", creatorRoutes.createOrUpdateCreator);
   app.get("/api/creators/status", creatorRoutes.getCreatorStatus);
-  app.post("/api/creators/storage/purchase", creatorRoutes.purchaseCreatorStorage);
   app.post("/api/creators/storage/purchase/manual", creatorRoutes.purchaseCreatorStorageManual);
   app.get("/api/admin/storage/manual-payments", creatorRoutes.getManualStoragePayments);
   app.get("/api/admin/storage/all-purchases", creatorRoutes.getAllStoragePurchases);
@@ -381,6 +383,8 @@ export function createServer() {
   app.put("/api/settings/app", settingsRoutes.updateAppSettings);
   app.get("/api/admin/creators", creatorRoutes.getCreatorsAdmin);
   app.patch("/api/admin/creators/:id", creatorRoutes.updateCreatorStatus);
+  app.get("/sitemap.xml", sitemapRoutes.getSitemap);
+  app.get("/api/sitemap.xml", sitemapRoutes.getSitemap);
   
   // Creator recovery endpoint (admin only)
   app.post("/api/admin/creators/recover", recoverCreatorAccounts);
@@ -428,6 +432,28 @@ export function createServer() {
   app.put("/api/admin/withdraw-requests/:id", referralRoutes.updateWithdrawRequestStatus);
   app.get("/api/admin/share-visitors", referralRoutes.getAllShareVisitors);
   app.post("/api/admin/add-coins", referralRoutes.addUserCoins);
+
+  // Ad Watching System routes
+  // User endpoints
+  app.get("/api/ads", adsRoutes.getAvailableAds);
+  app.post("/api/ads/watch/start", adsRoutes.startAdWatch);
+  app.post("/api/ads/watch/complete", adsRoutes.completeAdWatch);
+  app.get("/api/ads/history", adsRoutes.getUserAdHistory);
+  
+  // Admin endpoints
+  app.get("/api/admin/ads", adsRoutes.getAllAds);
+  app.post("/api/admin/ads", adsRoutes.createAd);
+  app.put("/api/admin/ads/:id", adsRoutes.updateAd);
+  app.delete("/api/admin/ads/:id", adsRoutes.deleteAd);
+  app.get("/api/admin/ad-views", adsRoutes.getAllAdViews);
+  app.put("/api/admin/ad-views/:id", adsRoutes.updateAdViewStatus);
+
+  // AI Video Generation routes
+  app.post("/api/ai-video/generate", aiVideoRoutes.generateVideo);
+  app.get("/api/ai-video/status/:id", aiVideoRoutes.getVideoStatus);
+  app.get("/api/ai-video/history", aiVideoRoutes.getUserVideos);
+  app.get("/api/ai-video/preview/:id", aiVideoRoutes.previewAIVideo);
+  app.get("/api/ai-video/download/:id", aiVideoRoutes.downloadAIVideo);
 
   console.log("✅ Express server created with all routes registered");
   return app;

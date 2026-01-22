@@ -1,9 +1,11 @@
 import { Link } from "react-router-dom";
-import { Mail, MapPin, Heart } from "lucide-react";
+import { Mail, MapPin, Heart, BookOpen } from "lucide-react";
 import { useState, useEffect } from "react";
 import { apiFetch } from "@/lib/api";
+import { useLanguage } from "@/contexts/LanguageContext";
 
 export default function Footer() {
+  const { t } = useLanguage();
   const [siteLogo, setSiteLogo] = useState<string | null>(null);
   const [logoFailed, setLogoFailed] = useState(false);
 
@@ -12,18 +14,21 @@ export default function Footer() {
     const loadLogo = async () => {
       try {
         const res = await apiFetch("/api/settings/branding");
-        if (res.ok) {
-          const branding = await res.json();
-          if (branding?.logo) {
-            setSiteLogo(branding.logo);
+        if (!res.ok) return;
+        const branding = await res.json();
+        if (branding && Object.prototype.hasOwnProperty.call(branding, "logo")) {
+          const logoValue = typeof branding.logo === "string" ? branding.logo : "";
+          if (logoValue) {
+            setSiteLogo(logoValue);
             setLogoFailed(false);
           } else {
+            // Clear logo only when it's explicitly removed
             setSiteLogo(null);
           }
         }
       } catch (error) {
         console.error("Failed to load site logo:", error);
-        setSiteLogo(null);
+        // Keep existing logo on transient errors
       }
     };
 
@@ -74,7 +79,7 @@ export default function Footer() {
               </span>
             </Link>
             <p className="text-sm text-slate-400">
-              Free stock media for creators, developers, and businesses. Download videos, images, audio, and templates without limits.
+              {t("footer.description")}
             </p>
             <div className="flex gap-4">
               <a href="#" className="text-slate-400 hover:text-primary transition-colors">
@@ -100,31 +105,31 @@ export default function Footer() {
 
           {/* Quick Links */}
           <div className="space-y-4">
-            <h3 className="text-sm font-semibold text-white">Product</h3>
+            <h3 className="text-sm font-semibold text-white">{t("footer.product")}</h3>
             <ul className="space-y-2">
               <li>
                 <Link to="/creator" className="text-sm text-slate-400 hover:text-primary transition-colors">
-                  Creator Portal
+                  {t("nav.creator")}
                 </Link>
               </li>
               <li>
                 <Link to="/dashboard" className="text-sm text-slate-400 hover:text-primary transition-colors">
-                  Dashboard
+                  {t("nav.dashboard")}
                 </Link>
               </li>
               <li>
                 <Link to="/profile" className="text-sm text-slate-400 hover:text-primary transition-colors">
-                  Profile
+                  {t("nav.profile")}
                 </Link>
               </li>
               <li>
                 <Link to="/login" className="text-sm text-slate-400 hover:text-primary transition-colors">
-                  Login
+                  {t("nav.login")}
                 </Link>
               </li>
               <li>
                 <Link to="/signup" className="text-sm text-slate-400 hover:text-primary transition-colors">
-                  Sign Up
+                  {t("nav.signup")}
                 </Link>
               </li>
             </ul>
@@ -132,21 +137,21 @@ export default function Footer() {
 
           {/* Company */}
           <div className="space-y-4">
-            <h3 className="text-sm font-semibold text-white">Company</h3>
+            <h3 className="text-sm font-semibold text-white">{t("footer.company")}</h3>
             <ul className="space-y-2">
               <li>
                 <a href="#about" className="text-sm text-slate-400 hover:text-primary transition-colors">
-                  About Us
+                  {t("footer.aboutUs")}
                 </a>
               </li>
               <li>
                 <a href="#blog" className="text-sm text-slate-400 hover:text-primary transition-colors">
-                  Blog
+                  {t("footer.blog")}
                 </a>
               </li>
               <li>
                 <a href="#careers" className="text-sm text-slate-400 hover:text-primary transition-colors">
-                  Careers
+                  {t("footer.careers")}
                 </a>
               </li>
             </ul>
@@ -154,12 +159,12 @@ export default function Footer() {
 
           {/* Contact */}
           <div className="space-y-4">
-            <h3 className="text-sm font-semibold text-white">Contact</h3>
+            <h3 className="text-sm font-semibold text-white">{t("footer.contact")}</h3>
             <ul className="space-y-3">
               <li className="flex items-start gap-3">
                 <Mail className="w-4 h-4 text-primary mt-1" />
                 <div>
-                  <p className="text-sm text-slate-400">Email</p>
+                  <p className="text-sm text-slate-400">{t("footer.email")}</p>
                   <a href="mailto:support@freemediabuzz.com" className="text-sm text-slate-300 hover:text-primary transition-colors">
                     support@freemediabuzz.com
                   </a>
@@ -168,8 +173,8 @@ export default function Footer() {
               <li className="flex items-start gap-3">
                 <MapPin className="w-4 h-4 text-primary mt-1" />
                 <div>
-                  <p className="text-sm text-slate-400">Address</p>
-                  <p className="text-sm text-slate-300">Global HQ</p>
+                  <p className="text-sm text-slate-400">{t("footer.address")}</p>
+                  <p className="text-sm text-slate-300">{t("footer.globalHQ")}</p>
                 </div>
               </li>
             </ul>
@@ -179,13 +184,26 @@ export default function Footer() {
         {/* Divider */}
         <div className="border-t border-slate-800"></div>
 
+        {/* User Manual Section */}
+        <div className="py-8 border-t border-slate-800">
+          <Link
+            to="/user-manual"
+            className="flex items-center gap-3 group"
+          >
+            <BookOpen className="w-5 h-5 text-primary group-hover:scale-110 transition-transform" />
+            <h3 className="text-lg font-semibold text-white group-hover:text-primary transition-colors">
+              {t("footer.userManual")}
+            </h3>
+          </Link>
+        </div>
+
         {/* Bottom Footer */}
-        <div className="py-8 flex flex-col md:flex-row justify-between items-center gap-4">
+        <div className="py-8 flex flex-col md:flex-row justify-between items-center gap-4 border-t border-slate-800">
           <p className="text-sm text-slate-400">
             &copy; 2024 FreeMediaBuzz. All rights reserved.
           </p>
           <div className="flex items-center gap-2 text-sm text-slate-400">
-            Made with <Heart className="w-4 h-4 text-accent" /> for creators everywhere
+            {t("footer.madeWith")} <Heart className="w-4 h-4 text-accent" /> {t("footer.forCreators")}
           </div>
         </div>
       </div>

@@ -4,10 +4,13 @@ import { Menu, X, LogOut, LogIn, User, Smartphone, Download, DollarSign } from "
 import AdsSlider from "./AdsSlider";
 import { useAuth } from "@/contexts/AuthContext";
 import { ThemeToggle } from "./ThemeToggle";
+import { LanguageSwitcher } from "./LanguageSwitcher";
+import { useLanguage } from "@/contexts/LanguageContext";
 import { apiFetch } from "@/lib/api";
 import { AppSettings } from "@shared/api";
 
 export default function Header() {
+  const { t } = useLanguage();
   const [isMenuOpen, setIsMenuOpen] = useState(false);
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
   const [logoFailed, setLogoFailed] = useState(false);
@@ -23,18 +26,21 @@ export default function Header() {
     const loadLogo = async () => {
       try {
         const res = await apiFetch("/api/settings/branding");
-        if (res.ok) {
-          const branding = await res.json();
-          if (branding?.logo) {
-            setSiteLogo(branding.logo);
+        if (!res.ok) return;
+        const branding = await res.json();
+        if (branding && Object.prototype.hasOwnProperty.call(branding, "logo")) {
+          const logoValue = typeof branding.logo === "string" ? branding.logo : "";
+          if (logoValue) {
+            setSiteLogo(logoValue);
+            setLogoFailed(false);
           } else {
-            // Clear logo if it was removed
+            // Clear logo only when it's explicitly removed
             setSiteLogo("");
           }
         }
       } catch (error) {
         console.error("Failed to load site logo:", error);
-        // Silently fail - use default logo
+        // Keep existing logo on transient errors
       }
     };
     
@@ -118,19 +124,19 @@ export default function Header() {
           {/* Desktop Navigation */}
           <nav className="hidden md:flex items-center gap-8">
             <Link to="/browse" className="text-sm font-medium text-foreground hover:text-primary transition-colors">
-              Browse Media
+              {t("nav.browse")}
             </Link>
             <Link to="/categories" className="text-sm font-medium text-foreground hover:text-primary transition-colors">
-              Categories
+              {t("nav.categories")}
             </Link>
             <Link to="/contact" className="text-sm font-medium text-foreground hover:text-primary transition-colors">
-              Contact
+              {t("nav.contact")}
             </Link>
             <Link
               to="/creator"
               className="text-sm font-medium text-foreground hover:text-primary transition-colors flex items-center gap-2"
             >
-              Creator Portal
+              {t("nav.creator")}
             </Link>
           </nav>
 
@@ -146,7 +152,7 @@ export default function Header() {
               >
                 <Smartphone className="w-3.5 h-3.5 sm:w-4 sm:h-4 transition-transform duration-300 group-hover:scale-110 group-hover:rotate-12 relative z-10" />
                 <span className="relative z-10 font-bold group-hover:animate-glitch hidden sm:inline">
-                  Get App
+                  {t("nav.getApp")}
                 </span>
               </a>
             ) : (
@@ -156,7 +162,7 @@ export default function Header() {
               >
                 <Smartphone className="w-3.5 h-3.5 sm:w-4 sm:h-4 transition-transform duration-300 group-hover:scale-110 group-hover:rotate-12 relative z-10" />
                 <span className="relative z-10 font-bold group-hover:animate-glitch hidden sm:inline">
-                  Get App
+                  {t("nav.getApp")}
                 </span>
               </Link>
             )}
@@ -175,10 +181,12 @@ export default function Header() {
                 <div className="absolute inset-0 bg-gradient-to-r from-transparent via-yellow-400/20 to-transparent -translate-x-full group-hover:translate-x-full transition-transform duration-1000"></div>
                 <DollarSign className="w-3.5 h-3.5 sm:w-4 sm:h-4 transition-all duration-300 group-hover:scale-110 group-hover:text-yellow-500 relative z-10" />
                 <span className="relative z-10 font-semibold bg-gradient-to-r from-primary to-accent bg-clip-text text-transparent group-hover:from-yellow-500 group-hover:to-yellow-400 transition-all duration-300 hidden sm:inline">
-                  Earnings
+                  {t("nav.earnings")}
                 </span>
               </Link>
             )}
+            {/* Language Switcher */}
+            <LanguageSwitcher />
             {/* Theme Toggle */}
             <ThemeToggle />
             {/* Desktop Auth Buttons */}
@@ -188,13 +196,13 @@ export default function Header() {
                   to="/login"
                   className="px-4 py-2 text-sm font-medium text-foreground hover:text-primary transition-colors"
                 >
-                  Login
+                  {t("nav.login")}
                 </Link>
                 <Link
                   to="/signup"
                   className="px-4 py-2 text-sm font-medium bg-gradient-to-r from-primary to-accent text-white rounded-lg hover:shadow-lg transition-all"
                 >
-                  Sign Up
+                  {t("nav.signup")}
                 </Link>
               </div>
             ) : (
@@ -205,7 +213,7 @@ export default function Header() {
                 >
                   <User className="w-4 h-4" />
                   <span className="text-sm truncate max-w-[120px]">
-                    {currentUser?.displayName || currentUser?.email || "Account"}
+                    {currentUser?.displayName || currentUser?.email || t("nav.account")}
                   </span>
                 </button>
                 {isUserMenuOpen && (
@@ -215,14 +223,14 @@ export default function Header() {
                       onClick={() => setIsUserMenuOpen(false)}
                       className="block px-4 py-2 text-sm hover:bg-secondary/10 transition-colors"
                     >
-                      Dashboard
+                      {t("nav.dashboard")}
                     </Link>
                     <Link
                       to="/profile"
                       onClick={() => setIsUserMenuOpen(false)}
                       className="block px-4 py-2 text-sm hover:bg-secondary/10 transition-colors"
                     >
-                      Profile
+                      {t("nav.profile")}
                     </Link>
                     {creatorProfile && (
                       <Link
@@ -230,7 +238,7 @@ export default function Header() {
                         onClick={() => setIsUserMenuOpen(false)}
                         className="block px-4 py-2 text-sm hover:bg-secondary/10 transition-colors"
                       >
-                        Creator Portal
+                        {t("nav.creator")}
                       </Link>
                     )}
                     {/* Admin Panel link intentionally removed for regular users */}
@@ -240,7 +248,7 @@ export default function Header() {
                       className="w-full flex items-center gap-2 px-4 py-2 text-sm text-destructive hover:bg-destructive/5 transition-colors text-left"
                     >
                       <LogOut className="w-4 h-4" />
-                      Logout
+                      {t("nav.logout")}
                     </button>
                   </div>
                 )}
@@ -267,7 +275,7 @@ export default function Header() {
             {/* Mobile Theme Toggle */}
             <div className="px-4 py-2 border-b border-border">
               <div className="flex items-center justify-between">
-                <span className="text-sm font-medium">Theme</span>
+                <span className="text-sm font-medium">{t("nav.theme")}</span>
                 <ThemeToggle />
               </div>
             </div>
@@ -276,21 +284,21 @@ export default function Header() {
               onClick={() => setIsMenuOpen(false)}
               className="block px-4 py-2 text-sm font-medium hover:bg-secondary/10 transition-colors"
             >
-              Browse Media
+              {t("nav.browse")}
             </Link>
             <Link
               to="/categories"
               onClick={() => setIsMenuOpen(false)}
               className="block px-4 py-2 text-sm font-medium hover:bg-secondary/10 transition-colors"
             >
-              Categories
+              {t("nav.categories")}
             </Link>
             <Link
               to="/contact"
               onClick={() => setIsMenuOpen(false)}
               className="block px-4 py-2 text-sm font-medium hover:bg-secondary/10 transition-colors"
             >
-              Contact
+              {t("nav.contact")}
             </Link>
             {!isLoggedIn && (
               <div className="flex gap-2 px-4 py-3 border-t border-border">
@@ -298,13 +306,13 @@ export default function Header() {
                   to="/login"
                   className="flex-1 px-4 py-2 text-sm font-medium text-center border border-primary text-primary rounded-lg"
                 >
-                  Login
+                  {t("nav.login")}
                 </Link>
                 <Link
                   to="/signup"
                   className="flex-1 px-4 py-2 text-sm font-medium text-center bg-gradient-to-r from-primary to-accent text-white rounded-lg"
                 >
-                  Sign Up
+                  {t("nav.signup")}
                 </Link>
               </div>
             )}

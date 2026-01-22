@@ -54,6 +54,14 @@ if (htaccessSource && existsSync(htaccessSource)) {
   console.warn('   Create .htaccess in public/ folder for React Router support');
 }
 
+// Generate sitemap.xml in dist/spa (includes media URLs if API reachable)
+try {
+  const { generateSitemap } = await import('./generate-sitemap.js');
+  await generateSitemap();
+} catch (error) {
+  console.warn('⚠️  Sitemap generation skipped:', error.message || error);
+}
+
 console.log('\n📦 cPanel build complete!');
 console.log('📁 Upload all files from dist/spa/ to public_html/ in cPanel');
 console.log('\n⚠️  REMINDER: Backend API must be deployed separately!');
