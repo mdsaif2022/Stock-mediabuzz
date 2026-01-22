@@ -526,7 +526,7 @@ export default function AdEarnings() {
                   <div className="text-center py-2">
                     <div className="px-4 py-2 rounded-lg bg-slate-100 dark:bg-slate-800 border border-border">
                       <p className="text-sm font-semibold text-muted-foreground mb-1">Already Watched</p>
-                      <p className="text-xs text-muted-foreground">Try again after 24 hours</p>
+                      <p className="text-xs text-muted-foreground">Try again after 30 Minutes</p>
                     </div>
                   </div>
                 ) : (

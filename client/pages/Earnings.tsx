@@ -248,6 +248,12 @@ export default function Earnings() {
           >
             Referral
           </button>
+          <Link
+            to="/ads"
+            className="px-3 sm:px-4 py-2 font-medium transition-colors whitespace-nowrap flex-shrink-0 text-muted-foreground hover:text-foreground"
+          >
+            Watch Ads Now
+          </Link>
           <button
             onClick={() => setActiveTab("sharing")}
             className={cn(
@@ -270,12 +276,6 @@ export default function Earnings() {
           >
             Withdraw
           </button>
-          <Link
-            to="/ads"
-            className="px-3 sm:px-4 py-2 font-medium transition-colors whitespace-nowrap flex-shrink-0 text-muted-foreground hover:text-foreground"
-          >
-            Watch Ads Now
-          </Link>
         </div>
 
         {/* Overview Tab */}

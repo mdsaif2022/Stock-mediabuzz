@@ -231,7 +231,7 @@ async function getTodayAdCoinsEarned(userId: string, userEmail?: string): Promis
   }
 }
 
-// Helper: Get ad IDs that user has watched in the last 24 hours (completed views)
+// Helper: Get ad IDs that user has watched in the last 30 Minutes (completed views)
 async function getWatchedAdIds(userId: string, userEmail?: string): Promise<Set<string>> {
   try {
     // Find the actual user in database to get their database ID (might be different from Firebase UID)
@@ -252,7 +252,7 @@ async function getWatchedAdIds(userId: string, userEmail?: string): Promise<Set<
     await loadAdViewsDatabase().then(data => { adViewsDatabase = data; });
     
     const now = new Date();
-    const twentyFourHoursAgo = new Date(now.getTime() - 24 * 60 * 60 * 1000);
+    const twentyFourHoursAgo = new Date(now.getTime() - 30 * 60 * 60 * 1000);
     
     const watchedAdIds = new Set<string>();
     
@@ -295,7 +295,7 @@ async function getWatchedAdIds(userId: string, userEmail?: string): Promise<Set<
         const isApproved = v.status === "approved" || (typeof v.status === 'string' && String(v.status).toLowerCase() === 'approved');
         const hasValidAdId = v.adId && String(v.adId).trim() !== '';
         
-        // Only count completed views (watched for 15 seconds) within last 24 hours
+        // Only count completed views (watched for 15 seconds) within last 30 Minutes
         if (isWithin24Hours && isCompleted && isApproved && hasValidAdId) {
           const adIdTrimmed = String(v.adId).trim();
           watchedAdIds.add(adIdTrimmed);
@@ -554,7 +554,7 @@ export const getAvailableAds: RequestHandler = async (req, res) => {
     // Combine both types
     const allAds = [...adsterraAds, ...collaborationAds];
     
-    // Get ads that user has watched in the last 24 hours (with error handling)
+    // Get ads that user has watched in the last 30 Minutes (with error handling)
     let watchedAdIds = new Set<string>();
     if (userId) {
       try {
@@ -686,10 +686,10 @@ export const startAdWatch: RequestHandler = async (req, res) => {
       return;
     }
 
-    // Check if user has watched this ad in the last 24 hours (use actualUserId for consistency)
+    // Check if user has watched this ad in the last 30 Minutes (use actualUserId for consistency)
     const watchedAdIds = await getWatchedAdIds(actualUserId);
     if (watchedAdIds.has(adId)) {
-      res.status(400).json({ error: "You have already watched this ad. Please try again after 24 hours." });
+      res.status(400).json({ error: "You have already watched this ad. Please try again after 30 Minutes." });
       return;
     }
 
