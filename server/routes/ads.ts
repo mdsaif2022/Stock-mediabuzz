@@ -1,4 +1,5 @@
 import { RequestHandler } from "express";
+import { createHash } from "crypto";
 import { promises as fs } from "fs";
 import { join } from "path";
 import { DATA_DIR } from "../utils/dataPath.js";
@@ -59,11 +60,20 @@ const ADSTERRA_DIRECTLINKS = [
   "https://www.effectivegatecpm.com/b10fnb3rd?key=f923d62d96f4719b7797e881a42b8fb0",
 ];
 
+const getAdsterraId = (url: string): string => {
+  const normalized = url.trim().toLowerCase();
+  const hash = createHash("sha1").update(normalized).digest("hex").slice(0, 10);
+  return `ADSTERRA-${hash}`;
+};
+
 // Helper: Create Adsterra ads from directlinks (for ad watching earning system)
 function createAdsterraAds(): Ad[] {
   const usedNames = new Set<string>();
-  return ADSTERRA_DIRECTLINKS.map((url, index) => ({
-    id: `ADSTERRA-${index + 1}`,
+  return ADSTERRA_DIRECTLINKS.map((url, index) => {
+    const adsterraId = getAdsterraId(url);
+    return {
+      id: adsterraId,
+      adsterraId,
     title: getRandomAdName(index, usedNames),
     adType: "adsterra" as const,
     adUrl: url,
@@ -73,7 +83,8 @@ function createAdsterraAds(): Ad[] {
     watchDuration: 15,
     createdAt: new Date().toISOString(),
     updatedAt: new Date().toISOString(),
-  }));
+    };
+  });
 }
 
 // Helper: Get daily ad view count for user
@@ -253,7 +264,7 @@ async function getWatchedAdInfo(userId: string, userEmail?: string): Promise<Map
     await loadAdViewsDatabase().then(data => { adViewsDatabase = data; });
     
     const now = new Date();
-    const thirtyMinutesAgo = new Date(now.getTime() - 30 * 60 * 1000);
+    const thirtyMinutesAgo = new Date(now.getTime() - 24 * 60 * 1000);
     
     const watchedAdMap = new Map<string, string>();
     
