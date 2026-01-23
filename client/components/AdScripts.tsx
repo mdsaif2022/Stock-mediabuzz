@@ -18,15 +18,7 @@ interface AdScript {
 
 // Ad scripts configuration
 // Scripts load ONLY on home page (/)
-const AD_SCRIPTS: AdScript[] = [
-  {
-    id: 'socialbar-1',
-    name: 'SocialBar_1',
-    src: '//pl28193228.effectivegatecpm.com/c1/0f/08/c10f08941b95749f2ae7f71e2c79bf32.js',
-    type: 'socialbar',
-    placement: 'sidebar',
-  },
-];
+const AD_SCRIPTS: AdScript[] = [];
 
 
 /**
