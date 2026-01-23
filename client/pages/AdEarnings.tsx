@@ -42,7 +42,10 @@ export default function AdEarnings() {
   const COOLDOWN_STORAGE_KEY = "adCooldowns";
 
   const getCooldownKey = useCallback((ad: Ad) => {
-    return ad.id || ad.adsterraId || ad.adUrl;
+    if (ad.adType === "adsterra") {
+      return ad.adsterraId || ad.adUrl || ad.id;
+    }
+    return ad.id;
   }, []);
 
   useEffect(() => {
