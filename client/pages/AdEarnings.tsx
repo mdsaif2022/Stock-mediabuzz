@@ -41,6 +41,10 @@ export default function AdEarnings() {
   const COOLDOWN_SECONDS = 30 * 60;
   const COOLDOWN_STORAGE_KEY = "adCooldowns";
 
+  const getCooldownKey = useCallback((ad: Ad) => {
+    return ad.id || ad.adsterraId || ad.adUrl;
+  }, []);
+
   useEffect(() => {
     if (!authLoading && !currentUser) {
       navigate("/login");
@@ -217,7 +221,8 @@ export default function AdEarnings() {
 
   const getRemainingCooldown = useCallback((ad: Ad) => {
     const serverWatchedAtMs = ad.lastWatchedAt ? new Date(ad.lastWatchedAt).getTime() : 0;
-    const localExpiresAtMs = localCooldowns[ad.id] || 0;
+    const cooldownKey = getCooldownKey(ad);
+    const localExpiresAtMs = localCooldowns[cooldownKey] || localCooldowns[ad.id] || 0;
     const lastWatchedAtMs = Number.isFinite(serverWatchedAtMs) ? serverWatchedAtMs : 0;
     const hasServerTimestamp = Boolean(lastWatchedAtMs);
     const localRemainingSeconds = localExpiresAtMs ? Math.max(Math.floor((localExpiresAtMs - nowTimestamp) / 1000), 0) : 0;
@@ -229,7 +234,7 @@ export default function AdEarnings() {
     const elapsedSeconds = hasServerTimestamp ? Math.floor((baseNowMs - lastWatchedAtMs) / 1000) : 0;
     const serverRemainingSeconds = hasServerTimestamp ? Math.max(COOLDOWN_SECONDS - elapsedSeconds, 0) : 0;
     return Math.max(serverRemainingSeconds, localRemainingSeconds);
-  }, [nowTimestamp, serverNowMs, serverNowReceivedAtMs, localCooldowns]);
+  }, [nowTimestamp, serverNowMs, serverNowReceivedAtMs, localCooldowns, getCooldownKey]);
 
   const formatCountdown = useCallback((seconds: number) => {
     const clamped = Math.max(seconds, 0);
@@ -373,8 +378,9 @@ export default function AdEarnings() {
       setCoinsEarned(data.coinsEarned);
       if (data.coinsEarned > 0 && currentUser) {
         const storageKey = `${COOLDOWN_STORAGE_KEY}:${currentUser.uid}`;
+        const cooldownKey = getCooldownKey(selectedAd);
         setLocalCooldowns(prev => {
-          const next = { ...prev, [selectedAd.id]: Date.now() + COOLDOWN_SECONDS * 1000 };
+          const next = { ...prev, [cooldownKey]: Date.now() + COOLDOWN_SECONDS * 1000 };
           try {
             localStorage.setItem(storageKey, JSON.stringify(next));
           } catch (storageError) {
@@ -396,7 +402,7 @@ export default function AdEarnings() {
     } finally {
       setCompletingWatch(false);
     }
-  }, [watchId, selectedAd, watchDuration, adClicked, resetWatch, fetchAds, currentUser, COOLDOWN_STORAGE_KEY]);
+  }, [watchId, selectedAd, watchDuration, adClicked, resetWatch, fetchAds, currentUser, COOLDOWN_STORAGE_KEY, getCooldownKey]);
 
   // Store latest version in ref
   useEffect(() => {
