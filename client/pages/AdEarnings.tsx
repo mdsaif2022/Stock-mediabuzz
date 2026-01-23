@@ -29,6 +29,7 @@ export default function AdEarnings() {
   const [serverNowMs, setServerNowMs] = useState<number | null>(null);
   const [serverNowReceivedAtMs, setServerNowReceivedAtMs] = useState<number | null>(null);
   const [localCooldowns, setLocalCooldowns] = useState<Record<string, number>>({});
+  const [serverCooldownsEnabled, setServerCooldownsEnabled] = useState(false);
   
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const startTimeRef = useRef<number | null>(null);
@@ -42,10 +43,10 @@ export default function AdEarnings() {
   const COOLDOWN_STORAGE_KEY = "adCooldowns";
 
   const getCooldownKey = useCallback((ad: Ad) => {
-    if (ad.adType === "adsterra") {
-      return ad.adsterraId || ad.adUrl || ad.id;
+    if (ad.id) {
+      return `${ad.adType}:${ad.id}`;
     }
-    return ad.id;
+    return ad.adUrl || ad.adsterraId || "unknown-ad";
   }, []);
 
   useEffect(() => {
@@ -171,6 +172,7 @@ export default function AdEarnings() {
         if (Number.isFinite(parsedServerNow)) {
           setServerNowMs(parsedServerNow);
           setServerNowReceivedAtMs(Date.now());
+          setServerCooldownsEnabled(true);
         }
       }
 
@@ -182,6 +184,11 @@ export default function AdEarnings() {
         setDailyCount(data.dailyCount || 0);
         setDailyLimit(data.dailyLimit || 0);
         setTodayCoinsEarned(data.todayCoinsEarned || 0);
+        if (data?.serverNow && currentUser) {
+          const storageKey = `${COOLDOWN_STORAGE_KEY}:${currentUser.uid}`;
+          localStorage.removeItem(storageKey);
+          setLocalCooldowns({});
+        }
         
         // Only show error if no ads are available
         if (!data.data || data.data.length === 0) {
@@ -196,6 +203,11 @@ export default function AdEarnings() {
         setDailyCount(data.dailyCount || 0);
         setDailyLimit(data.dailyLimit || 0);
         setTodayCoinsEarned(data.todayCoinsEarned || 0);
+        if (data?.serverNow && currentUser) {
+          const storageKey = `${COOLDOWN_STORAGE_KEY}:${currentUser.uid}`;
+          localStorage.removeItem(storageKey);
+          setLocalCooldowns({});
+        }
       } else {
         // Success
         console.log("[AdEarnings] Fetched ads data:", {
@@ -208,6 +220,11 @@ export default function AdEarnings() {
         setDailyCount(data.dailyCount || 0);
         setDailyLimit(data.dailyLimit || 0);
         setTodayCoinsEarned(data.todayCoinsEarned || 0);
+        if (data?.serverNow && currentUser) {
+          const storageKey = `${COOLDOWN_STORAGE_KEY}:${currentUser.uid}`;
+          localStorage.removeItem(storageKey);
+          setLocalCooldowns({});
+        }
       }
     } catch (error: any) {
       console.error("[AdEarnings] Failed to fetch ads:", error);
@@ -225,19 +242,22 @@ export default function AdEarnings() {
   const getRemainingCooldown = useCallback((ad: Ad) => {
     const serverWatchedAtMs = ad.lastWatchedAt ? new Date(ad.lastWatchedAt).getTime() : 0;
     const cooldownKey = getCooldownKey(ad);
-    const localExpiresAtMs = localCooldowns[cooldownKey] || localCooldowns[ad.id] || 0;
+    const localExpiresAtMs = localCooldowns[cooldownKey] || localCooldowns[ad.id] || localCooldowns[ad.adUrl || ""] || 0;
     const lastWatchedAtMs = Number.isFinite(serverWatchedAtMs) ? serverWatchedAtMs : 0;
     const hasServerTimestamp = Boolean(lastWatchedAtMs);
     const localRemainingSeconds = localExpiresAtMs ? Math.max(Math.floor((localExpiresAtMs - nowTimestamp) / 1000), 0) : 0;
-    if (!hasServerTimestamp && localRemainingSeconds <= 0) return 0;
+    if (!hasServerTimestamp && (!localRemainingSeconds || serverCooldownsEnabled)) return 0;
 
     const baseNowMs = serverNowMs && serverNowReceivedAtMs
       ? serverNowMs + (Date.now() - serverNowReceivedAtMs)
       : nowTimestamp;
     const elapsedSeconds = hasServerTimestamp ? Math.floor((baseNowMs - lastWatchedAtMs) / 1000) : 0;
     const serverRemainingSeconds = hasServerTimestamp ? Math.max(COOLDOWN_SECONDS - elapsedSeconds, 0) : 0;
+    if (serverCooldownsEnabled) {
+      return serverRemainingSeconds;
+    }
     return Math.max(serverRemainingSeconds, localRemainingSeconds);
-  }, [nowTimestamp, serverNowMs, serverNowReceivedAtMs, localCooldowns, getCooldownKey]);
+  }, [nowTimestamp, serverNowMs, serverNowReceivedAtMs, localCooldowns, getCooldownKey, serverCooldownsEnabled]);
 
   const formatCountdown = useCallback((seconds: number) => {
     const clamped = Math.max(seconds, 0);
