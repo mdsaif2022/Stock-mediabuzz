@@ -1,5 +1,7 @@
 import "dotenv/config";
 import express from "express";
+import fs from "fs";
+import path from "path";
 import cors from "cors";
 import * as mediaRoutes from "./routes/media.js";
 import * as authRoutes from "./routes/auth.js";
@@ -161,13 +163,52 @@ export function createServer() {
   console.log("📦 Creating Express server...");
   const app = express();
 
+  const staticAssetPaths = {
+    favicon: [
+      path.join(process.cwd(), "public", "favicon.ico"),
+      path.join(process.cwd(), "dist", "spa", "favicon.ico"),
+    ],
+    appleTouch: [
+      path.join(process.cwd(), "public", "apple-touch-icon.png"),
+      path.join(process.cwd(), "dist", "spa", "apple-touch-icon.png"),
+    ],
+  };
+
+  const serveStaticIcon = (paths: string[]) => {
+    const existingPath = paths.find((filePath) => fs.existsSync(filePath));
+    return existingPath || null;
+  };
+
+  app.get("/favicon.ico", (_req, res) => {
+    const iconPath = serveStaticIcon(staticAssetPaths.favicon);
+    if (!iconPath) {
+      res.sendStatus(404);
+      return;
+    }
+    res.sendFile(iconPath);
+  });
+
+  app.get("/apple-touch-icon.png", (_req, res) => {
+    const iconPath = serveStaticIcon(staticAssetPaths.appleTouch);
+    if (!iconPath) {
+      res.sendStatus(404);
+      return;
+    }
+    res.sendFile(iconPath);
+  });
+
   // Middleware
-  const allowedOrigins =
-    process.env.ALLOWED_ORIGINS?.split(",").map((origin) => origin.trim()).filter(Boolean) || [
-      "http://localhost:8088",
-      "http://localhost:5173",
-      "https://stock-mediabuzz.vercel.app",
-    ];
+  const defaultAllowedOrigins = [
+    "http://localhost:8088",
+    "http://localhost:5173",
+    "https://stock-mediabuzz.vercel.app",
+    "https://freemediabuzz.com",
+    "https://www.freemediabuzz.com",
+  ];
+  const envAllowedOrigins = process.env.ALLOWED_ORIGINS?.split(",")
+    .map((origin) => origin.trim())
+    .filter(Boolean) || [];
+  const allowedOrigins = Array.from(new Set([...defaultAllowedOrigins, ...envAllowedOrigins]));
   const localOriginPatterns = [
     /^http:\/\/localhost(?::\d+)?$/i,
     /^http:\/\/127\.0\.0\.1(?::\d+)?$/i,

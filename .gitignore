@@ -24,7 +24,8 @@ dist-ssr
 *.sw?
 
 .config/
-!.env
+.env
+*.zip
 
 # Data files - JSON database files are NOT tracked in Git (contains sensitive user data)
 # Ignore all JSON files in server/data/ directory

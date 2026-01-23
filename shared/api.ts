@@ -421,8 +421,9 @@ export interface Ad {
   watchDuration: number; // Required watch duration in seconds (15)
   createdAt: string;
   updatedAt: string;
-  isWatched?: boolean; // Whether user has watched this ad in last 24 hours
+  isWatched?: boolean; // Whether user has watched this ad in last 30 minutes
   canWatch?: boolean; // Whether user can watch this ad now
+  lastWatchedAt?: string; // ISO timestamp of last completed watch in cooldown window
 }
 
 export interface AdViewRecord {

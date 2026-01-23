@@ -232,7 +232,8 @@ async function getTodayAdCoinsEarned(userId: string, userEmail?: string): Promis
 }
 
 // Helper: Get ad IDs that user has watched in the last 30 Minutes (completed views)
-async function getWatchedAdIds(userId: string, userEmail?: string): Promise<Set<string>> {
+// Returns a map of adId -> latest watched timestamp (ISO)
+async function getWatchedAdInfo(userId: string, userEmail?: string): Promise<Map<string, string>> {
   try {
     // Find the actual user in database to get their database ID (might be different from Firebase UID)
     const { getUsersDatabase } = await import("./users.js");
@@ -252,9 +253,9 @@ async function getWatchedAdIds(userId: string, userEmail?: string): Promise<Set<
     await loadAdViewsDatabase().then(data => { adViewsDatabase = data; });
     
     const now = new Date();
-    const twentyFourHoursAgo = new Date(now.getTime() - 30 * 60 * 60 * 1000);
+    const thirtyMinutesAgo = new Date(now.getTime() - 30 * 60 * 1000);
     
-    const watchedAdIds = new Set<string>();
+    const watchedAdMap = new Map<string, string>();
     
     // Debug: Count all records that might match this user
     const allPossibleMatches = adViewsDatabase.filter(v => {
@@ -288,7 +289,7 @@ async function getWatchedAdIds(userId: string, userEmail?: string): Promise<Set<
         }
         
         const viewDate = new Date(v.createdAt);
-        const isWithin24Hours = viewDate >= twentyFourHoursAgo;
+        const isWithin30Minutes = viewDate >= thirtyMinutesAgo;
         
         // More flexible checking for completed and status
         const isCompleted = v.completed === true || (typeof v.completed === 'string' && String(v.completed).toLowerCase() === 'true');
@@ -296,9 +297,12 @@ async function getWatchedAdIds(userId: string, userEmail?: string): Promise<Set<
         const hasValidAdId = v.adId && String(v.adId).trim() !== '';
         
         // Only count completed views (watched for 15 seconds) within last 30 Minutes
-        if (isWithin24Hours && isCompleted && isApproved && hasValidAdId) {
+        if (isWithin30Minutes && isCompleted && isApproved && hasValidAdId) {
           const adIdTrimmed = String(v.adId).trim();
-          watchedAdIds.add(adIdTrimmed);
+          const existing = watchedAdMap.get(adIdTrimmed);
+          if (!existing || viewDate.toISOString() > existing) {
+            watchedAdMap.set(adIdTrimmed, viewDate.toISOString());
+          }
           console.log(`[getWatchedAdIds] ✓ Adding watched ad: ${adIdTrimmed} for user ${actualUserId}`);
         }
       } catch (e) {
@@ -308,12 +312,12 @@ async function getWatchedAdIds(userId: string, userEmail?: string): Promise<Set<
     });
     
     // Debug logging
-    console.log(`[getWatchedAdIds] User ${actualUserId} has watched ${watchedAdIds.size} unique ads in last 24h:`, Array.from(watchedAdIds));
+    console.log(`[getWatchedAdIds] User ${actualUserId} has watched ${watchedAdMap.size} unique ads in last 30 minutes:`, Array.from(watchedAdMap.keys()));
     
-    return watchedAdIds;
+    return watchedAdMap;
   } catch (error) {
     console.error("Error getting watched ad IDs:", error);
-    return new Set<string>();
+    return new Map<string, string>();
   }
 }
 
@@ -555,10 +559,10 @@ export const getAvailableAds: RequestHandler = async (req, res) => {
     const allAds = [...adsterraAds, ...collaborationAds];
     
     // Get ads that user has watched in the last 30 Minutes (with error handling)
-    let watchedAdIds = new Set<string>();
+    let watchedAdInfo = new Map<string, string>();
     if (userId) {
       try {
-        watchedAdIds = await getWatchedAdIds(userId, userEmail);
+        watchedAdInfo = await getWatchedAdInfo(userId, userEmail);
       } catch (watchedError) {
         console.error("Error getting watched ad IDs:", watchedError);
         // Continue with empty set - user can watch all ads
@@ -569,12 +573,14 @@ export const getAvailableAds: RequestHandler = async (req, res) => {
     const availableAds = allAds.map(ad => {
       // Only mark as watched if the exact adId matches (case-sensitive, trimmed)
       const adIdToCheck = String(ad.id).trim();
-      const isWatched = watchedAdIds.has(adIdToCheck);
+      const lastWatchedAt = watchedAdInfo.get(adIdToCheck);
+      const isWatched = Boolean(lastWatchedAt);
       
       return {
         ...ad,
         isWatched: Boolean(isWatched), // Ensure it's a boolean
         canWatch: !isWatched,
+        lastWatchedAt: lastWatchedAt || undefined,
       };
     });
     
@@ -602,7 +608,8 @@ export const getAvailableAds: RequestHandler = async (req, res) => {
       dailyCount,
       dailyLimit,
       todayCoinsEarned,
-      canWatchMore: DAILY_AD_LIMIT === 0 ? true : dailyCount < dailyLimit
+      canWatchMore: DAILY_AD_LIMIT === 0 ? true : dailyCount < dailyLimit,
+      serverNow: new Date().toISOString(),
     };
     console.log(`[getAvailableAds] Success: Returning ${availableAds.length} ads`);
     console.log(`[getAvailableAds] Response data:`, JSON.stringify(responseData, null, 2));
@@ -627,7 +634,8 @@ export const getAvailableAds: RequestHandler = async (req, res) => {
         dailyCount: 0,
         dailyLimit: DAILY_AD_LIMIT,
         todayCoinsEarned: 0,
-        canWatchMore: true
+        canWatchMore: true,
+        serverNow: new Date().toISOString(),
       });
     } catch (fallbackError) {
       console.error("[getAvailableAds] Error in fallback response:", fallbackError);
@@ -640,7 +648,8 @@ export const getAvailableAds: RequestHandler = async (req, res) => {
         dailyCount: 0,
         dailyLimit: DAILY_AD_LIMIT,
         todayCoinsEarned: 0,
-        canWatchMore: true
+        canWatchMore: true,
+        serverNow: new Date().toISOString(),
       });
     }
   }
@@ -687,8 +696,8 @@ export const startAdWatch: RequestHandler = async (req, res) => {
     }
 
     // Check if user has watched this ad in the last 30 Minutes (use actualUserId for consistency)
-    const watchedAdIds = await getWatchedAdIds(actualUserId);
-    if (watchedAdIds.has(adId)) {
+    const watchedAdInfo = await getWatchedAdInfo(actualUserId);
+    if (watchedAdInfo.has(adId)) {
       res.status(400).json({ error: "You have already watched this ad. Please try again after 30 Minutes." });
       return;
     }

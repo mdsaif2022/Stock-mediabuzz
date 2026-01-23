@@ -25,6 +25,10 @@ export default function AdEarnings() {
   const [dailyLimit, setDailyLimit] = useState(0);
   const [todayCoinsEarned, setTodayCoinsEarned] = useState(0);
   const [adClicked, setAdClicked] = useState(false);
+  const [nowTimestamp, setNowTimestamp] = useState(Date.now());
+  const [serverNowMs, setServerNowMs] = useState<number | null>(null);
+  const [serverNowReceivedAtMs, setServerNowReceivedAtMs] = useState<number | null>(null);
+  const [localCooldowns, setLocalCooldowns] = useState<Record<string, number>>({});
   
   const timerRef = useRef<NodeJS.Timeout | null>(null);
   const startTimeRef = useRef<number | null>(null);
@@ -34,6 +38,8 @@ export default function AdEarnings() {
 
   const REQUIRED_DURATION = 15; // 15 seconds
   const FIXED_AD_COINS = 50;
+  const COOLDOWN_SECONDS = 30 * 60;
+  const COOLDOWN_STORAGE_KEY = "adCooldowns";
 
   useEffect(() => {
     if (!authLoading && !currentUser) {
@@ -45,6 +51,46 @@ export default function AdEarnings() {
     }
   // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [authLoading, currentUser, navigate]);
+
+  useEffect(() => {
+    const intervalId = setInterval(() => {
+      setNowTimestamp(Date.now());
+    }, 1000);
+
+    return () => clearInterval(intervalId);
+  }, []);
+
+  useEffect(() => {
+    if (!currentUser) {
+      setLocalCooldowns({});
+      return;
+    }
+
+    const storageKey = `${COOLDOWN_STORAGE_KEY}:${currentUser.uid}`;
+    try {
+      const raw = localStorage.getItem(storageKey);
+      if (!raw) {
+        setLocalCooldowns({});
+        return;
+      }
+      const parsed = JSON.parse(raw);
+      if (!parsed || typeof parsed !== "object") {
+        setLocalCooldowns({});
+        return;
+      }
+      const normalized: Record<string, number> = {};
+      Object.entries(parsed).forEach(([adId, value]) => {
+        const expiresAtMs = typeof value === "number" ? value : new Date(String(value)).getTime();
+        if (Number.isFinite(expiresAtMs) && expiresAtMs > Date.now()) {
+          normalized[adId] = expiresAtMs;
+        }
+      });
+      setLocalCooldowns(normalized);
+    } catch (storageError) {
+      console.warn("[AdEarnings] Failed to read local cooldowns:", storageError);
+      setLocalCooldowns({});
+    }
+  }, [currentUser]);
 
   useEffect(() => {
     if (!isWatching) {
@@ -113,6 +159,14 @@ export default function AdEarnings() {
         throw new Error("Ads service temporarily unavailable. Please try again later.");
       }
       
+      if (data?.serverNow) {
+        const parsedServerNow = new Date(data.serverNow).getTime();
+        if (Number.isFinite(parsedServerNow)) {
+          setServerNowMs(parsedServerNow);
+          setServerNowReceivedAtMs(Date.now());
+        }
+      }
+
       // Check if response has an error message
       if (data.error) {
         console.warn("[AdEarnings] Server returned error:", data.error);
@@ -161,6 +215,42 @@ export default function AdEarnings() {
     }
   }, []);
 
+  const getRemainingCooldown = useCallback((ad: Ad) => {
+    const serverWatchedAtMs = ad.lastWatchedAt ? new Date(ad.lastWatchedAt).getTime() : 0;
+    const localExpiresAtMs = localCooldowns[ad.id] || 0;
+    const lastWatchedAtMs = Number.isFinite(serverWatchedAtMs) ? serverWatchedAtMs : 0;
+    const hasServerTimestamp = Boolean(lastWatchedAtMs);
+    const localRemainingSeconds = localExpiresAtMs ? Math.max(Math.floor((localExpiresAtMs - nowTimestamp) / 1000), 0) : 0;
+    if (!hasServerTimestamp && localRemainingSeconds <= 0) return 0;
+
+    const baseNowMs = serverNowMs && serverNowReceivedAtMs
+      ? serverNowMs + (Date.now() - serverNowReceivedAtMs)
+      : nowTimestamp;
+    const elapsedSeconds = hasServerTimestamp ? Math.floor((baseNowMs - lastWatchedAtMs) / 1000) : 0;
+    const serverRemainingSeconds = hasServerTimestamp ? Math.max(COOLDOWN_SECONDS - elapsedSeconds, 0) : 0;
+    return Math.max(serverRemainingSeconds, localRemainingSeconds);
+  }, [nowTimestamp, serverNowMs, serverNowReceivedAtMs, localCooldowns]);
+
+  const formatCountdown = useCallback((seconds: number) => {
+    const clamped = Math.max(seconds, 0);
+    const minutes = Math.floor(clamped / 60);
+    const secs = clamped % 60;
+    return `${String(minutes).padStart(2, "0")}:${String(secs).padStart(2, "0")}`;
+  }, []);
+
+  useEffect(() => {
+    if (!currentUser) return;
+
+    const intervalId = setInterval(() => {
+      // Avoid refreshing while a watch is in progress to prevent UI flicker
+      if (!isWatching && !startingWatch && !completingWatch) {
+        fetchAds();
+      }
+    }, 60 * 1000);
+
+    return () => clearInterval(intervalId);
+  }, [currentUser, isWatching, startingWatch, completingWatch, fetchAds]);
+
   const resetWatch = useCallback(() => {
     setIsWatching(false);
     setIsCompleted(false);
@@ -196,7 +286,19 @@ export default function AdEarnings() {
 
       if (!response.ok) {
         const errorData = await response.json();
-        throw new Error(errorData.error || "Failed to start ad watch");
+        const errorMessage = errorData.error || "Failed to start ad watch";
+        if (String(errorMessage).toLowerCase().includes("already watched")) {
+          const remainingCooldown = getRemainingCooldown(ad);
+          if (remainingCooldown > 0) {
+            setError(null);
+          } else {
+            setError(errorMessage);
+          }
+          fetchAds();
+          setSelectedAd(null);
+          return;
+        }
+        throw new Error(errorMessage);
       }
 
       const data: StartAdWatchResponse = await response.json();
@@ -269,6 +371,18 @@ export default function AdEarnings() {
       const data: CompleteAdWatchResponse = await response.json();
       setIsCompleted(true);
       setCoinsEarned(data.coinsEarned);
+      if (data.coinsEarned > 0 && currentUser) {
+        const storageKey = `${COOLDOWN_STORAGE_KEY}:${currentUser.uid}`;
+        setLocalCooldowns(prev => {
+          const next = { ...prev, [selectedAd.id]: Date.now() + COOLDOWN_SECONDS * 1000 };
+          try {
+            localStorage.setItem(storageKey, JSON.stringify(next));
+          } catch (storageError) {
+            console.warn("[AdEarnings] Failed to save local cooldowns:", storageError);
+          }
+          return next;
+        });
+      }
       
       // Reset after showing result
       setTimeout(() => {
@@ -282,7 +396,7 @@ export default function AdEarnings() {
     } finally {
       setCompletingWatch(false);
     }
-  }, [watchId, selectedAd, watchDuration, adClicked, resetWatch, fetchAds]);
+  }, [watchId, selectedAd, watchDuration, adClicked, resetWatch, fetchAds, currentUser, COOLDOWN_STORAGE_KEY]);
 
   // Store latest version in ref
   useEffect(() => {
@@ -481,14 +595,18 @@ export default function AdEarnings() {
           </div>
         ) : (
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            {ads.map((ad) => (
-              <div
-                key={ad.id}
-                className={cn(
-                  "bg-card border border-border rounded-lg p-6",
-                  selectedAd?.id === ad.id && isWatching && "ring-2 ring-primary"
-                )}
-              >
+            {ads.map((ad) => {
+              const remainingCooldown = getRemainingCooldown(ad);
+              const isCoolingDown = remainingCooldown > 0;
+
+              return (
+                <div
+                  key={ad.id}
+                  className={cn(
+                    "bg-card border border-border rounded-lg p-6",
+                    selectedAd?.id === ad.id && isWatching && "ring-2 ring-primary"
+                  )}
+                >
                 <div className="mb-4">
                   <h3 className="text-lg font-semibold mb-2">{ad.title}</h3>
                   <div className="flex items-center gap-2 text-sm text-muted-foreground mb-2">
@@ -522,17 +640,19 @@ export default function AdEarnings() {
                   <div className="text-center py-2">
                     <p className="text-sm text-muted-foreground">Watching in progress...</p>
                   </div>
-                ) : ad.isWatched ? (
+                ) : (ad.isWatched || isCoolingDown) && remainingCooldown > 0 ? (
                   <div className="text-center py-2">
                     <div className="px-4 py-2 rounded-lg bg-slate-100 dark:bg-slate-800 border border-border">
                       <p className="text-sm font-semibold text-muted-foreground mb-1">Already Watched</p>
-                      <p className="text-xs text-muted-foreground">Try again after 30 Minutes</p>
+                      <p className="text-xs text-muted-foreground">
+                        Try again in {formatCountdown(remainingCooldown)}
+                      </p>
                     </div>
                   </div>
                 ) : (
                   <button
                     onClick={() => handleStartWatch(ad)}
-                    disabled={startingWatch || isWatching || (dailyLimit > 0 && dailyCount >= dailyLimit) || !ad.canWatch}
+                    disabled={startingWatch || isWatching || (dailyLimit > 0 && dailyCount >= dailyLimit) || isCoolingDown}
                     className={cn(
                       "w-full px-4 py-2 rounded-lg font-semibold transition-colors flex items-center justify-center gap-2",
                       "bg-primary text-primary-foreground hover:bg-primary/90",
@@ -557,7 +677,8 @@ export default function AdEarnings() {
                   </button>
                 )}
               </div>
-            ))}
+              );
+            })}
           </div>
         )}
 
