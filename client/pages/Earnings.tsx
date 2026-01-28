@@ -347,7 +347,7 @@ export default function Earnings() {
             <div className="bg-card border border-border rounded-lg p-6">
               <h2 className="text-xl font-bold mb-4">Watch Ads & Earn</h2>
               <p className="text-muted-foreground mb-4">
-                Watch ads for 15 seconds to earn 100 coins. You must watch the full duration to earn coins.
+                Watch ads for 15 seconds to earn 50 coins. You must watch the full duration to earn coins.
               </p>
               <Link
                 to="/ads"
@@ -565,7 +565,7 @@ export default function Earnings() {
               <div className="space-y-4">
                 <div className="bg-blue-50 dark:bg-blue-900/20 border border-blue-200 dark:border-blue-800 rounded-lg p-4 mb-4">
                   <p className="text-sm text-blue-800 dark:text-blue-200">
-                    <strong>Withdraw Rules:</strong> Minimum 5000 coins = 100 BDT. Withdraw method: bKash. Requests are manually approved by admin.
+                    <strong>Withdraw Rules:</strong> Minimum 10000 coins = 100 BDT. Withdraw method: bKash. Requests are manually approved by admin.
                   </p>
                 </div>
                 <div>
@@ -709,7 +709,7 @@ export default function Earnings() {
                     className="w-full px-3 py-2 border border-border rounded-lg bg-white dark:bg-slate-800"
                   />
                   <p className="text-sm text-muted-foreground mt-1">
-                    = {((withdrawFormData.coins / 5000) * 100).toFixed(2)} BDT
+                    = {((withdrawFormData.coins / 10000) * 100).toFixed(2)} BDT
                   </p>
                 </div>
                 <div>
@@ -726,7 +726,7 @@ export default function Earnings() {
                   <button
                     onClick={() => {
                       setShowWithdrawModal(false);
-                      setWithdrawFormData({ coins: 5000, bkashNumber: "" });
+                      setWithdrawFormData({ coins: 10000, bkashNumber: "" });
                     }}
                     className="px-4 py-2 border border-border rounded-lg hover:bg-slate-100 dark:hover:bg-slate-800"
                   >

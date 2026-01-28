@@ -67,6 +67,26 @@ const normalizeIconUrl = (value: any): string | undefined => {
   return trimmed || undefined;
 };
 
+const isAdminUploadAllowed = async (req: any): Promise<boolean> => {
+  const email = String(req.user?.email || "").toLowerCase();
+  if (!email) return false;
+
+  if (req.user?.role === "admin") return true;
+
+  const adminEmail = (process.env.ADMIN_EMAIL || "admin@freemediabuzz.com").toLowerCase();
+  if (email === adminEmail) return true;
+
+  try {
+    const { getUsersDatabase } = await import("./users.js");
+    const users = await getUsersDatabase();
+    const matched = users.find((u) => String(u.email || "").toLowerCase() === email);
+    return matched?.role === "admin";
+  } catch (error) {
+    console.warn("[Upload] Failed to verify admin role:", error);
+    return false;
+  }
+};
+
 export const handleFileUpload: RequestHandler = async (req, res) => {
   try {
     const files = (req as any).files as Express.Multer.File[];
@@ -157,6 +177,7 @@ export const handleFileUpload: RequestHandler = async (req, res) => {
       if (normalized === "audio" || normalized === "audios" || normalized === "sound" || normalized === "music") return "audio";
       if (normalized === "template" || normalized === "templates") return "template";
       if (normalized === "apk" || normalized === "apks" || normalized === "android" || normalized === "app") return "apk";
+      if (normalized === "software" || normalized === "softower" || normalized === "pc" || normalized === "laptop") return "software";
       if (normalized === "aivideogenerator" || normalized === "ai-video-generator" || normalized === "ai video generator" || normalized === "aivideo" || normalized === "aivideogen") return "aivideogenerator";
       return normalized; // Return as-is if unknown
     };
@@ -164,6 +185,13 @@ export const handleFileUpload: RequestHandler = async (req, res) => {
     // Normalize category for filtering
     const normalizedCategory = formCategory ? normalizeCategory(formCategory) : null;
     const isApkUpload = normalizedCategory === "apk";
+
+    if (normalizedCategory === "software") {
+      const allowed = await isAdminUploadAllowed(req);
+      if (!allowed) {
+        return res.status(403).json({ error: "Only admins can upload software files." });
+      }
+    }
     
     // Filter out image files when uploading APK apps - they should only be stored as feature screenshots, not as separate media items
     const filesToSaveAsMedia = uploadResults.filter((file) => {
@@ -189,18 +217,24 @@ export const handleFileUpload: RequestHandler = async (req, res) => {
       // Detect APK files from filename or mimetype
       const fileName = file.originalName.toLowerCase();
       const isApkFile = fileName.endsWith(".apk") || fileName.endsWith(".xapk") || file.mimetype === "application/vnd.android.package-archive";
+      const isZipFile = fileName.endsWith(".zip") || file.mimetype === "application/zip" || file.mimetype === "application/x-zip-compressed";
       
       const category = formCategory 
         ? normalizeCategory(formCategory)
         : isApkFile 
           ? "apk" 
-          : (file.resource_type === "image" ? "image" : file.resource_type === "video" ? "video" : file.resource_type === "raw" ? "audio" : "template");
-      const type = formType || (isApkFile ? "Android APK" : file.mimetype.split("/")[1]?.toUpperCase() || "Unknown");
+          : isZipFile
+            ? "software"
+            : (file.resource_type === "image" ? "image" : file.resource_type === "video" ? "video" : file.resource_type === "raw" ? "audio" : "template");
+      const type = formType || (isApkFile ? "Android APK" : isZipFile ? "Software ZIP" : file.mimetype.split("/")[1]?.toUpperCase() || "Unknown");
       
       // Determine file size
       const fileSizeMB = (file.size / (1024 * 1024)).toFixed(2);
       const fileSize = fileSizeMB > 1024 ? `${(parseFloat(fileSizeMB) / 1024).toFixed(2)} GB` : `${fileSizeMB} MB`;
 
+      const previewUrl = category === "software"
+        ? (iconUrl || "")
+        : file.secure_url;
       const newMedia: Media = {
         id: Date.now().toString() + index,
         title: filesToSaveAsMedia.length > 1 ? `${title} (${index + 1})` : title,
@@ -209,7 +243,7 @@ export const handleFileUpload: RequestHandler = async (req, res) => {
         type: type,
         fileSize: fileSize,
         duration: undefined, // Duration will be detected client-side from video metadata
-        previewUrl: file.secure_url,
+        previewUrl: previewUrl,
         fileUrl: file.secure_url,
         tags: formTags.length > 0 ? formTags : [],
         downloads: 0,
@@ -324,6 +358,8 @@ export const handleUrlUpload: RequestHandler = async (req, res) => {
       finalResourceType = "raw"; // Audio files as raw
     } else if (urlLower.match(/\.(apk|xapk)$/)) {
       finalResourceType = "raw"; // APK files as raw
+    } else if (urlLower.match(/\.(zip)$/)) {
+      finalResourceType = "raw"; // ZIP files as raw
     }
     
     // Override with explicit resource_type if provided and not "auto"
@@ -362,12 +398,14 @@ export const handleUrlUpload: RequestHandler = async (req, res) => {
       if (normalized === "audio" || normalized === "audios" || normalized === "sound" || normalized === "music") return "audio";
       if (normalized === "template" || normalized === "templates") return "template";
       if (normalized === "apk" || normalized === "apks" || normalized === "android" || normalized === "app") return "apk";
+      if (normalized === "software" || normalized === "softower" || normalized === "pc" || normalized === "laptop") return "software";
       if (normalized === "aivideogenerator" || normalized === "ai-video-generator" || normalized === "ai video generator" || normalized === "aivideo" || normalized === "aivideogen") return "aivideogenerator";
       return normalized; // Return as-is if unknown
     };
 
     // Detect APK files from URL (urlLower already defined above)
     const isApkFile = urlLower.endsWith(".apk") || urlLower.endsWith(".xapk");
+    const isZipFile = urlLower.endsWith(".zip");
     
     // Save media metadata to database
     const mediaTitle = title || `Media from ${new Date().toLocaleDateString()}`;
@@ -375,14 +413,23 @@ export const handleUrlUpload: RequestHandler = async (req, res) => {
       ? normalizeCategory(category)
       : isApkFile 
         ? "apk" 
-        : (finalResourceType === "image" ? "image" : finalResourceType === "video" ? "video" : finalResourceType === "raw" ? "audio" : "template");
-    const mediaType = type || (isApkFile ? "Android APK" : finalResourceType.toUpperCase());
+        : isZipFile
+          ? "software"
+          : (finalResourceType === "image" ? "image" : finalResourceType === "video" ? "video" : finalResourceType === "raw" ? "audio" : "template");
+    const mediaType = type || (isApkFile ? "Android APK" : isZipFile ? "Software ZIP" : finalResourceType.toUpperCase());
     const mediaTags = tags ? (typeof tags === "string" ? tags.split(",").map((tag: string) => tag.trim()) : tags) : [];
     const mediaIsPremium = isPremium === "true" || isPremium === true;
     const iconUrl = normalizeIconUrl(req.body.iconUrl);
     const featureScreenshots = parseFeatureScreenshots(req.body.featureScreenshots);
     const showScreenshots = parseShowScreenshots(req.body.showScreenshots);
     const isCreatorUpload = !!creatorId;
+
+    if (mediaCategory === "software") {
+      const allowed = await isAdminUploadAllowed(req);
+      if (!allowed) {
+        return res.status(403).json({ error: "Only admins can upload software files." });
+      }
+    }
 
     // CRITICAL: For videos uploaded to Cloudinary, ensure the URL is playable
     // Cloudinary videos uploaded as "video" type are directly playable
@@ -406,6 +453,10 @@ export const handleUrlUpload: RequestHandler = async (req, res) => {
       // For audio and other types
       finalFileUrl = result.secure_url;
       finalPreviewUrl = previewUrl || result.secure_url;
+    }
+
+    if (mediaCategory === "software") {
+      finalPreviewUrl = previewUrl || iconUrl || "";
     }
 
     const newMedia: Media = {

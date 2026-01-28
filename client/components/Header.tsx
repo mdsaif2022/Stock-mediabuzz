@@ -126,6 +126,9 @@ export default function Header() {
             <Link to="/browse" className="text-sm font-medium text-foreground hover:text-primary transition-colors">
               {t("nav.browse")}
             </Link>
+            <Link to="/browse/software" className="text-sm font-medium text-foreground hover:text-primary transition-colors">
+              {t("nav.softower")}
+            </Link>
             <Link to="/categories" className="text-sm font-medium text-foreground hover:text-primary transition-colors">
               {t("nav.categories")}
             </Link>
@@ -285,6 +288,13 @@ export default function Header() {
               className="block px-4 py-2 text-sm font-medium hover:bg-secondary/10 transition-colors"
             >
               {t("nav.browse")}
+            </Link>
+            <Link
+              to="/browse/software"
+              onClick={() => setIsMenuOpen(false)}
+              className="block px-4 py-2 text-sm font-medium hover:bg-secondary/10 transition-colors"
+            >
+              {t("nav.softower")}
             </Link>
             <Link
               to="/categories"

@@ -5,7 +5,7 @@ import { CloudinaryServer } from "../config/cloudinary.js";
 import { isMongoDBAvailable } from "../utils/mongodb.js";
 import * as mongoService from "../services/mongodbService.js";
 
-const CATEGORY_KEYS: Media["category"][] = ["video", "image", "audio", "template", "apk", "aivideogenerator"];
+const CATEGORY_KEYS: Media["category"][] = ["video", "image", "audio", "template", "apk", "software", "aivideogenerator"];
 const BRANDING_ASSET_MARKERS = ["site-assets/", "site-logo", "site-favicon"];
 
 const isBrandingAsset = (media: Media): boolean => {
@@ -35,6 +35,7 @@ const normalizeCategoryValue = (cat?: string): Media["category"] | "" => {
   if (["audio", "audios", "sound", "music", "song", "songs"].includes(normalized)) return "audio";
   if (["template", "templates", "theme", "themes", "design"].includes(normalized)) return "template";
   if (["apk", "apks", "android", "app", "apps"].includes(normalized)) return "apk";
+  if (["software", "softower", "pc", "laptop", "desktop"].includes(normalized)) return "software";
   if (["aivideogenerator", "ai-video-generator", "ai video generator", "aivideo", "aivideogen"].includes(normalized)) return "aivideogenerator";
   return normalized as Media["category"] | "";
 };
@@ -811,7 +812,7 @@ export const getCategorySummary: RequestHandler = async (_req, res) => {
       } else if (selectedItem.previewUrl) {
         previewUrl = selectedItem.previewUrl;
       }
-    } else if (category === "template") {
+    } else if (category === "template" || category === "software") {
       // For templates, prefer iconUrl, then previewUrl
       if (selectedItem.iconUrl) {
         previewUrl = selectedItem.iconUrl;
@@ -1174,16 +1175,19 @@ export async function performCloudinarySync(): Promise<{
       } else if (resource.resource_type === "video") {
         category = "video";
       } else if (resource.resource_type === "raw") {
-        // Check if it's an APK
+        // Check if it's an APK or software zip
         const filename = resource.filename || resource.public_id || "";
         const isApk = filename.toLowerCase().endsWith(".apk") || filename.toLowerCase().endsWith(".xapk");
-        category = isApk ? "apk" : "audio";
+        const isZip = filename.toLowerCase().endsWith(".zip");
+        category = isApk ? "apk" : isZip ? "software" : "audio";
       }
       
       // Determine type
       let type = resource.format?.toUpperCase() || resource.resource_type.toUpperCase();
       if (category === "apk") {
         type = "Android APK";
+      } else if (category === "software") {
+        type = "Software ZIP";
       }
       
       // Calculate file size

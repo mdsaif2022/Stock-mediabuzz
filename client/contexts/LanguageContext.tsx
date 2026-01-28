@@ -27,6 +27,7 @@ const translations: Record<Language, Record<string, string>> = {
     "nav.logout": "Logout",
     "nav.account": "Account",
     "nav.theme": "Theme",
+    "nav.softower": "Softower",
     
     // Common
     "common.loading": "Loading...",
@@ -73,6 +74,7 @@ const translations: Record<Language, Record<string, string>> = {
     "home.category.audio": "Audio",
     "home.category.templates": "Templates",
     "home.category.apk": "APK",
+    "home.category.software": "Softower",
     "home.category.aivideogenerator": "AI Video Generator",
     "home.category.files": "files",
     "home.howItWorks": "How It Works",
@@ -205,6 +207,7 @@ const translations: Record<Language, Record<string, string>> = {
     "nav.logout": "লগআউট",
     "nav.account": "অ্যাকাউন্ট",
     "nav.theme": "থিম",
+    "nav.softower": "সফটওয়ার",
     
     // Common
     "common.loading": "লোড হচ্ছে...",
@@ -251,6 +254,7 @@ const translations: Record<Language, Record<string, string>> = {
     "home.category.audio": "অডিও",
     "home.category.templates": "টেমপ্লেট",
     "home.category.apk": "APK",
+    "home.category.software": "সফটওয়ার",
     "home.category.aivideogenerator": "AI ভিডিও জেনারেটর",
     "home.category.files": "ফাইল",
     "home.howItWorks": "এটি কীভাবে কাজ করে",

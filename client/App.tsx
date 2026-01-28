@@ -1,5 +1,5 @@
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
-import { BrowserRouter, Routes, Route } from "react-router-dom";
+import { BrowserRouter, Routes, Route, Navigate } from "react-router-dom";
 import { TooltipProvider } from "@/components/ui/tooltip";
 import { Toaster } from "@/components/ui/toaster";
 import { Toaster as Sonner } from "@/components/ui/sonner";
@@ -59,6 +59,7 @@ function AppRoutes() {
         <Route path="/browse" element={<BrowseMedia />} />
         <Route path="/browse/:category" element={<BrowseMedia />} />
         <Route path="/browse/:category/:id" element={<MediaDetail />} />
+        <Route path="/softower" element={<Navigate to="/browse/software" replace />} />
         <Route path="/categories" element={<Categories />} />
         <Route path="/get-app" element={<GetApp />} />
         <Route path="/contact" element={<Contact />} />

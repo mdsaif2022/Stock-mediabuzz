@@ -73,6 +73,9 @@ export const proxyDownload: RequestHandler = async (req, res) => {
         // Default to apk if category is apk but extension unclear
         fileExtension = 'apk';
       }
+    } else if (mediaCategory === 'software') {
+      // Software downloads should be ZIP by default
+      fileExtension = 'zip';
     } else if (mediaCategory === 'video') {
       if (urlLower.endsWith('.webm')) {
         fileExtension = 'webm';
@@ -114,6 +117,9 @@ export const proxyDownload: RequestHandler = async (req, res) => {
         }
       }
     }
+    if (!fileExtension && urlLower.endsWith('.zip')) {
+      fileExtension = 'zip';
+    }
     
     // Priority 3: If still not determined, check content type
     if (!fileExtension) {
@@ -151,6 +157,10 @@ export const proxyDownload: RequestHandler = async (req, res) => {
     if (!fileExtension) {
       if (mediaCategory === 'apk') {
         fileExtension = 'apk';
+      } else if (mediaCategory === 'software') {
+        fileExtension = 'zip';
+      } else if (mediaCategory === 'software') {
+        fileExtension = 'zip';
       } else if (mediaCategory === 'video') {
         fileExtension = 'mp4';
       } else if (mediaCategory === 'image') {

@@ -1,6 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
-import { Loader2, ArrowRight, Play, Image as ImageIcon, Music, Smartphone, FileText, Sparkles } from "lucide-react";
+import { Loader2, ArrowRight, Play, Image as ImageIcon, Music, Smartphone, FileText, Sparkles, Laptop } from "lucide-react";
 import Layout from "@/components/Layout";
 import { apiFetch } from "@/lib/api";
 
@@ -18,6 +18,7 @@ const iconMap: Record<string, React.ComponentType<{ className?: string }>> = {
   audio: Music,
   template: FileText,
   apk: Smartphone,
+  software: Laptop,
   aivideogenerator: Sparkles,
 };
 
@@ -42,6 +43,7 @@ export default function Categories() {
 
   const formatLabel = (category: string) => {
     if (category === "apk") return "APK / App";
+    if (category === "software") return "Softower";
     if (category === "aivideogenerator") return "AI Video Generator";
     return category.charAt(0).toUpperCase() + category.slice(1);
   };

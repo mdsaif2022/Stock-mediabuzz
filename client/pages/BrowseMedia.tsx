@@ -1,6 +1,6 @@
 import { useEffect, useMemo, useState, useRef } from "react";
 import { Link, useSearchParams, useParams, useNavigate, useNavigationType, useLocation } from "react-router-dom";
-import { Loader2, Search, Filter, Play, Image as ImageIcon, Music, Smartphone, FileText, ArrowRight, Sparkles } from "lucide-react";
+import { Loader2, Search, Filter, Play, Image as ImageIcon, Music, Smartphone, FileText, ArrowRight, Sparkles, Laptop } from "lucide-react";
 import Layout from "@/components/Layout";
 import { Media } from "@shared/api";
 import { apiFetch } from "@/lib/api";
@@ -16,6 +16,7 @@ const CATEGORY_OPTIONS: Array<{ id: string; label: string; icon: React.Component
   { id: "audio", label: "Audio", icon: Music },
   { id: "template", label: "Templates", icon: FileText },
   { id: "apk", label: "APK / App", icon: Smartphone },
+  { id: "software", label: "Softower", icon: Laptop },
   { id: "aivideogenerator", label: "AI Video Generator", icon: Sparkles },
 ];
 
@@ -449,6 +450,7 @@ export default function BrowseMedia() {
     if (lower === "image") return ImageIcon;
     if (lower === "audio") return Music;
     if (lower === "apk") return Smartphone;
+    if (lower === "software") return Laptop;
     return FileText;
   };
 
@@ -552,7 +554,11 @@ export default function BrowseMedia() {
               const Icon = getCategoryIcon(media.category);
               const isAudio = media.category?.toLowerCase() === "audio";
               const isVideo = media.category?.toLowerCase() === "video";
+              const isSoftware = media.category?.toLowerCase() === "software";
               const categoryPath = media.category?.toLowerCase() || "all";
+              const previewUrl = isSoftware
+                ? (media.iconUrl || (media.previewUrl && !media.previewUrl.toLowerCase().endsWith(".zip") ? media.previewUrl : ""))
+                : media.previewUrl;
 
               // Use AudioCard for audio category
               if (isAudio) {
@@ -572,9 +578,9 @@ export default function BrowseMedia() {
                   className="group bg-white dark:bg-slate-900 border border-border rounded-2xl overflow-hidden shadow-sm hover:shadow-md transition-shadow"
                 >
                   <div className="relative aspect-video overflow-hidden bg-slate-100 dark:bg-slate-800">
-                    {media.previewUrl ? (
+                    {previewUrl ? (
                       <img
-                        src={media.previewUrl}
+                        src={previewUrl}
                         alt={media.title}
                         className="w-full h-full object-cover group-hover:scale-105 transition-transform duration-300"
                         loading="lazy"
@@ -627,7 +633,13 @@ export default function BrowseMedia() {
 
           {!isLoading && mediaItems.length === 0 && (
             <div className="text-center py-12 bg-white dark:bg-slate-900 border border-border rounded-2xl">
-              <p className="text-lg font-semibold mb-2">No media found</p>
+              <p className="text-lg font-semibold mb-2">
+                {activeCategory === "software"
+                  ? "No software found"
+                  : activeCategory === "template"
+                    ? "No template found"
+                    : "No media found"}
+              </p>
               <p className="text-muted-foreground">Try adjusting your filters or search keywords.</p>
               <Link
                 to="/creator"

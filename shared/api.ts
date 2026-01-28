@@ -48,7 +48,7 @@ export interface Media {
   id: string;
   title: string;
   description: string;
-  category: "video" | "image" | "audio" | "template" | "apk" | "aivideogenerator";
+  category: "video" | "image" | "audio" | "template" | "apk" | "software" | "aivideogenerator";
   type: string;
   fileSize: string;
   duration?: string;
@@ -73,7 +73,7 @@ export interface Media {
 export interface MediaUploadRequest {
   title: string;
   description: string;
-  category: "video" | "image" | "audio" | "template" | "apk" | "aivideogenerator";
+  category: "video" | "image" | "audio" | "template" | "apk" | "software" | "aivideogenerator";
   type: string;
   tags: string[];
   isPremium: boolean;

@@ -1,5 +1,5 @@
 import Layout from "@/components/Layout";
-import { Download, Share2, Heart, Clock, Eye, Tag, AlertCircle, Play, Image as ImageIcon, Music, Zap, Check, Smartphone } from "lucide-react";
+import { Download, Share2, Heart, Clock, Eye, Tag, AlertCircle, Play, Image as ImageIcon, Music, Zap, Check, Smartphone, Laptop } from "lucide-react";
 import { Link, useParams, useNavigate, useLocation, useNavigationType } from "react-router-dom";
 import { useState, useEffect, useRef } from "react";
 import { Media, MediaResponse } from "@shared/api";
@@ -643,6 +643,8 @@ export default function MediaDetail() {
           // Default to apk if category is apk but extension unclear
           fileExtension = 'apk';
         }
+      } else if (mediaCategory === 'software') {
+        fileExtension = 'zip';
       } else if (mediaCategory === 'video') {
         if (urlLower.endsWith('.webm')) {
           fileExtension = 'webm';
@@ -692,6 +694,8 @@ export default function MediaDetail() {
       // The server's Content-Disposition header will control the filename
       const link = document.createElement("a");
       link.href = proxyUrl;
+      const baseName = (media.title || "download").trim().replace(/[^a-z0-9]+/gi, "_").replace(/^_+|_+$/g, "");
+      link.download = `${baseName || "download"}.${fileExtension}`;
       link.style.display = 'none';
       document.body.appendChild(link);
       
@@ -911,6 +915,7 @@ export default function MediaDetail() {
     if (categoryLower === "image") return ImageIcon;
     if (categoryLower === "audio") return Music;
     if (categoryLower === "apk") return Smartphone;
+    if (categoryLower === "software") return Laptop;
     return Zap;
   };
 
@@ -921,6 +926,7 @@ export default function MediaDetail() {
       audio: ["from-purple-400 to-pink-600", "from-cyan-400 to-blue-500"],
       template: ["from-green-400 to-blue-600", "from-indigo-400 to-purple-600"],
       apk: ["from-indigo-400 to-purple-500", "from-purple-500 to-pink-600"],
+      software: ["from-slate-500 to-slate-700", "from-gray-600 to-slate-800"],
     };
     const normalized = (category || "").toLowerCase();
     const palette = gradients[normalized] || ["from-slate-400 to-slate-600"];
@@ -929,8 +935,12 @@ export default function MediaDetail() {
 
   // Calculate derived values (these are safe to compute even if media is null)
   const safeCategory = media ? (typeof media.category === "string" ? media.category : "unknown") : "unknown";
-  const isVideo = safeCategory.toLowerCase() === "video";
-  const isAudio = safeCategory.toLowerCase() === "audio";
+    const isVideo = safeCategory.toLowerCase() === "video";
+    const isAudio = safeCategory.toLowerCase() === "audio";
+    const isSoftware = safeCategory.toLowerCase() === "software";
+    const displayPreviewUrl = isSoftware
+      ? (media?.iconUrl || (media?.previewUrl && !media.previewUrl.toLowerCase().endsWith(".zip") ? media.previewUrl : ""))
+      : media?.previewUrl;
 
   // Calculate duration for video/audio files
   useEffect(() => {
@@ -1107,7 +1117,7 @@ export default function MediaDetail() {
                   <div className="aspect-video rounded-lg overflow-hidden relative group shadow-lg bg-slate-900">
                     {isImage ? (
                       <img
-                        src={media.previewUrl || media.fileUrl}
+                        src={displayPreviewUrl || media.fileUrl}
                         alt={media.title}
                         className="w-full h-full object-cover"
                       />
@@ -1115,6 +1125,12 @@ export default function MediaDetail() {
                       <div className="w-full h-full bg-gradient-to-br from-indigo-400 to-purple-600 flex items-center justify-center flex-col">
                         <Smartphone className="w-16 h-16 sm:w-24 sm:h-24 text-white/80 mb-4" />
                         <p className="text-white text-lg sm:text-xl font-semibold">Android APK</p>
+                        <p className="text-white/80 text-sm sm:text-base mt-2">{media.fileSize}</p>
+                      </div>
+                    ) : isSoftware ? (
+                      <div className="w-full h-full bg-gradient-to-br from-slate-500 to-slate-700 flex items-center justify-center flex-col">
+                        <Laptop className="w-16 h-16 sm:w-24 sm:h-24 text-white/80 mb-4" />
+                        <p className="text-white text-lg sm:text-xl font-semibold">Software ZIP</p>
                         <p className="text-white/80 text-sm sm:text-base mt-2">{media.fileSize}</p>
                       </div>
                     ) : (

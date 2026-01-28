@@ -1,5 +1,5 @@
 import AdminLayout from "@/components/AdminLayout";
-import { Plus, Edit, Search, Filter, Upload, X, File, Image as ImageIcon, Video, Music, FileText, CheckCircle2, Link as LinkIcon, Check, XCircle, AlertCircle, Trash2, Loader2, ExternalLink, Sparkles } from "lucide-react";
+import { Plus, Edit, Search, Filter, Upload, X, File, Image as ImageIcon, Video, Music, FileText, CheckCircle2, Link as LinkIcon, Check, XCircle, AlertCircle, Trash2, Loader2, ExternalLink, Sparkles, Laptop } from "lucide-react";
 import { useState, useRef, useEffect } from "react";
 import { Link } from "react-router-dom";
 import { apiFetch } from "@/lib/api";
@@ -224,6 +224,7 @@ export default function AdminMedia() {
     if (lower === "video") return Video;
     if (lower === "image") return ImageIcon;
     if (lower === "audio") return Music;
+    if (lower === "software") return Laptop;
     if (lower === "aivideogenerator" || lower === "ai video generator") return Sparkles;
     return FileText;
   };
@@ -232,6 +233,7 @@ export default function AdminMedia() {
     // Check if it's a Media object with category
     if ('category' in file) {
       if (file.category === 'apk') return FileText;
+      if (file.category === 'software') return Laptop;
       if (file.category === 'image') return ImageIcon;
       if (file.category === 'video') return Video;
       if (file.category === 'audio') return Music;
@@ -244,6 +246,9 @@ export default function AdminMedia() {
       const fileName = file.name.toLowerCase();
       if (fileName.endsWith('.apk') || fileName.endsWith('.xapk')) {
         return FileText;
+      }
+      if (fileName.endsWith('.zip')) {
+        return Laptop;
       }
     }
     
@@ -582,7 +587,7 @@ export default function AdminMedia() {
                     ref={fileInputRef}
                     type="file"
                     multiple
-                      accept="image/*,video/*,audio/*,application/vnd.android.package-archive,.apk,.xapk"
+                      accept="image/*,video/*,audio/*,application/vnd.android.package-archive,application/zip,application/x-zip-compressed,.apk,.xapk,.zip"
                     onChange={(e) => handleFileSelect(e.target.files)}
                     className="hidden"
                   />
@@ -591,7 +596,7 @@ export default function AdminMedia() {
                     Drag and drop files here, or click to select
                   </p>
                   <p className="text-xs sm:text-sm text-muted-foreground">
-                    Supports: Images, Videos, Audio, APK files (.apk, .xapk) (from desktop, laptop, or mobile)
+                    Supports: Images, Videos, Audio, APK files (.apk, .xapk), Software ZIP (.zip)
                   </p>
                 </div>
 
@@ -846,6 +851,7 @@ export default function AdminMedia() {
                   <option value="Audio">Audio</option>
                   <option value="Template">Template</option>
                   <option value="APK">APK (Android Apps)</option>
+                  <option value="Software">Softower (PC/Laptop ZIP)</option>
                   <option value="AIVideoGenerator">AI Video Generator</option>
                 </select>
               </div>

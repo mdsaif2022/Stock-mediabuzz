@@ -1,5 +1,5 @@
 import { Link, useNavigate } from "react-router-dom";
-import { ArrowRight, Search, Download, Play, Music, Image as ImageIcon, Zap, Shield, Smile, Smartphone, Sparkles } from "lucide-react";
+import { ArrowRight, Search, Download, Play, Music, Image as ImageIcon, Zap, Shield, Smile, Smartphone, Sparkles, Laptop } from "lucide-react";
 import Layout from "@/components/Layout";
 import { useEffect, useState } from "react";
 import { Media } from "@shared/api";
@@ -58,6 +58,7 @@ export default function Index() {
       audio: ["from-purple-400 to-pink-600", "from-cyan-400 to-blue-500"],
       template: ["from-green-400 to-blue-600", "from-indigo-400 to-purple-600"],
       apk: ["from-indigo-400 to-purple-500", "from-purple-500 to-pink-600"],
+      software: ["from-slate-500 to-slate-700", "from-gray-600 to-slate-800"],
       aivideogenerator: ["from-cyan-400 to-blue-500", "from-purple-400 to-pink-500"],
     };
     const categoryKey = category.toLowerCase() as keyof typeof colors;
@@ -115,6 +116,14 @@ export default function Index() {
     },
     {
       id: 6,
+      name: t("home.category.software"),
+      nameKey: "software",
+      icon: Laptop,
+      count: "1.4M",
+      color: "from-slate-500 to-slate-700",
+    },
+    {
+      id: 7,
       name: t("home.category.aivideogenerator"),
       nameKey: "ai-video-generator",
       icon: Sparkles,
@@ -322,6 +331,7 @@ export default function Index() {
                   if (categoryLower === "video") return Play;
                   if (categoryLower === "image") return ImageIcon;
                   if (categoryLower === "audio") return Music;
+                  if (categoryLower === "software") return Laptop;
                   if (categoryLower === "aivideogenerator") return Sparkles;
                   return Zap;
                 };
